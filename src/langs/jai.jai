@@ -24,9 +24,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     highlight_jai_syntax(buffer, *tokenizer, false);
 }
 
-highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset_regions: bool) {
+highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     color: Code_Color;
-    if reset_regions  reset_buffer_regions(buffer);
+    if reset  reset_buffer_regions(buffer);
 
     // @Autoindent
     //array_reset_keeping_memory(*line_starts);
@@ -39,8 +39,25 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
     initial_string.data = t;
     initial_string.count = max_t - t;
 
+    token : Token;
+
+    pop_scope_stack :: (end: s32) #expand {
+        scope_record := pop(*scope_stack);
+        if scope_record.type == {
+            case .region;
+            region_type := pop(*region_stack);
+            if region_type {
+                depth :: cast(s8) 1;
+                add_buffer_region(buffer, scope_record.start, end, true, depth);
+            }
+
+            case .directive_if;
+            token.mark_else_as_directive = true;
+        }
+    }
+
     while true {
-        token := get_next_token(tokenizer);
+        token = get_next_token(tokenizer);
         if token.type == .eof break;
 
         // @Autoindent
@@ -52,7 +69,8 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
 
         // Maybe retroactively highlight a function
         is_dedent := false;
-        if token.type == .punctuation {
+        if token.type == {
+            case .punctuation;
             if token.punctuation == {
                 case .l_paren;
                     current_indent_level += 1;
@@ -64,35 +82,34 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                         memset(colors.data + before_prev_token.start, xx Code_Color.FUNCTION, before_prev_token.len);
                     }
 
-                case .l_brace; #through;
                 case .l_bracket;
                     current_indent_level += 1;
-                    if token.punctuation == .l_brace {
-                        push(*scope_stack);
-                        if has_item(scope_stack) && make_next_scope_region {
-                            set(*scope_stack, token.start);
+
+                case .l_brace;
+                    current_indent_level += 1;
+                    push(*scope_stack);
+                    if has_item(scope_stack) {
+                        if make_next_scope_region {
+                            set(*scope_stack, .{ token.start, .region} );
                             push(*region_stack, make_next_scope_region);
                         }
-                        make_next_scope_region = .disregard;
+                        else if make_next_scope_directive_if {
+                            set(*scope_stack, .{ token.start, .directive_if });
+                        }
                     }
+                    make_next_scope_region = .disregard;
+                    make_next_scope_directive_if = false;
 
-                case .r_brace; #through;
                 case .r_bracket; #through;
                 case .r_paren;
                     is_dedent = true;
-                    if token.punctuation == .r_brace {
-                        scope_start := pop(*scope_stack);
-                        if scope_start >= 0 {
-                            region_type := pop(*region_stack);
-                            if region_type {
-                                depth :: cast(s8) 1;
-                                add_buffer_region(buffer, scope_start, token.start + 1, true, depth);
-                            }
-                        }
-                    }
+
+                case .r_brace;
+                    is_dedent = true;
+                    pop_scope_stack(token.start + 1);
             }
-        }
-        else if token.type == .keyword {
+
+            case .keyword;
             if token.keyword == .kw_inline {
                 // Handle "func :: inline"
                 if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
@@ -100,16 +117,22 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                     // @TODO next token should be l_paren, and should start scope
                 }
             }
-        }
-        else if token.type == .operation {
+            else if token.keyword == .kw_else {
+                if prev_token.mark_else_as_directive
+                    token.type = .compiler_directive;
+            }
+
+            case .operation;
             if token.operation == .arrow {
                 if prev_token.type == .compiler_directive && prev_token.compiler_directive == .directive_insert
                     make_next_scope_region = .compile_time;
             }
-        }
-        else if token.type == .compiler_directive {
+
+            case .compiler_directive;
             if token.compiler_directive == .directive_modify
                 make_next_scope_region = .compile_time;
+            else if token.compiler_directive == .directive_if
+                make_next_scope_directive_if = true;
         }
 
         if is_dedent {
@@ -140,18 +163,10 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
         }
     }
 
-    while !is_empty(scope_stack) {
-        scope_start := pop(*scope_stack);
-        if scope_start >= 0 {
-            region_type := pop(*region_stack);
-            if region_type {
-                depth :: cast(s8) 1;
-                add_buffer_region(buffer, scope_start, xx (max_t - bytes.data), true, depth);
-            }
-        }
-    }
+    while !is_empty(scope_stack)
+        pop_scope_stack(xx (max_t - bytes.data));
 
-    if reset_regions {
+    if reset {
         quick_sort(regions, x => x.start_offset);
     }
     else {
@@ -737,18 +752,29 @@ Tokenizer :: struct {
     t:       *u8;  // cursor
 
     make_next_scope_region: enum { disregard; regular; asm; compile_time; };
+    make_next_scope_directive_if := false;
 
-    scope_stack : Stack(64, cast(s32) -1); // start pos, or -1 for disregard
+    scope_stack : Stack(64, Scope_Record.{-1, .unimportant}); // start pos, or -1 for disregard
     region_stack : Stack(64, type_of(make_next_scope_region).disregard);
 
     prev_token : Token;
     before_prev_token : Token;
 }
 
+Scope_Record :: struct {
+    start: s32;
+    type : enum s32 {
+        unimportant;
+        region;
+        directive_if;
+    }
+}
+
 Token :: struct {
     start, len: s32;
     type: Type;
     sublen: s32;
+    mark_else_as_directive := false;
 
     // Additional info to distinguish between keywords/punctuation
     union {

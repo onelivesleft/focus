@@ -17,7 +17,6 @@
     - [ ] Different color per region type (asm, string, comp_time)
     - [x] Draw selection over region
     - [x] Highlight format items in jai herestrings
-    - [ ] #if
 
 - [.] Decorations
     - [x] color squares for config
@@ -45,9 +44,6 @@
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
 
-- [x] FIX MULTIPLE BUFFERS ON SAME FILE!!!
-     - [x] lowercase paths when used as hash key
-- [x] Separate font for console
 - [.] output window
     - [ ] clickable
     - [x] threaded !!!FIX threading!!!
@@ -58,9 +54,6 @@
 - [ ] next/prev search result
 - [ ] case conversion
 
-- [x] Add TODO.MD to repo
-- [x] Parse herestring langs
-- [x] Set line wrap from file type
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor
@@ -77,6 +70,13 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] #if else
+- [x] FIX MULTIPLE BUFFERS ON SAME FILE!!!
+     - [x] lowercase paths when used as hash key
+- [x] Separate font for console
+- [x] Add TODO.MD to repo
+- [x] Parse herestring langs
+- [x] Set line wrap from file type
 - [x] Autohide console after successful build
 - [x] Regions
 - [x] Fix gotoline position being opposite when floating editor open
