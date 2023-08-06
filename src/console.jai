@@ -116,7 +116,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
     else {
         if build_error_exists
-            add_user_error(tprint("%\n%0%0\n%", task.title, last_build_error.path, last_build_error.coords, last_build_error.message), last_build_error.path, origin=.build);
+            add_user_error(tprint("%\n% %,%\n%", task.title, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
     }
 
     return .CONTINUE;
@@ -139,11 +139,12 @@ on_error :: (s: string) {
 make_build_error :: (s: string) -> Build_Error, ok: bool {
     result : Build_Error = ---;
     sentinel :: ": Error: ";
-    if !jai_string.contains(s, sentinel) return result, false;
+    if !contains(s, sentinel) return result, false;
 
     line := trim(s);
 
     location, message := split_into_two(line, sentinel);
+    location = slice(location, last_index(location, #char "\n") + 1);
 
     coord_start := last_index(location, #char ":");
     coords := slice(location, coord_start + 1);

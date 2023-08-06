@@ -417,6 +417,7 @@ jump_to_error :: () {
     if !build_error_exists  return;
 
     editors_open_file(last_build_error.path);
+    if editors.active <0  return;
     editor := *open_editors[editors.active];
     buffer := *open_buffers[editor.buffer_id];
 
