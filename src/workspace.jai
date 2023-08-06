@@ -261,12 +261,13 @@ remember_visible_editors_and_buffers :: () -> Visible_Editor_State {
 
 reopen_visible_editors :: (using old_state: Visible_Editor_State) {
     restore_editor_state :: (state: Visible_Editor_State.State, placement: Editor_Placement) {
-        editors_open_file(state.file_path, placement);
-        editor := *open_editors[editors.active];
-        restore_cursor_state(editor, state.cursors);
-        editor.main_cursor = state.main_cursor;
-        editor.viewport = state.viewport;
-        if !file_is_watched(state.file_path) then start_watching_file(state.file_path);
+        if editors_open_file(state.file_path, placement) {
+            editor := *open_editors[editors.active];
+            restore_cursor_state(editor, state.cursors);
+            editor.main_cursor = state.main_cursor;
+            editor.viewport = state.viewport;
+            if !file_is_watched(state.file_path) then start_watching_file(state.file_path);
+        }
     }
 
     editors = Editor_State.{};

@@ -496,13 +496,12 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     keyword: string;
 
     for token_kind: enum_names(Token.Kind) {
-        if !starts_with(token_kind, "KEYWORD") continue;
+        if !_string.starts_with(token_kind, "KEYWORD") continue;
 
         KEYWORD_COUNT :: #run "KEYWORD_".count;
 
-        token_kind_lower_without_prefix := token_kind;
-        token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
-        token_kind_lower_without_prefix = to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
+        token_kind_lower_without_prefix := _string.slice(token_kind, KEYWORD_COUNT, token_kind.count - KEYWORD_COUNT);
+        token_kind_lower_without_prefix = _string.to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
 
         if identifier == "xx" {
             keyword = "KEYWORD_AUTO_CAST";
@@ -677,7 +676,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     }
 
     number_value := builder_to_string(*builder);
-    number_value = replace(number_value, "_", ""); // Remove all _ in number
+    number_value = _string.replace(number_value, "_", ""); // Remove all _ in number
 
     // if hex {
     //

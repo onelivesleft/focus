@@ -420,6 +420,8 @@ recalculate_colors :: (buffer: *Buffer) {
         case .Glsl;         highlight_glsl_syntax(buffer);
         case .Worklog;      highlight_worklog(buffer);
     }
+
+    if build_error_exists  decorate_last_build_error(buffer);
 }
 
 save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
@@ -559,7 +561,7 @@ strip_trailing_whitespace :: (using buffer: *Buffer, buffer_id: s64) {
     b: String_Builder;
     b.allocator = temp;
     init_string_builder(*b, buffer_size = bytes.count + size_of(String_Builder.Buffer));
-    lines := split(to_string(bytes), cast(u8) #char "\n");
+    lines := jai_string.split(to_string(bytes), cast(u8) #char "\n");
     for line, i : lines {
         append(*b, trim_right(line));
         if i < lines.count - 1 then append(*b, "\n");
@@ -689,6 +691,24 @@ find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
     return buffer_id, true;
 }
 
+find_buffer :: (path: string) -> buffer_id: s64 {
+    #if OS == .WINDOWS {
+        if path.count > 248 return -1;  // Windows bad
+    }
+    lock(*open_buffers_lock);
+    defer unlock(*open_buffers_lock);
+
+    #if OS == .WINDOWS {
+        buffer_id, found_buffer := table_find(*buffers_table, temp_strings.lower(path));
+    }
+    else {
+        buffer_id, found_buffer := table_find(*buffers_table, path);
+    }
+
+    if found_buffer return buffer_id;
+    else            return -1;
+}
+
 find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     #if OS == .WINDOWS {
         if path.count > 248 return -1, false;  // Windows bad
@@ -753,7 +773,7 @@ get_buffer_name :: (buffer: Buffer) -> string {
     if buffer.has_file || buffer.file.full_path return buffer.file.name;
 
     for 0..buffer.line_starts.count-2 {
-        line := trim(get_real_line_as_string(buffer, xx it), "\t \r\n");
+        line := jai_string.trim(get_real_line_as_string(buffer, xx it), "\t \r\n");
         if line return take_first_n_chars(line, min(50, line.count));
     }
 
@@ -1147,7 +1167,7 @@ Coords :: struct {
 
 coords_from_string :: (s: string) -> Coords, ok: bool {
     result : Coords = ---;
-    line_s, col_s := strings.split_into_two(s, #char ",");
+    line_s, col_s := split_into_two(s, #char ",");
     line, ok := parse_int(*line_s);
     if !ok  return result, false;
     result.line = xx (line - 1);
@@ -1170,6 +1190,7 @@ Coords_Range :: struct {
 Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
+        BUILD_ERROR;
     }
     position: Offset_Range;
     color : Color;
@@ -1177,4 +1198,8 @@ Decoration :: struct {
 
 add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
     array_add(*decorations, .{ .COLOR_SQUARE, .{position, position}, color});
+}
+
+add_build_error_decoration :: (using buffer: *Buffer, position: s32) {
+    array_add(*decorations, .{ .BUILD_ERROR, .{position, position}, Colors.UI_ERROR});
 }

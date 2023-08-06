@@ -75,9 +75,9 @@ break_command_into_strings :: (input: string) -> [..] string { // Array in tempo
 
 Process_Callback :: #type (s: string);
 
-run_command :: (args: .. string, working_directory := "", capture_and_return_output := false, print_captured_output := false, timeout_ms := -1, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, output_callback : Process_Callback = null, error_callback : Process_Callback = null) -> (process_result: Process_Result, output_string := "", error_string := "", timeout_reached := false) {
+run_command :: (args: .. string, working_directory := "", capture_and_return_output := false, print_captured_output := false, timeout_ms := -1, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, output_callback : Process_Callback = null, error_callback : Process_Callback = null, enable_color := false) -> (process_result: Process_Result, output_string := "", error_string := "", timeout_reached := false) {
     process: Process;
-    success := create_process(*process, .. args, working_directory, capture_and_return_output, arg_quoting);
+    success := create_process(*process, .. args, working_directory, capture_and_return_output, arg_quoting, enable_color=enable_color);
     if !success    return .{type = .FAILED_TO_LAUNCH};
 
     defer deinit(*process);

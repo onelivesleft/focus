@@ -9,6 +9,13 @@ HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
 
 main :: () {
+    #if DEBUG {
+        UA :: #import "Unmapping_Allocator";
+        context.allocator = UA.get_unmapping_allocator();
+    }
+
+    console_allocator = create_heap(context.default_allocator);
+
     cpu_info = get_cpu_info();
 
     args := get_command_line_arguments();
@@ -855,7 +862,7 @@ dont_ignore_next_window_resize := false;
 
 // #import "Basic"()(MEMORY_DEBUGGER = true);
 #import "Atomics";
-#import "Basic";
+#import "Basic"()(MEMORY_DEBUGGER=DEBUG);
 #import "Math";
 #import "Sloppy_Math";
 #import "File";
@@ -863,7 +870,7 @@ dont_ignore_next_window_resize := false;
 #import "File_Watcher";
 #import "Flat_Pool";
 #import "System";
-#import "String";
+using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #import "String";
 #import "Sort";
 #import "Simple_Bucket_Array";
 #import "Unicode";
@@ -871,7 +878,7 @@ dont_ignore_next_window_resize := false;
 #import "Thread";
 #import "Compiler";
 #import "Machine_X64";
-strings :: #import "Strings";
+#import "Strings";
 temp_strings :: #import "Strings_Alloc"(temp);
 new_strings :: #import "Strings_Alloc";
 

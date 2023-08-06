@@ -26,7 +26,10 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 
 highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     color: Code_Color;
-    if reset  reset_buffer_regions(buffer);
+    if reset {
+        array_reset(*decorations);
+        reset_buffer_regions(buffer);
+    }
 
     // @Autoindent
     //array_reset_keeping_memory(*line_starts);
@@ -176,9 +179,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
         zero_color := COLOR_MAP[Token.Type.comment];
         s := initial_string;
         start_index := initial_string.data - buffer.bytes.data;
-        index, found := strings.first_index(s, #char "%");
+        index, found := first_index(s, #char "%");
         while found {
-            defer index, found = strings.first_index(s, #char "%", index);
+            defer index, found = first_index(s, #char "%", index);
 
             if index >= s.count - 1 {
                 buffer.colors[start_index + index] = xx Code_Color.FORMAT_ITEM;

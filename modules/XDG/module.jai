@@ -82,7 +82,7 @@ open :: (path: string, reveal_in_explorer := false) -> bool {
         if pos < 0 return false, "";
 
         pos += exec_key.count;
-        s := slice(data, pos, data.count - pos);
+        s := slice(data, pos);
         pos = find_index_from_left(s, "\n");
         if pos >= 0 s = slice(s, 0, pos);
 
@@ -95,7 +95,7 @@ open :: (path: string, reveal_in_explorer := false) -> bool {
 
     get_file_name :: (path: string) -> string {
         pos := find_index_from_right(path, "/");
-        return ifx pos < 0 then path else slice(path, pos + 1, path.count - (pos + 1));
+        return ifx pos < 0 then path else slice(path, pos + 1);
     }
 
     // We expect children to be reaped externally since some of the things we run here

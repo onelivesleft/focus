@@ -273,10 +273,8 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                     case .build_run_release;      build_mode = .RUN_RELEASE;
                     case; is_build_section = false;
                 }
-                if is_build_section {
-                    config := *build_configs[build_mode];
-                    config.enabled = true;
-                }
+                if is_build_section
+                    build_configs[build_mode].enabled = true;
                 return true, "";
             }
         }
@@ -327,24 +325,24 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
         case .build_release_and_run; #through;
         case .build_run_debug; #through;
         case .build_run_release;
-            if !strings.contains(line, #char ":") {
+            if !contains(line, #char ":") {
                 error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
                 return false, error_msg;
             }
-            key, value := strings.split_into_two(line, #char ":");
-            key = strings.trim(key);
-            value = strings.trim(value);
-            config := *build_configs[build_mode];
+            key, value := split_into_two(line, #char ":");
+            key = trim(key);
+            value = trim(value);
+            build_config := *build_configs[build_mode];
             if key == {
                 case "name";
-                config.name = copy_string(value, console_allocator);
+                build_config.name = copy_string(value, console_allocator);
 
                 case "dir";
                 // working_directory in task runner requires backslashes
-                config.working_directory = new_strings.replace(value, "/", "\\", allocator=console_allocator);
+                build_config.working_directory = new_strings.replace(value, "/", "\\", allocator=console_allocator);
 
                 case "command";
-                array_add(*config.commands, copy_string(value, console_allocator));
+                array_add(*build_config.commands, copy_string(value, console_allocator));
 
                 case;
                 error_msg := log_parser_error(handler, "Unknown build entry '%'.\nAvailable options are: %.", line, "name:, dir:, command:");
@@ -421,9 +419,9 @@ hex_to_color :: (src_hex: string) -> Color, success: bool {
     if hex.count != 8 return Color.{}, false;
 
     r := slice(hex, 0, 2);
-    g := slice(hex, 2, 2);
-    b := slice(hex, 4, 2);
-    a := slice(hex, 6, 2);
+    g := slice(hex, 2, 4);
+    b := slice(hex, 4, 6);
+    a := slice(hex, 6, 8);
 
     to_float :: (byte_str: string) -> float {
         hex_digit_to_int :: (char: u8) -> int {

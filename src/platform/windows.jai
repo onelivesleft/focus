@@ -220,7 +220,17 @@ platform_open_in_explorer :: (path: string, reveal := false) {
 }
 
 platform_path_equals :: (path_a: string, path_b: string) -> bool {
-    return equal_nocase(path_a, path_b);
+    return equal(path_a, path_b, ignore_case);
+}
+
+platform_normalize_path :: (path: string) -> string {
+    builder: String_Builder;
+    for split(path, u8.[#char "/", #char "\\"]) {
+        if it == "."  continue;
+        if it_index  append(*builder, "/");
+        append(*builder, it);
+    }
+    return builder_to_string(*builder, temp);
 }
 
 #scope_file
@@ -280,3 +290,4 @@ CoTaskMemFree :: (pv: *void) #foreign ole32;
 #import "Windows";
 #import "Windows_Registry";
 #import "Process";
+

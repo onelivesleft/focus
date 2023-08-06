@@ -278,7 +278,7 @@ get_sorted_session_dirs_tmp :: () -> [] Session_Dir /* temporary storage */ {
 
     // Get all session dirs
     visitor :: (info: *File_Visit_Info, sessions: *[..] Session_Dir) {
-        if !begins_with(info.short_name, "session_") return;
+        if !jai_string.begins_with(info.short_name, "session_") return;
 
         array_add(sessions, Session_Dir.{ name = copy_temporary_string(info.short_name), modtime = info.modification_time });
     }

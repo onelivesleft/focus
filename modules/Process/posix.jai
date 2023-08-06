@@ -1,5 +1,5 @@
 
-create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true) -> success: bool {
+create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true, enable_color := false) -> success: bool {
     // This procedure got insanely complex due to some very subtle ways you can shoot yourself in the foot with fork().
     // We could avoid some of that complexity around :PipeForkRace: by using a global lock to guard the time from where we create the pipes until we fork() instead of the socket and pipe back and forth.
     // But that only fixes the race if _everyone_ uses our procedure. As soon as something, somewhere on a different thread calls fork() directly,

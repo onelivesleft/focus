@@ -842,7 +842,7 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
             }
 
             print_to_builder(*b, "table_add(*table, \"%\", Keyword_Token.{type = .%, keyword = .%});\n",
-                            slice(it, curr_slice_count, it.count - curr_slice_count), curr_type, it);
+                            slice(it, curr_slice_count), curr_type, it);
         }
         return builder_to_string(*b);
     }
@@ -860,7 +860,7 @@ MAX_KEYWORD_LENGTH :: #run -> s32 {
         else if starts_with(it, "kwv") curr_slice_count = 4;
         else curr_slice_count = 3;
 
-        actual := slice(it, curr_slice_count, it.count - curr_slice_count);
+        actual := slice(it, curr_slice_count);
         if actual.count > max_len max_len = actual.count;
     }
     return xx max_len;
@@ -877,7 +877,7 @@ PREPROCESSOR_DIRECTIVES_MAP :: #run -> Table(string, Directive) {
         init_string_builder(*b);
         for enum_names(Directive) {
             print_to_builder(*b, "table_add(*table, \"%\", .%);\n",
-                            slice(it, 3, it.count - 3), it);
+                            slice(it, 3), it);
         }
         return builder_to_string(*b);
     }
@@ -888,7 +888,7 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
     max_len := 0;
 
     for enum_names(Directive) {
-        actual := slice(it, 3, it.count - 3);
+        actual := slice(it, 3);
         if actual.count > max_len max_len = actual.count;
     }
     return xx max_len;

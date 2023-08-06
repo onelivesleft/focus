@@ -133,7 +133,7 @@ replace_text :: (using input: *Text_Input, new_text: string) {
 copy :: (using input: Text_Input) {
     if !has_selection(cursor) return;
     left, right := get_selected_offsets(cursor);
-    os_clipboard_set_text(slice(to_string(text), left, right - left));
+    os_clipboard_set_text(slice(to_string(text), left, right));
 }
 
 paste :: (using input: *Text_Input) {
@@ -301,7 +301,7 @@ delete_to_end_of_line :: inline (using input: *Text_Input) {
 delete_selection :: inline (using input: *Text_Input, copy_to_clipboard := false) {
     left, right := get_selected_offsets(cursor);
     if right > left {
-        if copy_to_clipboard then os_clipboard_set_text(slice(to_string(text), left, right - left));
+        if copy_to_clipboard then os_clipboard_set_text(slice(to_string(text), left, right));
         delete_range(input, left, right);
     }
 

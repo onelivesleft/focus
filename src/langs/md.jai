@@ -63,7 +63,7 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
         }
 
         if token.type == .codeblock {
-            identifier := strings.substring(buf, token.start + 3, token.sublen);
+            identifier := substring(buf, token.start + 3, token.sublen);
             maybe_highlight_inner_language(buffer, language_from_extension(identifier), token.start + 3 + token.sublen, token.len - 6 - token.sublen, false);
             add_buffer_region(buffer, token.start, token.start + token.len, false, 1);
         }

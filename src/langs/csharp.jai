@@ -926,13 +926,13 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     for enum_values_as_enum(Keyword) {
         name := enum_value_to_name(it);
         if starts_with(name, "kwt") {
-            table_add(*table, slice(name, 4, name.count - 4), .{.type_keyword, it});
+            table_add(*table, slice(name, 4), .{.type_keyword, it});
         } else if starts_with(name, "kwm") {
-            table_add(*table, slice(name, 4, name.count - 4), .{.modifier_keyword, it});
+            table_add(*table, slice(name, 4), .{.modifier_keyword, it});
         } else if starts_with(name, "kwv") {
-            table_add(*table, slice(name, 4, name.count - 4), .{.value_keyword, it});
+            table_add(*table, slice(name, 4), .{.value_keyword, it});
         } else {
-            table_add(*table, slice(name, 3, name.count - 3), .{.keyword, it});
+            table_add(*table, slice(name, 3), .{.keyword, it});
         }
     }
 
@@ -962,7 +962,7 @@ PREPROCESSOR_DIRECTIVES_MAP :: #run -> Table(string, Directive) {
 
     for enum_values_as_enum(Directive) {
         name := enum_value_to_name(it);
-        table_add(*table, slice(name, 3, name.count - 3), it);
+        table_add(*table, slice(name, 3), it);
     }
 
     return table;

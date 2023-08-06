@@ -1,5 +1,4 @@
 #import "Basic";
-#import "String";
 #import "Reflection";
 #import "Compiler";
 #import "Hash_Table";

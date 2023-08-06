@@ -392,24 +392,25 @@ adjust_cursors_and_viewport :: (editor: *Editor, buffer: Buffer, current_editor_
     if editor.cursors.count > 1 then organise_cursors(editor);
 }
 
-editors_open_file :: (path: string, placement: Editor_Placement = .in_place) {
+editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> success: bool {
     full_path, success := get_absolute_path(path);  // returns temporary storage
     path_overwrite_separators(full_path, separator = #char "/");
     if !file_exists(full_path) || !success {
         log_error("Couldn't open file %", path);
         add_user_error(tprint("Couldn't open file %", path), dismiss_in_seconds = 60);
-        return;
+        return false;
     }
     buffer_id := find_or_create_buffer(full_path);
     if buffer_id < 0 && full_path.count > 248 {
         log_error("Couldn't open file because path is too long for Windows: %\n", full_path);
         add_user_error("Couldn't open file. Path is too long.");  // not including full path for obvious reasons
-        return;
+        return false;
     }
 
     if !file_is_watched(full_path) start_watching_file(full_path);
 
     editors_open_buffer(buffer_id, placement);
+    return true;
 }
 
 jump_to_error :: () {
@@ -1330,7 +1331,7 @@ select_word_or_create_another_cursor :: (using editor: *Editor, buffer: Buffer) 
         if main_cursor == cursors.count - 1 {
             // Main cursor is last - search with a wraparound
             end_offset  := get_selection(cursors[0]).start;
-            before_wrap := slice(buffer_str, start_offset, buffer_str.count - start_offset);
+            before_wrap := slice(buffer_str, start_offset);
             after_wrap  := slice(buffer_str, 0, end_offset);
 
             index := search_func(before_wrap, selected_text);
@@ -1339,7 +1340,7 @@ select_word_or_create_another_cursor :: (using editor: *Editor, buffer: Buffer) 
         } else {
             // Main cursor is not last - search until the next cursor only
             end_offset := get_selection(cursors[main_cursor+1]).start;
-            target_range := slice(buffer_str, start_offset, end_offset - start_offset);
+            target_range := slice(buffer_str, start_offset, end_offset);
             index := search_func(target_range, selected_text);
             if index >= 0 then found_offset = start_offset + index;
         }
@@ -2303,7 +2304,7 @@ autoindent_lines :: (editor: *Editor, buffer: *Buffer) {
     for 0..line_starts.count-2 {
         start, end := line_starts[it], line_starts[it+1];
         s := to_string(array_view(buffer.bytes, start, end-start));
-        trimmed := strings.trim_start(s);
+        trimmed := trim_start(s);
         if trimmed {
             if start > 0 {
                 for 1 .. buffer.indent_level[start - 1]
@@ -2471,7 +2472,7 @@ join_lines :: (editor: *Editor, buffer: *Buffer, in_between := " ") {
         range.range.end   += xx offset_delta;
 
         range_str := get_range_as_string(buffer, range.range);
-        individual_lines := split(trim_right(range_str, " \t"), cast(u8) #char "\n");
+        individual_lines := jai_string.split(trim_right(range_str, " \t"), cast(u8) #char "\n");
         if individual_lines.count <= 1 continue;  // nothing to join
 
         first_line         := individual_lines[0];
@@ -2651,7 +2652,7 @@ paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
             selection       := get_selection(cursor);
             count           := clipboard_slice.count - 1; // Don't paste the last newline of the slice
             if it_index == clipboard.slices.count - 1 && clipboard_slice.was_selected then count += 1; // If the last slice was selected, it didn't have newline
-            str             := slice(clipboard.text, clipboard_slice.start, count);
+            str             := substring(clipboard.text, clipboard_slice.start, count);
 
             replace_range(buffer, selection, str);
 

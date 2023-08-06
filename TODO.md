@@ -1,5 +1,6 @@
 # Mine
 
+- [ ] spinner when running build task
 - [ ] parse string literals to highlight escapes
 
 - [.] build system
@@ -9,8 +10,9 @@
     - [ ] Fix programs not working as commands (Jai programs?)
     - [ ] settings
         - [ ] save all on build
-        - [ ] hide output on success
-        - [ ] error toast timeout
+        - [.] hide output on success
+            - [ ] fix behaviour when second build is called during display duration
+        - [x] error toast timeout
 
 - [.] Regions
     - [x] Selective coloring

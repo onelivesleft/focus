@@ -79,7 +79,7 @@ rename_by_note :: (member: *Type_Info_Struct_Member) -> string {
             continue;
         }
 
-		return slice(note, 9, note.count-10);
+		return substring(note, 9, note.count-10);
 	}
 
 	return member.name;
@@ -154,7 +154,7 @@ parse_string :: (str: string) -> result: string, remainder: string, success: boo
 	}
 
 	length := inside.data - str.data - 1;
-	result := slice(str, 1, length);
+	result := substring(str, 1, length);
 	if needsUnescape {
 		success: bool;
 		result, success = unescape(result);
@@ -163,7 +163,7 @@ parse_string :: (str: string) -> result: string, remainder: string, success: boo
 		result = copy_string(result);
 	}
 
-	remainder := slice(str, length + 2, str.count - length - 2);
+	remainder := slice(str, length + 2);
 	return result, remainder, true;
 }
 
@@ -203,7 +203,7 @@ unescape :: (str: string) -> result: string, success: bool {
 					rc += 1;
 				case #char "u";
 					if i + 4 >= str.count	return "", false;
-					unicode_char, success := parse_unicode(slice(str, i + 1, 4));
+					unicode_char, success := parse_unicode(substring(str, i + 1, 4));
 					if !success		return "", false;
 					utf8_len := encode_utf8(unicode_char, *(result.data[rc]));
 					rc += utf8_len;

@@ -42,7 +42,7 @@ array_copy_tmp :: (array: [] $T) -> [] T {
 
 array_count_starts_with :: (array: []string, needle: string) -> int {
     count := 0;
-    for array  if starts_with(it, needle)  count += 1;
+    for array  if jai_string.starts_with(it, needle)  count += 1;
     return count;
 }
 
@@ -147,23 +147,23 @@ slice_chars :: (str: string, pos1: s32, pos2: s32) -> string {
     if pos2 <= pos1 || !str return "";
 
     offset1 := pos_to_offset(str, pos1);
-    remaining_str := slice(str, offset1, str.count - offset1);
+    remaining_str := slice(str, offset1);
     offset2 := offset1 + pos_to_offset(remaining_str, pos2 - pos1);
 
-    return slice(str, offset1, offset2 - offset1);
+    return slice(str, offset1, offset2);
 }
 
 // @Speed: this is even slower than the standard find_index_from_left
 // NOTE: this function assumes that the substring contains only word chars,
 // otherwise it doesn't make sense to call it
-find_index_from_left_whole_word :: (s: string, substring: string, start_index := 0) -> s64 {
-    if !substring return -1;
+find_index_from_left_whole_word :: (s: string, needle: string, start_index := 0) -> s64 {
+    if !needle return -1;
 
-    for i : start_index .. s.count - substring.count {
-        t := slice(s, i, substring.count);
-        if t == substring {
+    for i : start_index .. s.count - needle.count {
+        t := substring(s, i, needle.count);
+        if t == needle {
             // Check the char on the right
-            right := slice(s, i + substring.count, 4);
+            right := substring(s, i + needle.count, 4);
             if right {
                 next_char, success := utf8_next_character(*right);
                 if success == .CONVERSION_OK && is_word_char(next_char) continue;  // not a whole word
@@ -174,7 +174,7 @@ find_index_from_left_whole_word :: (s: string, substring: string, start_index :=
                 // We check the last 2 bytes and try to get a valid utf8 character in 2 attempts.
                 // @limitation: this will not match utf8 sequences longer than 2 bytes, but our current
                 // word chars are maximum 2 bytes long.
-                left := slice(s, j, i - j);
+                left := slice(s, j, i);
                 char, byte_len, result := character_utf8_to_utf32(left.data, left.count);
                 if result == .CONVERSION_OK && byte_len == left.count && is_word_char(char) continue i;  // not a whole word
             }
@@ -280,15 +280,9 @@ bmh_find_index_from_left :: (s: string, needle: string, start_index := 0, skip_t
     return -1;
 }
 
-find_index_from_left_nocase :: (s: string, substring: string, start_index := 0) -> s64 {
-    if !substring return -1;
-
-    for i: start_index..s.count-substring.count {
-        t := slice(s, i, substring.count);
-        if equal_nocase(t, substring) return i;
-    }
-
-    return -1;
+find_index_from_left_nocase :: (s: string, needle: string, start_index := 0) -> s64 {
+    index, found := first_index(s, needle, start_index, ignore_case);
+    return index;
 }
 
 match_whole_word :: (s: string, offset: int, count: int) -> bool {
@@ -363,7 +357,7 @@ is_all_whitespace :: (s: string) -> bool {
 count_whitespace :: (bytes: [] u8, start_offset: s64, max_offset: s64, spaces := " \t") -> count: s32 {
     subarray := array_view(bytes, start_offset, max_offset - start_offset);
     for subarray {
-        if !is_any(it, spaces) return cast(s32) it_index;
+        if !jai_string.is_any(it, spaces) return cast(s32) it_index;
     }
     return cast(s32) (max_offset - start_offset);
 }
@@ -406,16 +400,16 @@ trim_both_sides :: (s: string, chars := " \t") -> string, left: s64, right: s64 
     right := 0;
 
     for 0..s.count-1 {
-        if is_any(s[it], chars) left += 1;
+        if jai_string.is_any(s[it], chars) left += 1;
         else break;
     }
 
     for < s.count-1..left {
-        if is_any(s[it], chars) right += 1;
+        if jai_string.is_any(s[it], chars) right += 1;
         else break;
     }
 
-    return slice(s, left, s.count - left - right), left, right;
+    return slice(s, left, right), left, right;
 }
 
 get_num_cpus :: () -> s32 {

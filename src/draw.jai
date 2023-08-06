@@ -299,7 +299,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
         if !it.message  continue;
 
         // Figure out message height
-        lines := split(it.message, cast(u8) #char "\n");
+        lines := temp_strings.split(it.message, cast(u8) #char "\n");
 
         max_seen_width := 0;
         for line : lines {
@@ -754,6 +754,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             redraw_requested = true;
         }
 
+        if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing (@TODO move this back to just before text?)
+
         // Draw regions
         for region: buffer.regions {
             if region.start_offset < 0 || region.start_offset > buffer.bytes.count
@@ -792,6 +794,31 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
+            }
+        }
+
+        // Decorations  (maybe in the future we'll need two passes, one before and one after text, but for now we only draw things below text)
+        for decoration: buffer.decorations {
+            using decoration;
+            if visible_offset_range.end < position.start
+            || visible_offset_range.start > position.end
+                continue;
+
+            if #complete type == {
+                case .COLOR_SQUARE;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                square_rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
+                square_rect = shrink(square_rect, 4);
+                if color.a < 1.0 {
+                    draw_rect(square_rect, with_alpha(color, 1.0));
+                    rect.x += line_height - 6;
+                }
+                draw_rect(square_rect, color);
+
+                case .BUILD_ERROR;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_size, line_height);
+                draw_rect(line_rect, color);
             }
         }
 
@@ -929,8 +956,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw text
-        if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
-
         hidden_chars_on_the_left := cast(s32) max((viewport.left / char_x_advance) - 2, 0);
         max_chars_horizontally   := cast(s32) (rect.w / char_x_advance) + 2;
 
@@ -968,26 +993,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     left_mark := align_to_grid(expand(Rect.{ rect.x + 1, y - line_height, 0, 0 }, radius));
                     draw_rounded_rect(left_mark, Colors.CODE_DEFAULT, radius, set_shader = false);
                 }
-            }
-        }
-
-        // Decorations
-        for decoration: buffer.decorations {
-            using decoration;
-            if visible_offset_range.end < position.start
-            || visible_offset_range.start > position.end
-                continue;
-
-            if #complete type == {
-                case .COLOR_SQUARE;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
-                rect = shrink(rect, 4);
-                if color.a < 1.0 {
-                    draw_rect(rect, with_alpha(color, 1.0));
-                    rect.x += line_height - 6;
-                }
-                draw_rect(rect, color);
             }
         }
 

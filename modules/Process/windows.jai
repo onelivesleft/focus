@@ -70,7 +70,7 @@ init_named_pipe_pair :: (pipe: *Process.Pipe, is_input: bool) -> success: bool, 
     return true, client_handle;
 }
 
-create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true) -> success: bool {
+create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true, enable_color := false) -> success: bool {
     startup_info: STARTUPINFOW;
     startup_info.cb = size_of(type_of(startup_info));
 
@@ -91,6 +91,12 @@ create_process :: (process: *Process, args: .. string, working_directory := "", 
         // startup_info.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
         // startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
         // startup_info.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+
+        mode_flags : u32 = 0;
+		GetConsoleMode(child_output_write, *mode_flags);
+		mode_flags |= 0x0004;
+		SetConsoleMode(child_output_write, mode_flags);
+		GetConsoleMode(child_output_write, *mode_flags);
     }
 
     defer {
@@ -292,7 +298,7 @@ get_process_result :: (process: *Process, timeout_ms := -1) -> success: bool, Pr
         // Process handle has not yet been set.
         return true, .{type=.UNSTARTED};
     }
-    
+
     wait_duration: DWORD = INFINITE;
     if timeout_ms >= 0 {
         wait_duration = cast(DWORD) timeout_ms;

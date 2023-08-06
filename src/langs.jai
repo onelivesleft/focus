@@ -1,7 +1,7 @@
 language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
 
     matches :: (postfix: string) -> bool #expand {
-        return strings.ends_with(identifier, postfix, strings.ignore_case);
+        return ends_with(identifier, postfix, ignore_case);
     }
 
     if matches("jai")

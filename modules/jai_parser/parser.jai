@@ -1360,6 +1360,10 @@ parse_comment :: (parser: *Parser) -> *Comment {
     return comment;
 }
 
+_string :: #import "String";
+parse_int :: _string.parse_int;
+parse_float :: _string.parse_float;
+
 // player: Entity;
 // player: Entity = .{health=20};
 parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declaration {
