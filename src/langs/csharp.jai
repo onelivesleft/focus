@@ -907,17 +907,6 @@ Keyword_Token :: struct {
     keyword: Keyword;
 }
 
-enum_value_to_name :: (value: $Enum) -> string
-#modify { return (cast(*Type_Info) Enum).type == .ENUM; }
-{
-    info := type_info(Enum);
-    for info.names {
-        if info.values[it_index] == cast(s64) value return it;
-    }
-
-    assert(false, "Unknown enum value of '%'\n", value);
-    return "";
-}
 
 KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     table: Table(string, Keyword_Token);

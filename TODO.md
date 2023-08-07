@@ -1,6 +1,6 @@
 # Mine
 
-- [ ] spinner when running build task
+- [ ] case conversion
 - [ ] parse string literals to highlight escapes
 
 - [.] build system
@@ -8,10 +8,11 @@
     - [x] project config
     - [x] save all on build
     - [ ] Fix programs not working as commands (Jai programs?)
+    - [ ] Cancel build task
     - [ ] settings
         - [ ] save all on build
-        - [.] hide output on success
-            - [ ] fix behaviour when second build is called during display duration
+        - [x] hide output on success
+            - [x] fix behaviour when second build is called during display duration
         - [x] error toast timeout
 
 - [.] Regions
@@ -22,6 +23,7 @@
 
 - [.] Decorations
     - [x] color squares for config
+    - [x] error line
     - [ ] color squares for jai
 
 - [.] autoindent
@@ -54,8 +56,8 @@
     - [x] don't show in open dialogs
 
 - [ ] next/prev search result
-- [ ] case conversion
 
+- [x] spinner when running build task
 - [.] eye
     - [x] check for line length
     - [x] jump to looked-at editor, not active editor
@@ -69,6 +71,7 @@
 - [?] make copypaste work with multicursor (multi->multi, across buffers)
 - [x] setting to ignore whitespace in search
     - [x] improve by making a space be treated as .* while in this mode
+    - [ ] use ` as \b
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 

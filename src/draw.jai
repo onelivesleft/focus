@@ -107,6 +107,7 @@ draw_frame :: () {
         case .open_project_dialog;      draw_open_project_dialog();
         case .unsaved_buffers_dialog;   draw_unsaved_buffers_dialog();
         case .commands_dialog;          draw_commands_dialog();
+        case .icon_search_dialog;       draw_icon_search_dialog();
     }
 
     draw_user_messages(screen, footer_height);
@@ -776,7 +777,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             region_rect := make_rect(
                 rect.x, text_origin.y - start * line_height,
-                rect.w, line_height * (start - end)
+                rect.w - scrollbar_size, line_height * (start - end)
             );
 
             if region.depth == 0 { // "inserting" code
@@ -949,9 +950,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if cursor.pos < visible_offset_range.start || cursor.pos > visible_offset_range.end continue;
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
-                rect := make_rect(screen_pos.x, screen_pos.y, char_x_advance, line_height);
-                draw_rounded_rect(rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
-                draw_rounded_rect(shrink(rect, 1), Colors.BACKGROUND, radius = rounding_radius_small, set_shader = false);
+                cursor_rect := make_rect(screen_pos.x, screen_pos.y, char_x_advance, line_height);
+                draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                draw_rounded_rect(shrink(cursor_rect, 1), Colors.BACKGROUND, radius = rounding_radius_small, set_shader = false);
             }
         }
 
@@ -1005,14 +1006,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if cursor.pos < visible_offset_range.start || cursor.pos > visible_offset_range.end continue;
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
-                rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
-                draw_rounded_rect(rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                cursor_rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
+                draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
 
                 // Draw the letter on top for better visibility
                 if config.settings.cursor_as_block {
                     letter := get_char_at_offset_as_string(buffer, cursor.pos);
                     if letter != "\n" {
-                        Simp.draw_text(font, xx rect.x, xx (rect.y + (line_height - char_x_advance) / 2), letter);
+                        Simp.draw_text(font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
                     }
                 }
             }
@@ -1321,6 +1322,27 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             redraw_requested = true;
         }
 
+    }
+
+    if ui_id == .editor_floating {
+        if build_task_running {
+            push_scissor(rect);
+            defer pop_scissor();
+            duration :: 0.75;
+            icon := build_icons[cast(int)(fmod_cycling(frame_time, duration * build_icons.count) / duration) % build_icons.count];
+            icon_char := convert_utf32_to_utf8(xx icon);
+            icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
+
+            radius := font_icons_size * 0.85;
+            icon_x := rect.x + rect.w - 25;
+            icon_y := rect.y + rect.h - 20;
+            circle := make_rect(icon_x - radius + icon_width * 0.5, icon_y - radius + font_icons_size * 0.5 - 2.5, radius * 2, radius * 2);
+            //circle := make_rect(rect.x + rect.w - radius, rect.y + rect.h - radius, radius * 2, radius * 2);
+
+            draw_rounded_rect(circle, with_alpha(Colors.BACKGROUND_DARK, 0.75), radius = radius, set_shader = true);
+            Simp.draw_prepared_text(font_icons, xx icon_x, xx icon_y, color = Colors.UI_WARNING);
+        }
+        return;
     }
 
     // Draw footer
@@ -2214,6 +2236,166 @@ draw_open_project_dialog :: () {
             );
 
             // Draw name
+            Simp.draw_text_with_highlights(font_ui, xx pen.x, xx pen.y, entry.name, entry.highlights, color = Colors.UI_DEFAULT, highlight_color = Colors.LETTER_HIGHLIGHT);
+
+        }
+
+        if mouse.left.just_released || !mouse.left.is_down then selected_by_mouse = -1;
+
+        if scroll_y != 0 then draw_top_down_shadow(cut_top(entries_rect, char_x_advance));
+    }
+}
+
+draw_icon_search_dialog :: () {
+    using icon_search_dialog;
+    using font_data;
+
+    ui_id := Ui_Id.icon_search_dialog;
+    scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
+
+    if ui.active != .none && ui.active != ui_id && !is_child(ui.active, ui_id) {
+        // Close the dialog on clicks elsewhere
+        hide_icon_search_dialog();
+        return;
+    }
+
+    margin  := floor(12 * dpi_scale);
+    padding := floor( 4 * dpi_scale);
+    input_rect_height := font_ui_line_height + 2 * padding + 2 * margin + 2;
+    entry_height := font_ui_line_height + padding * 2;
+
+    // Figure out the dialog box size
+    box_rect: Rect = ---;
+    {
+        width  := floor(clamp(screen.w * 0.4, 400 * dpi_scale, 1500 * dpi_scale));
+        height := floor(clamp(input_rect_height + entry_height * filtered.count + padding, 0, screen.h / 1.5));
+        x := floor((screen.w - width) / 2);
+        y := floor(clamp(100 * dpi_scale, 0, (screen.h - height) / 2));
+        box_rect = make_rect(x, screen.h - height - y, width, height);
+        if !is_valid(box_rect) return;
+    }
+    draw_rounded_rect_with_shadow(box_rect, Colors.BACKGROUND_LIGHT, radius = rounding_radius_large);
+
+    maybe_set_hot_or_active(ui_id, box_rect, .NORMAL);
+
+    // Draw the filter input
+    input_rect, entries_rect := cut_top(box_rect, input_rect_height);
+    input_rect = shrink(input_rect, margin);
+    input_id := get_ui_id_from_loc(parent_id = ui_id);
+
+    draw_text_input(*icon_search_dialog.input, input_rect, ui_id = input_id, active = true, label = "Search icons...");
+
+    _pad: Rect = ---;  // allow some space at the bottom so that we don't cover up the rounded corners with the cursor
+    _pad, entries_rect = cut_bottom(entries_rect, padding);
+
+    icon_table := get_icon_lookup_table();
+
+    // Draw icon
+    {
+        // Remember how many fits per page
+        per_page = cast(s64) (entries_rect.h / entry_height);
+        if per_page <= 0 then per_page = 2;
+
+        push_scissor(entries_rect);
+        defer pop_scissor();
+
+        {
+            // Scrollbar
+            content_height := filtered.count * entry_height;
+            max_y_scroll := content_height - entries_rect.h;
+            new_scroll_target := get_new_scroll_target_from_scrollbar(entries_rect, scrollbar_size, content_height, scroll_y, scroll_anim.target, xx max_y_scroll, scrollbar_id);
+            if new_scroll_target != scroll_anim.target {
+                scroll_y = new_scroll_target;
+                scroll_anim.target = new_scroll_target;
+                redraw_requested = true;
+            }
+
+            // Scrolling update
+            if scroll_to_cursor != .no {
+                // We only want to scroll to cursor when cursor is moved by arrow keys
+                target := scroll_anim.target;
+                selected_top    := selected * entry_height - target;
+                selected_bottom := selected_top + entry_height;
+                if selected_top < 0 then target = cast(s32) (selected * entry_height);
+                if selected_bottom > entries_rect.h then target = cast(s32) ((selected + 1) * entry_height - entries_rect.h);
+                if target != scroll_anim.target {
+                    if scroll_to_cursor == .yes {
+                        start_animation(*scroll_anim, scroll_y, target);
+                    } else {
+                        scroll_y = target;
+                        scroll_anim.target = target;
+                    }
+                }
+                scroll_to_cursor = .no;
+            }
+
+            // Mouse scrolling
+            if (ui.hot_last_frame == ui_id || ui.hot_last_frame == scrollbar_id) && mouse_pointer_is_within(entries_rect) {
+                if is_hovering_over(ui_id) then set_pointer_image(.PRESSABLE);
+                if mouse.scroll_y_delta != 0 && !dont_scroll_this_frame {
+                    target := clamp(scroll_anim.target - mouse.scroll_y_delta, 0, xx max_y_scroll);
+                    if mouse.smooth_scroll {
+                        start_animation(*scroll_anim, scroll_y, target);
+                    } else {
+                        scroll_anim.target = target;
+                        scroll_y = target;
+                    }
+                }
+            }
+
+            if scroll_y != scroll_anim.target {
+                redraw_requested = true;
+                scroll_y = get_animation_value(scroll_anim);
+            }
+
+            // The above operations could've updated scrollbar position, so drawing it here
+            draw_scrollbar(entries_rect, scrollbar_size, content_height, scroll_y, scroll_anim.target, xx max_y_scroll, scrollbar_id);
+        }
+
+        visible_start := clamp(cast(s64) (scroll_y / entry_height), 0, filtered.count);
+        visible_count := cast(s64) (entries_rect.h / entry_height) + 2;
+        visible_entries := array_view(filtered, visible_start, visible_count);
+
+        entry_rect := cut_top(entries_rect, entry_height);
+
+        path_align_x := entries_rect.x + entries_rect.w / 2.5;
+
+        project_dir_id := -1;  // to draw project boundary
+
+        for entry, i : visible_entries {
+            entry_index := visible_start + i;
+            entry_rect.y = entries_rect.y + entries_rect.h - (entry_index + 1) * entry_height + scroll_y;
+
+
+            if mouse_pointer_is_within(entry_rect) && is_hovering_over(ui_id) {
+                if mouse.left.just_pressed then selected_by_mouse = entry_index;
+                if selected_by_mouse == -1 then draw_rect(entry_rect, Colors.LIST_CURSOR_LITE);
+                draw_rect(entry_rect, Colors.LIST_CURSOR_LITE);
+
+                if selected_by_mouse == entry_index && mouse.left.just_released {
+                    selected = entry_index;
+                    // @TODO open_selected_project();
+                    redraw_requested = true;
+                    break;
+                }
+            }
+            if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
+            if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
+
+            pen := make_vector2(
+                entry_rect.x + margin + padding,
+                entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+            );
+
+            // Draw entry
+            icon, found := table_find(icon_table, entry.name);
+            if found {
+                icon_char := convert_utf32_to_utf8(xx icon);
+                icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
+                //icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
+                Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+            }
+            pen.x += font_icons.em_width * 2;
             Simp.draw_text_with_highlights(font_ui, xx pen.x, xx pen.y, entry.name, entry.highlights, color = Colors.UI_DEFAULT, highlight_color = Colors.LETTER_HIGHLIGHT);
 
         }
@@ -3202,6 +3384,7 @@ Ui_Id :: enum s64 {
     editor_floating     :: -13;
     delete_file_dialog  :: -13;
     save_file_dialog    :: -14;
+    icon_search_dialog  :: -15;
 
     // The rest will be derived from loc
 }

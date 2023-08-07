@@ -314,6 +314,7 @@ main :: () {
                     case .open_project_dialog;      handled = open_project_dialog_handle_event(event);
                     case .unsaved_buffers_dialog;   handled = unsaved_buffers_dialog_handle_event(event);
                     case .commands_dialog;          handled = commands_dialog_handle_event(event);
+                    case .icon_search_dialog;       handled = icon_search_dialog_handle_event(event);
                 }
             }
 
@@ -387,6 +388,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
         case .open_global_config;                               editors_open_global_config(placement);              return true;
         case .open_project_config;                              editors_open_project_config(placement);             return true;
+
+        case .show_icon_search;                                 show_icon_search_dialog();                          return true;
 
         case .go_to_line;                                       show_go_to_line_dialog();                           return true;
         case .create_new_file;                                  editors_create_new_file(placement);                 return true;
@@ -700,6 +703,15 @@ add_delayed_action :: (action: #type (), delay: float64) {
     array_add(*delayed_actions, .{ action, xx (frame_time + delay) });
 }
 
+remove_delayed_action :: (action: #type ()) {
+    for delayed_actions {
+        if it.action == action {
+            remove it;
+            break;
+        }
+    }
+}
+
 
 WHEEL_SENSITIVITY :: 1.0;
 
@@ -791,6 +803,7 @@ active_global_widget: enum {
     commands_dialog;
     open_project_dialog;
     unsaved_buffers_dialog;
+    icon_search_dialog;
 } = .editors;
 
 Project_Dir :: struct {
@@ -829,6 +842,7 @@ dont_ignore_next_window_resize := false;
 #load "eye_tracking.jai";
 #load "console.jai";
 #load "threads.jai";
+#load "font_awesome.jai";
 
 #load "widgets/text_input.jai";
 #load "widgets/open_file_dialog.jai";
@@ -839,6 +853,7 @@ dont_ignore_next_window_resize := false;
 #load "widgets/unsaved_buffers.jai";
 #load "widgets/commands.jai";
 #load "widgets/open_project.jai";
+#load "widgets/icon_search.jai";
 
 #load "langs.jai";
 #load "langs/jai.jai";
@@ -869,6 +884,7 @@ dont_ignore_next_window_resize := false;
 #import "File_Utilities";
 #import "File_Watcher";
 #import "Flat_Pool";
+#import "Random";
 #import "System";
 using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #import "String";
 #import "Sort";

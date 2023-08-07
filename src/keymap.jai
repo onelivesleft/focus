@@ -342,6 +342,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "create_cursor_above",
     "create_cursor_below",
     "create_cursors_around",
+    "show_icon_search",
     "duplicate_lines",
     "delete_line_and_go_up",
     "delete_line",

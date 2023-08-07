@@ -10,7 +10,7 @@ boyer_moore_first_index :: (haystack: string, needle: string, start_index: int, 
     if needle != thread_data.last_used_needle || thread_data.last_search_was_reversed {
         thread_data.last_search_was_reversed = false;
         // @TODO we should reuse this string buffer until we need to replace it for a larger needle
-        if thread_data.last_used_needle  free(thread_data.last_used_needle);
+        // @TODO if thread_data.last_used_needle  free(thread_data.last_used_needle);
 
         thread_data.last_used_needle = copy_string(needle, __default_allocator);
         make_bad_character_delta(needle, compare, false);

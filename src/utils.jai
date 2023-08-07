@@ -233,7 +233,7 @@ equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) 
     i := 0;
     h := 0;
 
-    if needle && haystack && needle[0] != haystack[0]  return false;
+    if needle && haystack && needle[0] != #char "`" && needle[0] != haystack[0]  return false;
 
     while i < needle.count && h < haystack.count {
         if needle[i] == #char " " {
@@ -243,6 +243,11 @@ equal_nowhitespace :: (haystack: string, needle: string, $case_sensitive: bool) 
             n := needle[i];
             while h < haystack.count && haystack[h] != n && haystack[h] != #char " "  h += 1;
             if h >= haystack.count  return false;
+        }
+        else if needle[i] == #char "`" {
+            if is_alnum(haystack[h]) return false;
+            i += 1;
+            if i >= needle.count return true;
         }
 
         while h < haystack.count && haystack[h] == #char " "  h += 1;
@@ -440,6 +445,22 @@ Char_Type :: enum {
     other;
 }
 
+random_int :: inline (bound: $T) -> T {
+    return cast(T) random_get_within_range(xx 0, xx bound);
+}
+
+enum_value_to_name :: (value: $Enum) -> string
+#modify { return (cast(*Type_Info) Enum).type == .ENUM; }
+{
+    info := type_info(Enum);
+    for info.names {
+        if info.values[it_index] == cast(s64) value return it;
+    }
+
+    assert(false, "Unknown enum value of '%'\n", value);
+    return "";
+}
+
 
 // A simple stack that can be pushed/popped infinitely, but only records values for 0 <= index < count
 Stack :: struct(count: int, default_item: $type) {
@@ -482,3 +503,4 @@ push :: inline (stack: *$T/Stack) {
 set :: (stack: *$T/Stack, item: T.type) {
     if has_item(stack)  stack.items[stack.index] = item;
 }
+

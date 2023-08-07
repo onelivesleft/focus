@@ -55,7 +55,17 @@ toggle_console :: () {
 }
 
 build :: (mode : Build_Mode) {
+    if build_task_running  return;
+
     using config := *build_configs[mode];
+
+    if random_build_icon_set  build_icon_set = xx random_int(xx #run enum_highest_value(type_of(build_icon_set)) + 1);
+    if #complete build_icon_set == {
+        case .dumpster_fire; build_icons = dumpster_icons;
+        case .hourglass;     build_icons = hourglass_icons;
+        case .poop;          build_icons = poop_icons;
+        case .scales;        build_icons = scales_icons;
+    }
 
     clear_user_messages(.build);
 
@@ -73,6 +83,8 @@ build :: (mode : Build_Mode) {
     add_work(*console_thread_group, task, task.title);
 }
 
+build_task_running := false;
+
 console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
     using task := cast(*Console_Task) work;
 
@@ -82,6 +94,9 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         build_error_exists = false;
     }
     store_next_build_error = true;
+    build_task_running = true;
+    defer build_task_running = false;
+    remove_delayed_action(hide_console);
 
     //clear_console(task.title);
     print_to_console("\n\n");
@@ -107,7 +122,6 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             break;
         }
     }
-
 
     if successful {
         duration : float64 : 5;
@@ -243,6 +257,22 @@ validate_build_configs :: () -> error: string {
 console_allocator : Allocator;
 console_thread_group : Thread_Group;
 
+random_build_icon_set := true;
+build_icon_set : enum {
+    dumpster_fire;
+    hourglass;
+    poop;
+    scales;
+} = .dumpster_fire;
+
+dumpster_icons  :: All_Icons.[ .dumpster, .dumpster, .dumpster_fire, ];
+hourglass_icons :: All_Icons.[ .hourglass_start, .hourglass_half, .hourglass_end, .hourglass_end ];
+poop_icons      :: All_Icons.[ .poop, .poop, .poo ];
+scales_icons    :: All_Icons.[ .scale_balanced, .scale_unbalanced, .scale_balanced, .scale_unbalanced_flip ];
+
+build_icons : [] All_Icons;
+
+
 #scope_file
 
 Console_Task :: struct {
@@ -251,3 +281,4 @@ Console_Task :: struct {
 }
 
 output_buffer : s64 = -1;
+
