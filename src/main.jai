@@ -12,6 +12,9 @@ main :: () {
     #if DEBUG {
         UA :: #import "Unmapping_Allocator";
         context.allocator = UA.get_unmapping_allocator();
+
+        // OA :: #import "Overwriting_Allocator";
+        // context.allocator = OA.get_overwriting_allocator();
     }
 
     console_allocator = create_heap(context.default_allocator);
@@ -875,9 +878,8 @@ dont_ignore_next_window_resize := false;
     #assert false, "Unsupported OS";
 }
 
-// #import "Basic"()(MEMORY_DEBUGGER = true);
 #import "Atomics";
-#import "Basic"()(MEMORY_DEBUGGER=DEBUG);
+#import "Basic";
 #import "Math";
 #import "Sloppy_Math";
 #import "File";
