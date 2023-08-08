@@ -1,7 +1,9 @@
 # Mine
 
-- [ ] case conversion
+- [x] case conversion
 - [ ] parse string literals to highlight escapes
+- [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
+- [ ] delete_line on bottom row
 
 - [.] build system
     - [x] parse errors
@@ -27,6 +29,7 @@
     - [ ] color squares for jai
 
 - [.] autoindent
+    - [ ] smart autoindent on tab when newly arrived on line
     - [ ] get colors/indent union working by adding eol token to jai
     - [ ] command
     - [ ] #asm region
@@ -45,7 +48,6 @@
 - [ ] Zen
 - [.] Developer tool show scope at cursor
 - [ ] Create project from folder
-- [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [ ] search broken? possibly same problem as memory crash?
 
 - [.] output window

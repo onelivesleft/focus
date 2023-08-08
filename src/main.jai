@@ -1,3 +1,4 @@
+MEMORY_DEBUGGING :: false;
 DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 DEBUG_CHANGE_COLOR :: true;
 DEBUG_SMALL_WINDOW :: true;
@@ -9,7 +10,7 @@ HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
 
 main :: () {
-    #if DEBUG {
+    #if DEBUG && MEMORY_DEBUGGING {
         UA :: #import "Unmapping_Allocator";
         context.allocator = UA.get_unmapping_allocator();
 

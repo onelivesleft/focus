@@ -974,17 +974,6 @@ add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32,
     array_add(*regions, .{ start_offset, end_offset, inclusive, depth });
 }
 
-#scope_file
-
-add_edit_notification :: (using buffer: *Buffer, offset: s64, old_count: s64, new_count: s64) {
-    if num_editors_open < 2 return;
-    array_add(*edit_notifications, Buffer.Edit_Notification.{
-        editor_id = cast(s32) context.current_editor_id,
-        offset    = cast(s32) (offset + min(old_count, new_count)),
-        delta     = cast(s32) (new_count - old_count),
-    });
-}
-
 new_replace_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string, new_str: string) {
     edit := array_add(*buffer.edits);
     edit.type = .replace;
@@ -995,6 +984,17 @@ new_replace_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string, new
     old_bytes = copy_string(old_str);
 
     clear_redos(buffer);
+}
+
+#scope_file
+
+add_edit_notification :: (using buffer: *Buffer, offset: s64, old_count: s64, new_count: s64) {
+    if num_editors_open < 2 return;
+    array_add(*edit_notifications, Buffer.Edit_Notification.{
+        editor_id = cast(s32) context.current_editor_id,
+        offset    = cast(s32) (offset + min(old_count, new_count)),
+        delta     = cast(s32) (new_count - old_count),
+    });
 }
 
 new_insert_edit :: (buffer: *Buffer, offset: s64, str: string) {
@@ -1209,5 +1209,5 @@ add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Col
 }
 
 add_build_error_decoration :: (using buffer: *Buffer, position: s32) {
-    array_add(*decorations, .{ .BUILD_ERROR, .{position, position}, Colors.UI_ERROR});
+    array_add(*decorations, .{ .BUILD_ERROR, .{position, position}, with_alpha(Colors.UI_ERROR, 0.5)});
 }

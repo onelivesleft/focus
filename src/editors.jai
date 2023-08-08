@@ -213,6 +213,10 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .toggle_comment;                   toggle_comment                      (editor, buffer); keep_selection = true;
         case .toggle_block_comment;             toggle_block_comment                (editor, buffer); keep_selection = true;
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
+        case .change_case_to_upper;             change_case_of_selected_text        (editor, buffer, .upper); keep_selection = true;
+        case .change_case_to_lower;             change_case_of_selected_text        (editor, buffer, .lower); keep_selection = true;
+        case .change_case_to_caps;              change_case_of_selected_text        (editor, buffer, .caps);  keep_selection = true;
+        case .change_case_cycle;                change_case_of_selected_text        (editor, buffer, .cycle); keep_selection = true;
 
         case .break_line;                       break_line                          (editor, buffer);
         case .new_line_below_without_breaking;  new_line_below                      (editor, buffer);
@@ -1648,6 +1652,10 @@ new_edit_group_required_for_action :: (action: Action_Editors, cursor: Cursor) -
         case .delete_word_right_no_underscore;  return true;
         case .join_lines;                       return true;
         case .join_lines_no_spaces_in_between;  return true;
+        case .change_case_to_upper;             return true;
+        case .change_case_to_lower;             return true;
+        case .change_case_to_caps;              return true;
+        case .change_case_cycle;                return true;
     }
 
     return false;
@@ -2562,6 +2570,66 @@ delete_to_end_of_line :: (editor: *Editor, buffer: *Buffer) {
     }
     organise_cursors(editor);  // resolve overlapping selections
     copy_selection_to_clipboard(editor, buffer, cut = true, cut_lines_without_selection = false);
+}
+
+change_case_of_selected_text :: (editor: *Editor, buffer: *Buffer, mode: enum { upper; lower; caps; cycle; }) {
+    any_selection := false;
+    for editor.cursors { if has_selection(it) { any_selection = true; break; } }
+    if !any_selection {
+        cursor := leave_only_original_cursor(editor);
+        select_word(buffer, cursor);
+    }
+    for * cursor : editor.cursors {
+        if !has_selection(cursor)  continue;
+
+        selection := get_selection(cursor);
+        s := get_selected_string(cursor, buffer);
+        old_str := copy_string(s, temp);
+
+        if mode == .cycle {
+            found_lower := false;
+            found_upper := false;
+            for 0 .. s.count - 1 {
+                if is_lower(s[it])  found_lower = true;
+                else if is_upper(s[it])  found_upper = true;
+                if found_lower && found_upper  break;
+            }
+            if found_lower {
+                if found_upper  mode = .upper;
+                else            mode = .caps;
+            }
+            else {
+                mode = .lower;
+            }
+        }
+
+        if mode == {
+            case .upper;
+            to_upper(s);
+
+            case .lower;
+            to_lower(s);
+
+            case .caps;
+            caps_next := true;
+            for 0 .. s.count - 1 {
+                if is_alpha(s[it]) {
+                    if caps_next {
+                        caps_next = false;
+                        to_upper(*s[it]);
+                    }
+                    else {
+                        to_lower(*s[it]);
+                    }
+                }
+                else {
+                    caps_next = true;
+                }
+            }
+        }
+
+        new_replace_edit(buffer, selection.start, selection.end, old_str, s);
+    }
 }
 
 copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false, cut_lines_without_selection := true) {

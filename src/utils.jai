@@ -504,3 +504,12 @@ set :: (stack: *$T/Stack, item: T.type) {
     if has_item(stack)  stack.items[stack.index] = item;
 }
 
+to_upper :: (char: *u8) {
+    if is_lower(char.*)
+        char.* -= 32;
+}
+
+to_lower :: (char: *u8) {
+    if is_upper(char.*)
+        char.* += 32;
+}
