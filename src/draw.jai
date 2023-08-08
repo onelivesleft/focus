@@ -19,7 +19,6 @@ draw_frame :: () {
 
     maybe_set_hot_or_active(.none, screen, .NORMAL);
 
-
     // Check whether we need to deactivate elements before drawing
     if !mouse.left.is_down || mouse.left.just_released then ui.active = .none;
 

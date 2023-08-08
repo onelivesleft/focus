@@ -4,7 +4,7 @@
 - [ ] parse string literals to highlight escapes
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [x] delete_line on bottom row
-- [ ] Fix goto def
+- [x] Fix goto def
 
 - [.] build system
     - [x] parse errors

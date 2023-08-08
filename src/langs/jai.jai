@@ -271,7 +271,7 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
     }
     */
 
-    if selected_text && selected_text != to_string(finder.input.text) && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
+    if selected_text && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
         definition := tprint("%:", selected_text);
         finder_open(definition);
     }

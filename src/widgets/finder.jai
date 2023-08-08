@@ -392,7 +392,7 @@ Finder :: struct {
 finder_open :: (needle: string) {
     replace_text(*finder.input, needle);
     reset_results();
-    start_new_search();
+    start_new_search(true);
 
     finder_open();
 }
