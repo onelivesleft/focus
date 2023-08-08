@@ -2544,6 +2544,10 @@ delete_line :: (editor: *Editor, buffer: *Buffer, go_up := false) {
                 cursor.pos -= xx str.count;
                 cursor.sel -= xx str.count;
             }
+            if !go_up && cursor.pos == buffer.bytes.count {
+                cursor.pos = line.prev_line_start;
+                cursor.sel = line.prev_line_start;
+            }
         }
 
         offset_delta += str.count;
