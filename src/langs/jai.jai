@@ -27,7 +27,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     color: Code_Color;
     if reset {
-        array_reset(*decorations);
+        reset_buffer_decorations(buffer);
         reset_buffer_regions(buffer);
     }
 

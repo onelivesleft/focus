@@ -781,10 +781,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             if region.depth == 0 { // "inserting" code
                 draw_rect(region_rect, Colors.BACKGROUND);
-                region_rect.w = 10;
-                draw_rect(region_rect, Colors.BACKGROUND_REGION);
-                region_rect.x = 10;
                 region_rect.w = char_x_advance;
+                draw_rect(region_rect, Colors.BACKGROUND_REGION);
+                region_rect.x += char_x_advance;
                 fade_char_count :: 8;
                 for 1 .. fade_char_count {
                     color := lerp(Colors.BACKGROUND_REGION, Colors.BACKGROUND, 1.0 / fade_char_count * it);
@@ -811,7 +810,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 square_rect = shrink(square_rect, 4);
                 if color.a < 1.0 {
                     draw_rect(square_rect, with_alpha(color, 1.0));
-                    rect.x += line_height - 6;
+                    square_rect.x += line_height - 6;
                 }
                 draw_rect(square_rect, color);
 
@@ -819,6 +818,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_size, line_height);
                 draw_rect(line_rect, color);
+
+                case .HORIZONTAL_RULE;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
+                draw_rect(hr_rect, color);
             }
         }
 

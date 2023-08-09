@@ -1199,9 +1199,14 @@ Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
         BUILD_ERROR;
+        HORIZONTAL_RULE;
     }
     position: Offset_Range;
     color : Color;
+}
+
+reset_buffer_decorations :: (using buffer: *Buffer) {
+    array_reset(*decorations);
 }
 
 add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
@@ -1210,4 +1215,8 @@ add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Col
 
 add_build_error_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{ .BUILD_ERROR, .{position, position}, with_alpha(Colors.UI_ERROR, 0.5)});
+}
+
+add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
+    array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
 }

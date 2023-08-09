@@ -82,6 +82,7 @@ Code_Color :: enum u8 {
     ERROR;
     OPERATION;
     FORMAT_ITEM;
+    HIGHLIGHT;
 
     NUM_COLORS;
 }
@@ -107,6 +108,7 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
     result[KEYWORD]         = Colors.CODE_KEYWORD;
     result[OPERATION]       = Colors.CODE_OPERATION;
     result[FORMAT_ITEM]     = Colors.CODE_FORMAT_ITEM;
+    result[HIGHLIGHT]       = Colors.CODE_HIGHLIGHT;
 
     return result;
 }

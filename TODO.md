@@ -1,11 +1,7 @@
 # Mine
 
-- [x] case conversion
 - [ ] parse string literals to highlight escapes
 - [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
-- [x] delete_line on bottom row
-- [x] Fix goto def
-
 - [.] build system
     - [x] parse errors
     - [x] project config
@@ -37,9 +33,9 @@
 
 - [.] MD
     - [x] Basically working
-    - [ ] <hr>
+    - [x] <hr>
     - [x] hyperlinks
-    - [ ] emphasis
+    - [.] emphasis @TODO when focus supports italics/bold/underscore
     - [ ] escapes
     - [ ] urls/emails
 
@@ -78,6 +74,10 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+
+- [x] delete_line on bottom row
+- [x] case conversion
+- [x] Fix goto def
 - [x] #if else
 - [x] FIX MULTIPLE BUFFERS ON SAME FILE!!!
      - [x] lowercase paths when used as hash key

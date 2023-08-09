@@ -104,24 +104,28 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     print_to_console(" ----------------------------------------\n\n");
 
     successful := true;
+    output: string;
+    error: string;
 
     for command: task.build_config.commands {
-        print("\n********************\n%\n%\n********************\n", command, task.build_config.working_directory);
-        result, output, error, timed_out := run_command(
+        if output  free(output);
+        if error  free(error);
+
+        result, output=, error=, timed_out := run_command(
             .. break_command_into_strings(command),
             working_directory = task.build_config.working_directory,
-            capture_and_return_output=true, output_callback = print_to_console, error_callback = on_error);
-        defer { free(output); free(error); }
+            capture_and_return_output = true,
+            output_callback = print_to_console,
+            error_callback = on_error
+        );
 
         if result.exit_code {
-            print("Result: %\n", result);
-            print("Output: %\n", output);
-            print("Error: %\n", error);
-            print("Timed Out: %\n", timed_out);
             successful = false;
             break;
         }
     }
+
+    defer { free(error); free(output); }
 
     if successful {
         duration : float64 : 5;
@@ -129,8 +133,15 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         if HIDE_CONSOLE_ON_SUCCESS  add_delayed_action(hide_console, duration);
     }
     else {
-        if build_error_exists
+        if build_error_exists {
             add_user_error(tprint("%\n% %,%\n%", task.title, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
+        }
+        else if contains(output, "LNK1104") {
+            _, message := split_into_two(output, "LNK1104: ");
+            _, path := split_into_two(message, "'");
+            path, _ = split_into_two(path, "'");
+            add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
+        }
     }
 
     return .CONTINUE;

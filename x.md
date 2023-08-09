@@ -1,6 +1,8 @@
 # Focus
 
-A simple editor whose goal is to get out of your way and let you do work.
+*a *aaa ***A **simple** ***editor*** *whose* goal is to get out of your way and let you do work*.*
+
+---
 
 ## Blockquotes!
 
@@ -11,7 +13,7 @@ A simple editor whose goal is to get out of your way and let you do work.
 >>> Deeper still
 > Back out
 
-```
+```jai
 main :: () {
     // My jai program
     foo := 100;
@@ -21,7 +23,7 @@ main :: () {
         # title of my book
 
         It was a dark and stormy night... in which I wrote some jai
-        ```
+        ```jai
         foo :: () {
             print("Foo!\n");
         }
@@ -31,6 +33,8 @@ main :: () {
 }
 ```
 
+---
+
 ## More stuff
 
 >
@@ -39,11 +43,12 @@ main :: () {
 
 ![focus](https://user-images.githubusercontent.com/119373822/236081314-45d53952-7a6c-4d6b-8773-e5b49d1dbdab.gif)
 
+---
 
 ## Quick start
 
 1. [Download the executable](https://github.com/focus-editor/focus/releases) and put it somewhere where it will live.
-
+asa
 2. Launch the executable. Once launched, it will generate its configuration files.
     * On **Windows**, it will create a `global.focus-config` file and a `projects` folder next to itself.
     * On **Mac**, these files will be found in `/Users/YOURNAME/Library/Application Support/dev.focus-editor/`.
