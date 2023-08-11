@@ -1,32 +1,60 @@
 # ROUGH ROADMAP
 
+- A simple build system to launch commands from the editor
+- Config highlighting improvements
+- Config migration system to support changes to the config file across versions
+- Open file dialog improvements
+- Workspace search improvements (the ability to filter additionally by filename)
+- Language highlighting config files
+- Add the ability to assign syntax to a buffer
 - Config files for directories (i.e. adding a .focus-config file to your directory and have Focus load it)
-- Global search improvements (the ability to filter additionally by filename)
-- Backup unsaved changes
-- Highlight other languages
 - Improve smooth scrolling for fancy mice
 - Identifier search
 - A little bit of semantic highlighting for Jai
 - Settings per file type
 - Custom title bar on Windows
+- Backup unsaved changes
 - Proper highlighting for C++
 - ...
 
 
 # KNOWN BUGS
 
-- [Current file watcher limitation] If you open a file in a large folder, the file watcher might scan the whole folder in order to watch for the changes to the file.
+- See https://github.com/focus-editor/focus/issues
 
 
 # Main Git Branch
 
 + New features:
+    + Windows 11+: New config option: `colored_titlebar`. Sets the color of the title bar to the background color (thanks @amasondev)
+
++ Bug fixes:
+    ...
+
++ Other changes:
+    ...
+
+
+
+# RELEASES ==================================================================
+
+
+# Version 0.2.0
+
++ BREAKING CHANGE: the default config is no longer used as a fallback for missing keymaps, so anything you haven't listed explicitly in the global config won't be included. It's best to start with a fresh config if possible to ensure you have all the most recent options. In the future the plan is to have a config migration system which will add new options or rename/remove existing ones
+
++ New features:
     + Line numbers can now be enabled (default shortcut is Alt-Shift-L). To enable permanently, use `show_line_numbers: true` in the config
-    + Line wrap is now supported (use the toggle_line_wrap command - default shortcut on Windows is Alt-Z). If you want line wrap to be on by default, use `line_wrap_is_on_by_default: true`
+    + Line wrap is now supported (use the toggle_line_wrap command - the default shortcut on Windows is Alt-Z). If you want line wrap to be on by default, use `line_wrap_is_on_by_default: true`. There is currently no way to enable line wrap for certain file types only, but that's coming later.
     + New command: toggle_block_comment (for the supported languages)
+    + New command: autoindent_region (bound to Ctrl-Tab by default on Windows/Linux, Option-Tab on Mac). Works with the C-like languages we have syntax highlighting for. Should work similarly to Emacs.
+    + New command: delete_current_file. Not bound to anything by default, but can be used from the commands dialog (thanks @SentientCoffee)
+    + New command: save_as. Also not bound to any key combination by default (thanks @SentientCoffee)
     + New commands: move_to_previous_buffer, move_to_next_buffer. They work like normal editor history, but skip the cursor movements and jump right to the next buffer or layout change
+    + New config option: cursor_blink_time_in_seconds (5 by default). Set to 0 if you don't want the cursors to blink at all.
     + It is now possible to paste whatever was copied with N cursors into another file as long as the number of cursors there is also N (thanks @hfr4)
     + Syntax highlighting for GLSL (thanks @SentientCoffee)
+    + Syntax highlighting for Golang (thanks @OlyaIvanovs)
     + Linux: The "Open Projects Directory" command as well as shift-clicking files/directories in the "open file" dialogs (Ctrl+O, Ctrl+Shift+O, Ctrl+P) should now work.
       By default the editor will try to auto-detect the preferred file manager using the XDG utilities.
       In case the auto-detection fails you can manually set the commands to run via the "explorer_command" and "explorer_reveal_command" options in the "[[linux]]" section of the config file.
@@ -38,28 +66,31 @@
         explorer_reveal_command:  nautilus --select "%s"  # this command is used when highlighting a specific file in a directory
 
 + Bug fixes:
+    + Focus will fall back to a slower hash function on CPUs which don't support AES instructions instead of crashing
+    + When opening a file outside of workspace the editor should no longer scan its parent folder and its subfolders (but tell us if it still does)
     + Mac: Focus no longer collects window events when another window is active. This eliminates several bugs (Cmd+Tab spawning cursors, I-Beam cursor when using other apps) at the cost of no longer being able to vertically scroll unless Focus is active. For now.
     + Fixed a bug with the Navigate to file dialog being empty
     + Fixed a bug with global search not finding everything when case sensitive or whole word toggles are just turned on
     + Fixed several issues in the editor history
     + Linux: fixed a bug related to mouse cursor handling which caused slowdowns and cursor flickering on X11 (thanks @valignatev)
+    + Linux: there's now a VERY basic save file dialog for new files (thanks @rexim)
 
 + Other changes:
-    + BREAKING: default config is no longer used as a fallback for missing keymaps, so anything you haven't listed explicitly in the global config won't be included
     + `copy` will now copy whole lines to clipboard if the config option `copy_whole_line_without_selection` is enabled in config
     + Delete-to-start/end-of-line commands now copy whatever was deleted
     + Added #ifdef/#ifndef highlighting to C/C++
     + Added #compile_time/#no_debug/#no_aoc highlighting to Jai
     + Multi-cursor line cuts will no longer include extra newlines
+    + When adding cursors above/below it's now possible to easily remove the last added cursor by executing the opposite command (thanks @WWilliams741)
     + Added a notification about match case or match whole word toggles active when no search results found
     + When editor width is limited in settings, the non-editor part of the window will be colored using the `background_dark` color
     + Linux: The editor shoudn't use any CPU while idle.
     + Linux: timers are now supported. As a result some animations (such as the text cursor blinking) should now actually work as expected.
+    + Linux: More robust and resilent mechanism to get user's locale and input method for X11 backend. Fix locale-related segfaults
+    + Linux: Improve smooth scrolling performance.
     + Global search will now try to preserve search results and cursor position when searching using the same query
     + Windows: The editor window should open on the primary monitor by default
 
-
-# RELEASES ==================================================================
 
 # Version 0.1.10
 

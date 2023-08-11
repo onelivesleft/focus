@@ -27,6 +27,9 @@ main :: () {
     debug_change_color &= is_standalone_debug_build;
     debug_small_window &= is_standalone_debug_build;
 
+    // Meow hash relies on AES instruction support, so fall back to a standard hash function
+    if !check_feature(cpu_info.feature_leaves, x86_Feature_Flag.AES) then calculate_hash = fallback_hash;
+
     platform_setup();
 
     // Remember important directories
@@ -112,6 +115,8 @@ main :: () {
     // Init logger after we know the session dir and the config
     init_logger();
     defer deinit_logger();  // closes log file handles
+
+    if !check_feature(cpu_info.feature_leaves, x86_Feature_Flag.AES) then log_error("CPU doesn't support AES instructions. A slower hash function will be used.");
 
     // Requires the session to be created and the configs to be loaded
     start_initial_workspace_scan();
@@ -639,6 +644,8 @@ update_window_size :: (w: s64, h: s64) {
     }
 }
 
+calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;
+
 // Important directories
 config_dir:   string;
 data_dir:     string;
@@ -863,6 +870,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/jai.jai";
 #load "langs/c.jai";
 #load "langs/csharp.jai";
+#load "langs/golang.jai";
 #load "langs/focus_config.jai";
 #load "langs/md.jai";
 #load "langs/glsl.jai";

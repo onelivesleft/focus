@@ -20,7 +20,7 @@ refresh_open_buffers :: () {
         session_notify_modified_buffer(editor.buffer_id);
 
         // Maybe mark buffer as not modified if we've made it match the contents on disk
-        buffer.modified = buffer.meow_hash != calculate_meow_hash(buffer.bytes);
+        buffer.modified = buffer.meow_hash != calculate_hash(buffer.bytes);
         if !buffer.modified then buffer.modified_on_disk = false;  // we've verified that the contents matches that on disk
 
         finder.need_to_refresh_results = true;
@@ -423,6 +423,7 @@ recalculate_colors :: (buffer: *Buffer) {
         case .Jai;          highlight_jai_syntax(buffer);
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
+        case .Golang;       highlight_golang_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
         case .Markdown;     highlight_md_syntax(buffer);
         case .Glsl;         highlight_glsl_syntax(buffer);
@@ -430,6 +431,118 @@ recalculate_colors :: (buffer: *Buffer) {
     }
 
     if build_error_exists  decorate_last_build_error(buffer);
+}
+
+tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */ {
+    // NOTE: all tokenizers here must return temporary storage!
+    if buffer.lang == {
+        case .Jai;          return tokenize_jai_for_indentation(buffer);
+        case .C;            return tokenize_c_for_indentation(buffer);
+        case .CSharp;       return tokenize_csharp_for_indentation(buffer);
+        case .Glsl;         return tokenize_glsl_for_indentation(buffer);
+    }
+
+    return .[];
+}
+
+get_base_indent_from_line :: (buffer: Buffer, line_num: s32, tokens: [] Indentation_Token) -> level: int, next_level: int {
+    line := get_real_line_as_string(buffer, line_num);
+    if !line return 0, 0;
+
+    col := 0;
+
+    for byte, i : to_bytes(line) {
+        if byte == #char " " {
+            col += 1;
+        } else if byte == #char "\t" {
+            col += TAB_SIZE - col % TAB_SIZE;  // tabs are evil
+        } else {
+            advance(*line, i);
+            break;
+        }
+    }
+
+    base_level := (col + TAB_SIZE - 1) / TAB_SIZE;
+
+    // Get the next level
+    start := get_real_line_start_offset(buffer, line_num);
+    end   := get_real_line_end_offset(buffer, line_num);
+    _, next_delta := get_indentation_changes_from_tokens_within_range(tokens, start, end);
+
+    return base_level, max(0, base_level + next_delta);
+}
+
+get_indentation_changes_from_tokens_within_range :: (tokens: [] Indentation_Token, start: s32, end: s32) -> current_delta: int, next_delta: int {
+    current_delta := 0;
+    next_delta    := 0;
+
+    NUM_KINDS :: #run enum_highest_value(type_of(Indentation_Token.kind)) + 1;
+    unclosed: [NUM_KINDS] int;
+    seen_unopened := false;
+
+    first_token, first_token_id := find_next_indentation_token(tokens, start, end);
+    if first_token_id >= 0 && first_token.type == .close {
+        // The first token in this range is a closing token, so we should unindent
+        current_delta = -1;
+    }
+    if first_token_id < 0 then first_token_id = 0;
+
+    for token : array_view(tokens, first_token_id, tokens.count - first_token_id) {
+        if token.start < start continue;
+        if token.start > end break;
+        if token.type != .open && token.type != .close continue;
+
+        if token.type == .open {
+            unclosed[token.kind] += 1;
+        } else {
+            unclosed[token.kind] -= 1;
+            if unclosed[token.kind] < 0 then { unclosed[token.kind] = 0; seen_unopened = true; }
+        }
+    }
+
+    // If we end up with an unclosed token, we should indent
+    for kind : unclosed { if kind > 0 { next_delta = max(next_delta + 1, 1); break; } }
+
+    // If we end up with an opened token, we should indent next line, unless already indented current line
+    if seen_unopened && current_delta == 0 && next_delta == 0 then next_delta = -1;
+
+    return current_delta, next_delta;
+}
+
+find_closest_indentation_token :: (tokens: [] Indentation_Token, offset: s32) -> token: Indentation_Token, token_id: s64 {
+    assert(tokens.count > 0, "No indentation tokens found. This is an error.");
+
+    left  := 0;
+    right := tokens.count;
+
+    while (right - left) > 1 {
+        middle := left + (right - left) / 2;
+        if offset > tokens[middle].start {
+            left = middle;
+        } else {
+            right = middle;
+        }
+    }
+
+    return tokens[left], left;
+}
+
+find_next_indentation_token :: (tokens: [] Indentation_Token, offset: s32, limit: s32) -> token: Indentation_Token, token_id: s64 {
+    // Finds the token which starts immediately after or on the offset
+    _, start_token_id := find_closest_indentation_token(tokens, offset);
+
+    for token, i : array_view(tokens, start_token_id, tokens.count - start_token_id) {
+        if token.start < offset continue;
+        if token.start > limit break;
+        return token, start_token_id + i;
+    }
+
+    return .{}, -1;
+}
+
+offset_is_within_multiline_token :: (tokens: [] Indentation_Token, offset: s32) -> bool {
+    token := find_closest_indentation_token(tokens, offset);
+    return token.type == .maybe_multiline && (token.start + token.len) >= offset;
 }
 
 save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
@@ -524,7 +637,7 @@ save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
         modified_on_disk = false;
         deleted = false;
 
-        meow_hash = calculate_meow_hash(bytes);
+        meow_hash = calculate_hash(bytes);
 
         error_when_saving = false;
         crlf = false;
@@ -765,7 +878,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
 
     buffer.crlf = buffer.bytes.count != old_size;
 
-    buffer.meow_hash = calculate_meow_hash(buffer.bytes);
+    buffer.meow_hash = calculate_hash(buffer.bytes);
 
     set_lang_from_path(buffer, path);
 
@@ -835,7 +948,7 @@ refresh_buffer_from_disk :: (path: string) {
     unlock(*buffer.content_lock);
     file_contents_str = to_string(file_contents);
 
-    file_hash := calculate_meow_hash(file_contents);
+    file_hash := calculate_hash(file_contents);
     if buffer.meow_hash == file_hash {
         #if DEBUG_FILE_REFRESH log("Meow hash hasn't changed for %", path);
         return;  // file hasn't actually changed
@@ -1112,6 +1225,7 @@ Buffer :: struct {
         Jai;
         C;
         CSharp;
+        Golang;
         Focus_Config;
         Markdown;
         Glsl;
@@ -1195,6 +1309,20 @@ Coords_Range :: struct {
     start, end: Coords;
 }
 
+Indentation_Token :: struct {
+    start: s32;
+    len:   s32;
+
+    type: enum u16 {
+        // non-indentation
+        unimportant;
+        maybe_multiline;
+        eof;
+
+        // indentation
+        open;
+        close;
+    };
 Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
@@ -1219,4 +1347,12 @@ add_build_error_decoration :: (using buffer: *Buffer, position: s32) {
 
 add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
+}
+
+    kind: enum u16 {
+        // only makes sense for indentation types
+        paren;
+        bracket;
+        brace;
+    };
 }

@@ -353,6 +353,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "indent_or_go_to_next_tabstop",
     "unindent",
     "indent",
+    "autoindent_region",
     "autoindent",
     "save",
     "save_as",

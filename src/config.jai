@@ -1,3 +1,5 @@
+CURRENT_CONFIG_VERSION :: 2;
+
 load_global_config :: (fallback_to_default_on_failure := false) -> success: bool, changed: bool, there_were_warnings: bool {
     global_config_path = sprint("%/global.focus-config", config_dir);
 
@@ -162,7 +164,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
     }
 
     // Maybe update hash if changed
-    new_hash := calculate_meow_hash(file_data);
+    new_hash := calculate_hash(to_bytes(file_data));
     changed := new_hash != <<hash;
     if changed then <<hash = new_hash;
 
@@ -180,6 +182,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
         Colors.BACKGROUND_BRIGHT =    Color.{ r = 0.131, g = 0.25,  b = 0.202 };
     }
     CODE_COLOR_MAP = refresh_code_color_map();
+    platform_set_border_color();
 
     // Make sure the values are within the acceptable range
     clamp_warnings := false;
@@ -336,6 +339,7 @@ Settings :: struct {
     open_on_the_biggest_monitor         := true;
     open_on_monitor_one                 := false;
     cursor_as_block                     := true;
+    cursor_blink_time_in_seconds        := 5;
     highlight_selection_occurrences     := true;
     disable_that_annoying_paste_effect  := false;
     disable_file_open_close_animations  := false;
@@ -355,6 +359,8 @@ Settings :: struct {
     ignore_whitespace_in_search_bar     := false;
     line_wrap_is_on_by_default          := false;
     show_line_numbers                   := false;
+    dark_titlebar                       := false;  // TODO: fix the issues with window resize first
+    colored_titlebar                    := true;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

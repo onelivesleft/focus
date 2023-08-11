@@ -87,8 +87,7 @@ get_file_icon :: (name: string, extension: string) -> File_Icon {
         case "otf";
             icon = .font;
         case "js";
-            icon = .js;  // the javascript people probably won't ever use this editor anyway :)
-                         // if they do we'll stop making fun of js
+            icon = .js;
     }
 
     // Special cases
@@ -175,7 +174,7 @@ should_ignore_dir :: (path: string) -> bool {
 
 dir_is_within_project :: (dir_path: string) -> bool, Project_Dir {
     for project_dirs {
-        if equal_nocase(dir_path, it.path) || contains_nocase(dir_path, tprint("%/", it.path)) return true, it;
+        if platform_path_equals(dir_path, it.path) || platform_path_contains(dir_path, tprint("%/", it.path)) return true, it;
     }
     return false, Project_Dir.{};
 }
@@ -210,7 +209,7 @@ File_Icon :: enum u16 {
     gear    :: 0xf013;
     folder  :: 0xe185;
     drive   :: 0xf0a0;
-    js      :: 0xf2fe;
+    js      :: 0xf15c;
     shell   :: 0xf2d0;
 
     dots    :: 0xf141;
