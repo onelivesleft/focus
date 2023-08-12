@@ -322,8 +322,8 @@ tokenize_jai_for_indentation :: (using buffer: Buffer) -> [] Indentation_Token /
     while true {
         src := get_next_token(*tokenizer);
 
-        tokenizer.last_tokens[0] = tokenizer.last_tokens[1];  // if we don't remember last 2 tokens, here strings won't be detected properly
-        tokenizer.last_tokens[1] = src;
+        tokenizer.before_prev_token = tokenizer.prev_token;  // if we don't remember last 2 tokens, here strings won't be detected properly
+        tokenizer.prev_token = src;
 
         token: Indentation_Token = ---;
         token.start = src.start;

@@ -1323,6 +1323,17 @@ Indentation_Token :: struct {
         open;
         close;
     };
+
+    kind: enum u16 {
+        // only makes sense for indentation types
+        paren;
+        bracket;
+        brace;
+    };
+}
+
+
+
 Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
@@ -1349,10 +1360,3 @@ add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
 }
 
-    kind: enum u16 {
-        // only makes sense for indentation types
-        paren;
-        bracket;
-        brace;
-    };
-}

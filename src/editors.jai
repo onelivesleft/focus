@@ -1349,51 +1349,6 @@ create_cursors_around :: (using editor: *Editor, buffer: Buffer) {
     cursor_moved = .refresh_only;
 }
 
-
-
-create_cursors_around :: (using editor: *Editor, buffer: Buffer) {
-    organise_cursors(editor);
-
-    top_cursor    := cursors[0];
-    bottom_cursor := cursors[cursors.count-1];
-    original    := cursors[original_cursor];
-    original_pos_coords := offset_to_coords(editor, buffer, original.pos);
-    original_sel_coords := offset_to_coords(editor, buffer, original.sel);
-
-    add_cursors :: (position: Coords, direction: s32, terminator_line: int) #expand {
-        while position.line != terminator_line {
-            position.line += direction;
-            start := get_line_start_offset(editor, buffer, position.line);
-            end := get_line_end_offset(editor, buffer, position.line);
-            if end - start < original_pos_coords.col
-                break;
-
-            cursor := array_add(*cursors);
-            <<cursor = top_cursor;
-            cursor.pos = coords_to_offset(editor, buffer, position);
-            cursor.col_wanted = original_pos_coords.col;
-
-            if has_selection(original) {
-                sel_coords := position;
-                sel_coords.line += original_sel_coords.line - original_pos_coords.line;
-                sel_coords.col  += original_sel_coords.col  - original_pos_coords.col;
-                cursor.sel = coords_to_offset(editor, buffer, sel_coords);
-            } else {
-                cursor.sel = cursor.pos;
-            }
-        }
-    }
-
-    add_cursors(offset_to_coords(editor, buffer, top_cursor.pos), -1, 0);
-    add_cursors(offset_to_coords(editor, buffer, top_cursor.pos), +1, buffer.line_starts.count - 1);
-
-    main_cursor = cursors.count - 1;
-
-    organise_cursors(editor);
-
-    cursor_moved = .refresh_only;
-}
-
 select_word :: (using editor: *Editor, buffer: Buffer) {
     editor.cursor_moved = .unimportant;
     for * editor.cursors {

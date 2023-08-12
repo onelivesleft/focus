@@ -26,6 +26,7 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buff
         case .Jai;           highlight_proc = highlight_jai_syntax;
         case .CSharp;        highlight_proc = highlight_csharp_syntax;
         case .C;             highlight_proc = highlight_c_syntax;
+        case .Golang;        highlight_proc = highlight_golang_syntax;
         case .Glsl;          highlight_proc = highlight_glsl_syntax;
         case .Markdown;      highlight_proc = highlight_md_syntax;
         case .Worklog;       highlight_proc = highlight_worklog;
@@ -53,6 +54,7 @@ is_lang_which_likes_to_indent :: (lang: type_of(Buffer.lang)) -> bool {
     return lang == .Jai
         || lang == .C
         || lang == .CSharp
+        || lang == .Golang
         || lang == .Glsl;
 }
 
