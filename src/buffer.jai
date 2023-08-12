@@ -1079,14 +1079,6 @@ clear_buffer :: (using buffer: *Buffer) {
     clear_redos(buffer);
 }
 
-reset_buffer_regions :: (using buffer: *Buffer) {
-    array_reset(*regions);
-}
-
-add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8) {
-    array_add(*regions, .{ start_offset, end_offset, inclusive, depth });
-}
-
 new_replace_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string, new_str: string) {
     edit := array_add(*buffer.edits);
     edit.type = .replace;
@@ -1187,13 +1179,7 @@ Buffer :: struct {
         indent_level: [..] s8;   // @TODO move out of union and make work
     }
 
-    regions : [..] struct {
-        start_offset : s32;
-        end_offset : s32;
-        inclusive := false;
-        depth : s8;
-    };
-
+    regions : [..] Region;
     decorations : [..] Decoration;
 
     // TODO: put into enum_flags
@@ -1332,8 +1318,6 @@ Indentation_Token :: struct {
     };
 }
 
-
-
 Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
@@ -1360,3 +1344,29 @@ add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
 }
 
+
+Region :: struct {
+    start_offset: s32;
+    end_offset: s32;
+    inclusive := false;
+    depth: s8;
+    type: Type;
+    Type :: enum u8 {
+        todo_definitely_todo_this;
+        asm;
+        block_quote;
+        code_block;
+        here_string;
+        compile_time;
+        scope_file;
+        scope_module;
+    }
+};
+
+reset_buffer_regions :: (using buffer: *Buffer) {
+    array_reset(*regions);
+}
+
+add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8, type: Region.Type) {
+    array_add(*regions, .{ start_offset, end_offset, inclusive, depth, type });
+}

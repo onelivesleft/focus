@@ -42,6 +42,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
     initial_string.data = t;
     initial_string.count = max_t - t;
 
+    current_scope_start : s32 = 0;
+    current_scope : Region.Type = 0;
+
     token : Token;
 
     pop_scope_stack :: (end: s32) #expand {
@@ -51,12 +54,17 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
             region_type := pop(*region_stack);
             if region_type {
                 depth :: cast(s8) 1;
-                add_buffer_region(buffer, scope_record.start, end, true, depth);
+                add_buffer_region(buffer, scope_record.start, end, true, depth, .todo_definitely_todo_this);
             }
 
             case .directive_if;
             token.mark_else_as_directive = true;
         }
+    }
+
+    back_to_line_start :: (pos: *s32) #expand {
+        while pos.* > 0 && bytes[pos.*] != #char "\n"
+            pos.* -= 1;
     }
 
     while true {
@@ -132,10 +140,40 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
             }
 
             case .compiler_directive;
-            if token.compiler_directive == .directive_modify
+            if token.compiler_directive == {
+                case .directive_modify;
                 make_next_scope_region = .compile_time;
-            else if token.compiler_directive == .directive_if
+
+                case .directive_if;
                 make_next_scope_directive_if = true;
+
+                case .directive_scope_export;
+                if current_scope {
+                    pos := token.start;
+                    back_to_line_start(*pos);
+                    add_buffer_region(buffer, current_scope_start, pos, true, 1, current_scope);
+                }
+                current_scope_start = token.start;
+                current_scope = 0;
+
+                case .directive_scope_file;
+                if current_scope == .scope_module {
+                    pos := token.start;
+                    back_to_line_start(*pos);
+                    add_buffer_region(buffer, current_scope_start, pos, true, 1, .scope_module);
+                }
+                current_scope_start = token.start;
+                current_scope = .scope_file;
+
+                case .directive_scope_module;
+                if current_scope == .scope_file {
+                    pos := token.start;
+                    back_to_line_start(*pos);
+                    add_buffer_region(buffer, current_scope_start, pos, true, 1, .scope_file);
+                }
+                current_scope_start = token.start;
+                current_scope = .scope_module;
+            }
         }
 
         if is_dedent {
@@ -168,6 +206,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
 
     while !is_empty(scope_stack)
         pop_scope_stack(xx (max_t - bytes.data));
+
+    if current_scope
+        add_buffer_region(buffer, current_scope_start, xx (max_t - bytes.data), true, 1, current_scope);
 
     if reset {
         quick_sort(regions, x => x.start_offset);
@@ -463,7 +504,7 @@ parse_here_string :: (using buffer: *Buffer, using tokenizer: *Tokenizer, token:
     language := language_from_extension(identifier);
 
     depth := cast(s8) ifx language == .Jai && peek(region_stack) == .compile_time then 0 else 1;
-    add_buffer_region(buffer, token.start, token.start + token.len, false, depth);
+    add_buffer_region(buffer, token.start, token.start + token.len, false, depth, .here_string);
 
     return maybe_highlight_inner_language(buffer, language, token.start + token.sublen, token.len - token.sublen * 2);
 }

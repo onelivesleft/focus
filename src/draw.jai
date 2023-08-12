@@ -791,6 +791,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     region_rect.x += char_x_advance;
                 }
             }
+            else if region.type == .scope_file {
+                draw_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE);
+            }
+            else if region.type == .scope_module {
+                draw_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC);
+            }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
             }
