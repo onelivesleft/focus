@@ -30,6 +30,7 @@ editors_handle_event :: (event: Input.Event) -> handled: bool {
             }
 
         case .TEXT_INPUT;
+            if config.settings.hide_mouse_when_typing platform_show_cursor(false);
             if !key_sequence_input_state.key_sequence_in_progress {
                 active_editor_type_char(event.utf32);
                 return true;
@@ -163,6 +164,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_eye_tracker;              jump_to_eye_tracker                 (editor, buffer);
         case .move_cursor_to_viewport_center;   move_cursor_to_viewport_center      (editor, buffer);
         case .remove_additional_cursors;        remove_additional_cursors           (editor);
+        case .add_cursors_to_line_ends;         add_cursors_to_line_ends            (editor, buffer);
+        case .add_cursors_to_line_starts;       add_cursors_to_line_starts          (editor, buffer);
         case .scroll_viewport_up;               smooth_scroll(editor, direction = .up);                 activate_hold_action(action, event);
         case .scroll_viewport_up_fast;          smooth_scroll(editor, direction = .up, fast = true);    activate_hold_action(action, event);
         case .scroll_viewport_down;             smooth_scroll(editor, direction = .down);               activate_hold_action(action, event);
@@ -285,10 +288,6 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 }
 
 active_editor_type_char :: (char: u32) {
-    if char == 127 return;  // there seems to be a bug in the Input module
-                            // which generates a TEXT_INPUT event for DEL
-                            // when Ctrl+Backspace is pressed
-
     editor, buffer := get_active_editor_and_buffer();
     if !editor return;
 
@@ -2524,6 +2523,32 @@ remove_additional_cursors :: (editor: *Editor) {
     editor.cursor_moved = .refresh_only;
 }
 
+add_cursors_to_line_starts :: (editor: *Editor, buffer: Buffer) {
+    if buffer.bytes.count <= 0 return;
+
+    line_ranges := get_whole_line_ranges_for_cursors(editor, buffer);
+    array_reset_keeping_memory(*editor.cursors);  // reset after getting ranges (obviously)
+
+    for * line_range : line_ranges {
+        line_num := offset_to_line(editor, buffer, line_range.start);
+        while true {
+            pos := buffer.line_starts[line_num];
+            if pos >= line_range.end break;
+            array_add(*editor.cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1 });
+            line_num += 1;
+        }
+    }
+
+    assert(editor.cursors.count > 0);
+
+    editor.cursor_moved = .unimportant;
+}
+
+add_cursors_to_line_ends :: (editor: *Editor, buffer: Buffer) {
+    add_cursors_to_line_starts(editor, buffer);
+    move_cursors_end(editor, buffer);
+}
+
 select_all :: (editor: *Editor, buffer: Buffer) {
     cursor := leave_only_original_cursor(editor);
     cursor.sel = 0;
@@ -2586,6 +2611,7 @@ duplicate_lines :: (editor: *Editor, buffer: *Buffer) {
         line.range.start += xx offset_delta;
         line.range.end   += xx offset_delta;
         str := copy_temporary_string(get_range_as_string(buffer, line.range));
+        if line.is_last then str = tprint("\n%", str);  // make sure duplication works correctly on the last line of the buffer
         insert_string_at_offset(buffer, line.range.end, str);
         add_paste_animation(editor, .{ start = line.range.end, end = line.range.end + cast(s32)str.count });
 
@@ -2839,22 +2865,24 @@ copy_selection_to_clipboard :: (editor: *Editor, buffer: *Buffer, cut := false, 
         organise_cursors(editor);
     }
 
-    // We are sure to copying something, dump all the previous clipboard slices
+    // We are sure now we're copying something, so dump all the previous clipboard slices
     array_reset(*clipboard.slices);
 
     // Fill the internal clipboard and the slices from the current editor cursors
     b: String_Builder;
     offset := 0;
     for * cursor : editor.cursors {
-        if !has_selection(cursor) && !cut && !config.settings.copy_whole_line_without_selection continue;
-
+        is_last_cursor := it_index == editor.cursors.count - 1;
         // Get string from the cursor and format it if necessary
-        str := ifx has_selection(cursor) {
+        str: string;
+        if has_selection(cursor) {
             selected_str := get_selected_string(cursor, buffer);
-            ifx it_index != editor.cursors.count - 1 then join(selected_str, "\n") else selected_str;
-        } else {
+            str = ifx !is_last_cursor then join(selected_str, "\n") else selected_str;
+        } else if cut || config.settings.copy_whole_line_without_selection {
             line_num := offset_to_real_line(buffer, cursor.pos);
-            get_real_line_as_string(buffer, line_num);
+            str = get_real_line_as_string(buffer, line_num);
+        } else {
+            str = ifx !is_last_cursor then "\n" else "";
         }
         append(*b, str);
 

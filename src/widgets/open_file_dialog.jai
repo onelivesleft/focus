@@ -28,10 +28,6 @@ open_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
         char := event.utf32;
         if open_file_dialog.mode == .navigate && (char == #char "/" || char == #char "\\") return true;  // these are special chars, don't handle
 
-        if char == 127 return true;  // there seems to be a bug in the Input module
-                                // which generates a TEXT_INPUT event for DEL
-                                // when Ctrl+Backspace is pressed
-
         text_input_type_char(*open_file_dialog.input, char);
         refresh_entries(clear_input = false);
         return true;
@@ -42,7 +38,7 @@ open_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
 init_open_file_dialog :: () {
     // There used to be more stuff here
     open_file_dialog.initted = true;
-    refresh_entries();
+    refresh_entries(clear_input = false);
 }
 
 deinit_open_file_dialog :: () {

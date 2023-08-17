@@ -113,6 +113,13 @@ platform_normalize_path :: (path: string) -> string {
     return path;
 }
 
+platform_show_cursor :: (show: bool) {
+    if show
+        NSCursor.unhide();
+    else
+        NSCursor.hide();
+}
+
 #scope_file
 
 Monitor :: struct {

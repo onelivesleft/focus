@@ -256,6 +256,10 @@ platform_normalize_path :: (path: string) -> string {
     return path;
 }
 
+platform_show_cursor :: (show: bool) {
+
+}
+
 #scope_file
 
 LD  :: #import "Linux_Display";
