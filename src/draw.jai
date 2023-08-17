@@ -608,8 +608,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             cursor_pos_from_top := (cursor_coords[main_cursor].pos.line + config.settings.scroll_to_cursor_line_offset) * line_height;
             top_target := cast(s32)(cursor_pos_from_top - rect.h / 2);
-            top_target = min(top_target, max_y_scroll);
+            top_target = clamp(top_target, 0, max_y_scroll);
             if top_target != scroll_y.target then start_animation(*viewport.scroll_y, viewport.top, top_target);
+
 
             scroll_to_cursor = .no;
 
@@ -757,6 +758,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing (@TODO move this back to just before text?)
 
         // Draw regions
+        scope_background := Colors.BACKGROUND;
+        scope_background_ends_at := 0;
         for region: buffer.regions {
             if region.start_offset < 0 || region.start_offset > buffer.bytes.count
             || region.end_offset < 0 || region.end_offset > buffer.bytes.count
@@ -775,27 +778,40 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             end   = min(end,   visible_lines_end);
 
             region_rect := make_rect(
-                rect.x, text_origin.y - start * line_height,
-                rect.w - scrollbar_size, line_height * (start - end)
+                rect.x, text_origin.y - end * line_height,
+                rect.w - scrollbar_size, line_height * (end - start)
             );
 
             if region.depth == 0 { // "inserting" code
-                draw_rect(region_rect, Colors.BACKGROUND);
+                bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
+                draw_rect(region_rect, bg);
                 region_rect.w = char_x_advance;
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
                 region_rect.x += char_x_advance;
                 fade_char_count :: 8;
-                for 1 .. fade_char_count {
-                    color := lerp(Colors.BACKGROUND_REGION, Colors.BACKGROUND, 1.0 / fade_char_count * it);
+                for < fade_char_count .. 1 {
+                    color := with_alpha(Colors.BACKGROUND_REGION, Colors.BACKGROUND_REGION.a * it / cast(float)fade_char_count);
                     draw_rect(region_rect, xx color);
                     region_rect.x += char_x_advance;
                 }
             }
             else if region.type == .scope_file {
+                if end >= max_lines {
+                    region_rect.h += region_rect.y;
+                    region_rect.y = 0;
+                }
                 draw_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE);
+                scope_background = Colors.BACKGROUND_REGION_PRIVATE;
+                scope_background_ends_at = end;
             }
             else if region.type == .scope_module {
+                if end >= max_lines {
+                    region_rect.h += region_rect.y;
+                    region_rect.y = 0;
+                }
                 draw_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC);
+                scope_background = Colors.BACKGROUND_REGION_PUBLIC;
+                scope_background_ends_at = end;
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);

@@ -146,6 +146,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .close_other_editor;               close_editor(.other);
         case .close_left_editor;                close_editor(.left);
         case .close_right_editor;               close_editor(.right);
+        case .hide_current_buffer;              remove_active_buffer_from_history();
         case .save;                             save_buffer(editor, buffer);
         case .save_as;                          save_buffer(editor, buffer, save_new_file = true);
         case .save_all;                         save_all   (editor, buffer);
@@ -174,10 +175,12 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .create_cursor_above;              create_cursor                       (editor, buffer, .above); keep_selection = true;
         case .create_cursor_below;              create_cursor                       (editor, buffer, .below); keep_selection = true;
         case .create_cursors_around;            create_cursors_around               (editor, buffer); keep_selection = true;
-        case .move_to_previous_editor_history;  move_to_previous_editor_history     ();
-        case .move_to_next_editor_history;      move_to_next_editor_history         ();
         case .move_to_previous_buffer;          move_to_previous_buffer             ();
+        case .move_to_previous_editor_history;  move_to_previous_editor_history     ();
+        case .move_to_previous_editor_history_big;  move_to_previous_editor_history (big_steps = true);
         case .move_to_next_buffer;              move_to_next_buffer                 ();
+        case .move_to_next_editor_history;      move_to_next_editor_history         ();
+        case .move_to_next_editor_history_big;  move_to_next_editor_history         (big_steps = true);
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
         case .parse_file;                       parse_file                          (editor, buffer);
 
@@ -199,6 +202,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_down_to_empty_line;          move_cursors_to_empty_line          (editor, buffer, .down);
         case .move_up_one_page;                 move_cursors_by_page                (editor, buffer, .up);
         case .move_down_one_page;               move_cursors_by_page                (editor, buffer, .down);
+        case .move_up_one_section;              move_cursors_by_section             (editor, buffer, .up);
+        case .move_down_one_section;            move_cursors_by_section             (editor, buffer, .down);
         case .jump_to_line_start;               move_cursors_home                   (editor, buffer);
         case .jump_to_line_end;                 move_cursors_end                    (editor, buffer);
         case .jump_to_file_start;               move_to_file_start                  (editor, buffer);
@@ -1843,6 +1848,32 @@ move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; 
 
     if dir == .up  editor.cursor_moved = .moved_up;
     else           editor.cursor_moved = .moved_down;
+}
+
+move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; down; }) {
+    cursor := leave_only_original_cursor(editor);
+    section_pos : s32 = ---;
+    if dir == .up {
+        section_pos = 0;
+        for buffer.sections {
+            if it < cursor.pos
+                section_pos = it;
+            else
+                break;
+        }
+    }
+    else {
+        section_pos = xx buffer.bytes.count;
+        for < buffer.sections {
+            if it > cursor.pos
+                section_pos = it;
+            else
+                break;
+        }
+    }
+    cursor.pos = section_pos;
+    cursor.col_wanted = -1;
+    editor.cursor_moved = .jumped;
 }
 
 move_cursors_home :: (editor: *Editor, buffer: Buffer) {
@@ -3508,7 +3539,7 @@ frames_are_mergable :: (a: Editor_History_Frame, b: Editor_History_Frame) -> boo
         && a.editor_state == b.editor_state;
 }
 
-move_to_previous_editor_history :: (by_buffer := false) {
+move_to_previous_editor_history :: (by_buffer := false, big_steps := false) {
     using editor_history;
     // print("BACK: current: %, start: %, end: %\n", current, start, end);
     if current == start return;
@@ -3520,11 +3551,20 @@ move_to_previous_editor_history :: (by_buffer := false) {
             current = previous_history_index(current);
         }
     }
+    else if big_steps {
+        if current != start && frames[current].cursor_movement <= .unimportant && old_frame.cursor_movement <= .unimportant && frames[current].active == old_frame.active {
+            prev := previous_history_index(current);
+            while current != start && frames[prev].cursor_movement <= .unimportant && frames[prev].active == old_frame.active {
+                current = prev;
+                prev = previous_history_index(current);
+            }
+        }
+    }
     move_to_editor_history_frame(frames[current], old_frame);
     // print("   -> current: %, start: %, end: %. RESTORE: %\n", current, start, end, frames[current]);
 }
 
-move_to_next_editor_history :: (by_buffer := false) {
+move_to_next_editor_history :: (by_buffer := false, big_steps := false) {
     using editor_history;
     // print("FORW: current: %, start: %, end: %\n", current, start, end);
     if current == end return;
@@ -3534,6 +3574,15 @@ move_to_next_editor_history :: (by_buffer := false) {
     if by_buffer {
         while current != end && old_frame.editor_state == frames[current].editor_state {
             current = next_history_index(current);
+        }
+    }
+    else if big_steps {
+        if current != end && frames[current].cursor_movement <= .unimportant && old_frame.cursor_movement <= .unimportant && frames[current].active == old_frame.active {
+            next := next_history_index(current);
+            while current != end && frames[next].cursor_movement <= .unimportant && frames[next].active == old_frame.active {
+                current = next;
+                next = next_history_index(current);
+            }
         }
     }
     move_to_editor_history_frame(frames[current], old_frame);
@@ -3596,6 +3645,16 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_
     put_cursor_in_valid_spot(cursor, open_buffers[editor.buffer_id]);
 }
 
+remove_active_buffer_from_history :: () {
+    if editors.active < 0  return;
+    editor := *open_editors[editors.active];
+    make_buffer_active(editor.buffer_id); // guarantees buffer is on top of buffer_order;
+    buffer_order.count -= 1;
+    if buffer_order.count == 0
+        close_current_editor();
+    else
+        make_buffer_active(buffer_order[buffer_order.count - 1]);
+}
 
 move_to_previous_buffer :: () {
     if buffer_order.count <= 1  return;

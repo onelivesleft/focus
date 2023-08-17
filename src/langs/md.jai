@@ -17,10 +17,7 @@ highlight_md_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 }
 
 highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
-    if reset {
-         reset_buffer_regions(buffer);
-         reset_buffer_decorations(buffer);
-     }
+    if reset  reset_buffer_info_arrays(buffer);
 
     blockquotes : [64] s32;
     blockquote_index := 0;

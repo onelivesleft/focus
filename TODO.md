@@ -1,7 +1,11 @@
 # Mine
 
+- [x] history big step
+- [x] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
+- [x] Fix jumping around when search target is near top of file
+- [x] prev/next section - ctrl+pgup/pgdn - for jai jump to #scope_
+
 - [ ] parse string literals to highlight escapes
-- [ ] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [.] build system
     - [x] parse errors
     - [x] project config
@@ -14,15 +18,11 @@
             - [x] fix behaviour when second build is called during display duration
         - [x] error toast timeout
 
-- [.] Regions
-    - [x] Selective coloring
-    - [ ] Different color per region type (asm, string, comp_time)
-    - [x] Draw selection over region
-    - [x] Highlight format items in jai herestrings
 
 - [.] Decorations
     - [x] color squares for config
     - [x] error line
+    - [x] hr for md
     - [ ] color squares for jai
 
 - [.] autoindent
@@ -40,7 +40,6 @@
     - [ ] urls/emails
 
 - [?] FIX command runner!!!
-- [ ] Fix jumping around when search target is near top of file
 
 - [ ] Zen
 - [.] Developer tool show scope at cursor
@@ -56,6 +55,11 @@
 
 - [ ] next/prev search result
 
+- [x] Regions
+    - [x] Selective coloring
+    - [x] Different color per region type (asm, string, comp_time)
+    - [x] Draw selection over region
+    - [x] Highlight format items in jai herestrings
 - [x] spinner when running build task
 - [.] eye
     - [x] check for line length

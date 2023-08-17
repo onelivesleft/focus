@@ -26,15 +26,8 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 
 highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     color: Code_Color;
-    if reset {
-        reset_buffer_decorations(buffer);
-        reset_buffer_regions(buffer);
-    }
+    if reset  reset_buffer_info_arrays(buffer);
 
-    // @Autoindent
-    //array_reset_keeping_memory(*line_starts);
-    //array_add(*line_starts, 0);  // first line
-    //line_start_index := 0;
     current_indent_level : s8 = 0;
     is_new_line := false;
 
@@ -71,14 +64,6 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
         token = get_next_token(tokenizer);
         if token.type == .eof break;
 
-        // @Autoindent
-        //while line_starts.count > line_start_index + 1 {
-        //    line_start_index += 1;
-        //    indent_level[line_starts[line_start_index] - 1] = current_indent_level;
-        //    is_new_line = true;
-        //}
-
-        // Maybe retroactively highlight a function
         is_dedent := false;
         if token.type == {
             case .punctuation;
@@ -148,6 +133,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                 make_next_scope_directive_if = true;
 
                 case .directive_scope_export;
+                add_buffer_section(buffer, token.start);
                 if current_scope {
                     pos := token.start;
                     back_to_line_start(*pos);
@@ -157,22 +143,28 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                 current_scope = 0;
 
                 case .directive_scope_file;
+                add_buffer_section(buffer, token.start);
                 if current_scope == .scope_module {
                     pos := token.start;
                     back_to_line_start(*pos);
                     add_buffer_region(buffer, current_scope_start, pos, true, 1, .scope_module);
                 }
-                current_scope_start = token.start;
-                current_scope = .scope_file;
+                if current_scope != .scope_file {
+                    current_scope_start = token.start;
+                    current_scope = .scope_file;
+                }
 
                 case .directive_scope_module;
+                add_buffer_section(buffer, token.start);
                 if current_scope == .scope_file {
                     pos := token.start;
                     back_to_line_start(*pos);
                     add_buffer_region(buffer, current_scope_start, pos, true, 1, .scope_file);
                 }
-                current_scope_start = token.start;
-                current_scope = .scope_module;
+                if current_scope != .scope_module {
+                    current_scope_start = token.start;
+                    current_scope = .scope_module;
+                }
             }
         }
 

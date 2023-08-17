@@ -1181,6 +1181,7 @@ Buffer :: struct {
 
     regions : [..] Region;
     decorations : [..] Decoration;
+    sections : [..] s32;         // Position of section marker
 
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file
@@ -1318,6 +1319,13 @@ Indentation_Token :: struct {
     };
 }
 
+reset_buffer_info_arrays :: (buffer: *Buffer) {
+        reset_buffer_decorations(buffer);
+        reset_buffer_regions(buffer);
+        reset_buffer_sections(buffer);
+}
+
+
 Decoration :: struct {
     type : enum {
         COLOR_SQUARE;
@@ -1369,4 +1377,12 @@ reset_buffer_regions :: (using buffer: *Buffer) {
 
 add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8, type: Region.Type) {
     array_add(*regions, .{ start_offset, end_offset, inclusive, depth, type });
+}
+
+reset_buffer_sections :: (using buffer: *Buffer) {
+    array_reset(*sections);
+}
+
+add_buffer_section :: (using buffer: *Buffer, pos: s32) {
+    array_add(*sections, pos);
 }

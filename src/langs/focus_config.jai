@@ -17,7 +17,7 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count
 }
 
 highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
-    if reset  reset_buffer_decorations(buffer);
+    if reset  reset_buffer_info_arrays(buffer);
 
     token: Token;
 
