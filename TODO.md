@@ -1,7 +1,9 @@
 # Mine
 
+- [ ] Add sections to md
+- [x] Add sections to focus_config
 - [ ] Fix embedded lang hang
-- [ ] convert current buffer to [colors]
+- [x] convert current buffer to [colors]
 - [ ] Fix Ctrl+Left/Right going over numbers
 - [ ] multicursor align: insert space or delete
 

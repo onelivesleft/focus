@@ -26,6 +26,10 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Token
         token = get_next_token(tokenizer);
         if token.type == .eof break;
 
+        if token.type == .header_top_level || token.type == .header {
+            add_buffer_section(buffer, token.start);
+        }
+
         if token.type == .color_value {
             add_color_square_decoration(buffer, token.start + token.len, token.color);
         }

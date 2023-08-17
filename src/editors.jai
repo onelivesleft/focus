@@ -1721,6 +1721,8 @@ is_a_move_action :: (action: Action_Editors) -> bool {
         case .move_down_to_empty_line;          return true;
         case .move_up_one_page;                 return true;
         case .move_down_one_page;               return true;
+        case .move_up_one_section;              return true;
+        case .move_down_one_section;            return true;
         case .jump_to_line_start;               return true;
         case .jump_to_line_end;                 return true;
         case .jump_to_file_start;               return true;
@@ -1860,6 +1862,7 @@ move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; do
             else
                 break;
         }
+        editor.cursor_moved = .moved_up;
     }
     else {
         section_pos = xx buffer.bytes.count;
@@ -1869,10 +1872,10 @@ move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; do
             else
                 break;
         }
+        editor.cursor_moved = .moved_down;
     }
     cursor.pos = section_pos;
     cursor.col_wanted = -1;
-    editor.cursor_moved = .jumped;
 }
 
 move_cursors_home :: (editor: *Editor, buffer: Buffer) {
