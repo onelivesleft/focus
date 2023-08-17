@@ -1,9 +1,9 @@
 # Mine
 
-- [x] history big step
-- [x] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
-- [x] Fix jumping around when search target is near top of file
-- [x] prev/next section - ctrl+pgup/pgdn - for jai jump to #scope_
+- [ ] Fix embedded lang hang
+- [ ] convert current buffer to [colors]
+- [ ] Fix Ctrl+Left/Right going over numbers
+- [ ] multicursor align: insert space or delete
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
@@ -55,11 +55,6 @@
 
 - [ ] next/prev search result
 
-- [x] Regions
-    - [x] Selective coloring
-    - [x] Different color per region type (asm, string, comp_time)
-    - [x] Draw selection over region
-    - [x] Highlight format items in jai herestrings
 - [x] spinner when running build task
 - [.] eye
     - [x] check for line length
@@ -79,6 +74,15 @@
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
 
+- [x] history big step
+- [x] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
+- [x] Fix jumping around when search target is near top of file
+- [x] prev/next section - ctrl+pgup/pgdn - for jai jump to #scope_
+- [x] Regions
+    - [x] Selective coloring
+    - [x] Different color per region type (asm, string, comp_time)
+    - [x] Draw selection over region
+    - [x] Highlight format items in jai herestrings
 - [x] delete_line on bottom row
 - [x] case conversion
 - [x] Fix goto def

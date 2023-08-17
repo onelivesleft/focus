@@ -14,6 +14,8 @@ language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
         return .Glsl;
     else if matches("md") || matches("markdown")
         return .Markdown;
+    else if matches("focus") || matches("focus_config")
+        return .Focus_Config;
 
     return .Plain_Text;
 }

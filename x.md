@@ -1,6 +1,6 @@
 # Focus
 
-*a *aaa ***A **simple** ***editor*** *whose* goal is to get out of your way and let you do work*.*
+*a *aaa ***A **simple** ***editor*** *whose* goal is to get out of your*** way and let you do *work.*
 
 ---
 

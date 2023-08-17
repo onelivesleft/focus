@@ -134,3 +134,155 @@ with_alpha :: (color: Color, alpha: float) -> Color {
     result.a = alpha;
     return result;
 }
+
+lerp :: (a: Color, b: Color, t: float) -> Color {
+    result : Color = ---;
+    result.r = lerp(a.r, b.r, t);
+    result.g = lerp(a.g, b.g, t);
+    result.b = lerp(a.b, b.b, t);
+    result.a = lerp(a.a, b.a, t);
+    return result;
+}
+
+brighten :: (a: Color, t: float) -> Color {
+    white : Color;
+    white.r = 1.0;
+    white.g = 1.0;
+    white.b = 1.0;
+    white.a = 1.0;
+    return lerp(a, white, t);
+}
+
+
+
+convert_active_buffer_to_colors :: () {
+    if editors.active < 0  return;
+
+    builder : String_Builder;
+    spaces :: "                                        ";
+
+    editor := *open_editors[editors.active];
+    buffer := *open_buffers[editor.buffer_id];
+
+    s := cast(string) buffer.bytes;
+
+    background_color : Color;
+
+    do :: (name: string, keys: .. string, op : enum { none; darken; brighten; } = .none, bake := false, foreground := false) #expand {
+        for key: keys {
+            index := -key.count;
+            found := false;
+            while !found {
+                index, found = first_index(s, key, index + key.count);
+                if !found  break;
+                if index > 0 && is_alnum(s[index - 1])
+                || index + key.count < s.count -1 && is_alnum(s[index + key.count])
+                    found = false;
+            }
+            if !found  continue;
+
+            if foreground
+                index, found = first_index(s, "\"foreground\"", index);
+            if !found  continue;
+
+            index, found = first_index(s, "\"#", index);
+            if !found  continue;
+
+            start := index + 2;
+            end, found= := first_index(s, "\"", start);
+            if !found  continue;
+
+            hex := slice(s, start, end);
+
+            if name == "background" {
+                background_color = hex_to_color(hex);
+            }
+
+            if op {
+                color := hex_to_color(hex);
+                if op == .darken  color.a *= 0.5;
+                else              color = brighten(color, 0.2);
+                hex = color_to_hex(color, true);
+            }
+
+            if bake {
+                color := hex_to_color(hex);
+                color = lerp(background_color, with_alpha(color, 1.0), color.a);
+                hex = color_to_hex(color, true);
+            }
+
+            print_to_builder(*builder, "%1:%2%3", name, slice(spaces, 0, 33 - name.count), temp_strings.upper(hex));
+            if hex.count == 6  append(*builder, "FF");
+            append(*builder, "\n");
+            return;
+        }
+
+        hex := "FF00FFFF";
+        print_to_builder(*builder, "%1:%2%3\n", name, slice(spaces, 0, 33 - name.count), temp_strings.upper(hex));
+    }
+
+    append(*builder, "[colors]\n");
+
+    do("background",                     "editor.background");
+    do("background_dark",                "sideBar.background", bake=true);
+    do("background_highlight",           "statusBar.debuggingBackground", bake=true);
+    do("background_light",               "titleBar.activeBackground", bake=true);
+    do("background_bright",              "statusBar.background", op=.brighten, bake=true);
+    do("background_region",              "editor.background");
+    do("background_region_private",      "editor.background", bake=true);
+    do("background_region_public",       "editor.background", bake=true);
+    append(*builder, "\n");
+    do("selection_active",               "editor.selectionBackground");
+    do("selection_inactive",             "editor.selectionBackground", op=.darken);
+    do("selection_highlight",            "editor.selectionHighlightBackground");
+    do("search_result_active",           "editor.findMatchBackground");
+    do("search_result_inactive",         "editor.findMatchHighlightBackground");
+    do("scrollbar",                      "scrollbarSlider.activeBackground");
+    do("scrollbar_hover",                "scrollbarSlider.background");
+    do("scrollbar_background",           "scrollbarSlider.background");
+    do("cursor",                         "editorCursor.foreground");
+    do("cursor_inactive",                "editorCursor.foreground");
+    do("paste_animation",                "list.highlightForeground");
+    do("splitter",                       "tab.inactiveBackground");
+    do("splitter_hover",                 "tab.activeBackground");
+    do("letter_highlight",               "editor.wordHighlightBackground");
+    do("list_cursor_lite",               "list.highlightForeground");
+    do("list_cursor",                    "list.activeSelectionBackground");
+    do("shadow_dark",                    "panel.background", op=.darken);
+    do("shadow_transparent",             "panel.background", op=.darken);
+    do("text_input_label",               "editor.foreground");
+    append(*builder, "\n");
+    do("ui_default",                     "button.foreground", "menu.foreground");
+    do("ui_dim",                         "inputValidation.infoBackground", op=.darken);
+    do("ui_neutral",                     "inputValidation.infoBackground");
+    do("ui_warning",                     "inputValidation.warningBackground");
+    do("ui_warning_dim",                 "inputValidation.warningBackground", op=.darken);
+    do("ui_error",                       "inputValidation.errorBackground");
+    do("ui_error_bright",                "inputValidation.errorBorder");
+    do("ui_success",                     "ports.iconRunningProcessForeground");
+    append(*builder, "\n");
+    do("code_default",                   "source", "variable.other", "editor.foreground", foreground=true);
+    do("code_comment",                   "comment", "comment.line", "comment.block", foreground=true);
+    do("code_type",                      "support.class", "entity.name.class", "entity.name.type", "entity.name.namespace", "entity.name.scope-resolution", foreground=true);
+    do("code_function",                  "entity.name.function", "meta.require", "support.function.any-method", foreground=true);
+    do("code_punctuation",               "punctuation", foreground=true);
+    do("code_operation",                 "keyword.operator", "punctuation", foreground=true);
+    do("code_string",                    "string.quoted", "string.unquoted", "string", foreground=true);
+    do("code_value",                     "constant.numeric", foreground=true);
+    do("code_highlight",                 "meta.link", foreground=true);
+    do("code_error",                     "invalid", "token.error-token", foreground=true);
+    do("code_keyword",                   "keyword", foreground=true);
+    do("code_jump",                      "keyword.control.jump", "keyword", foreground=true);
+    do("code_directive",                 "keyword.other.directive", "keyword.other", foreground=true);
+    do("code_format_item",               "punctuation.section.embedded", "variable.interpolation", foreground=true);
+    append(*builder, "\n");
+
+    output := builder_to_string(*builder);
+    insert_string_at_offset(buffer, 0, output);
+
+    cursor := leave_only_original_cursor(editor);
+    cursor.pos = 0;
+    cursor.col_wanted = 0;
+    editor.cursor_moved = .jumped;
+    cursor.sel = xx output.count;
+}

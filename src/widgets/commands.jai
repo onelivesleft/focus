@@ -152,6 +152,7 @@ commands := #run Command.[
     .{ .open_global_config,                                 "Open Global Config",                 0, .None },
 
     .{ .show_icon_search,                                   "Show Icon Search",                   0, .None },
+    .{ .convert_buffer_to_colors,                           "Convert Current Buffer To [colors]", 0, .Single },
 
     .{ .create_new_file,                                    "Create New File",                    0, .None },
     .{ .create_new_file_on_the_side,                        "Create New File On The Side",        0, .Single },
