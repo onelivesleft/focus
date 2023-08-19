@@ -3,7 +3,7 @@
 - [x] Fix ctrl-w not always working
 - [x] Change window title to project first
 - [ ] Small sections
-- [ ] Fix Ctrl+Left/Right going over numbers
+- [x] Fix Ctrl+Left/Right going over numbers
 - [ ] multicursor align: insert space or delete
 - [ ] Fix embedded lang hang
 

@@ -339,20 +339,6 @@ is_separator_char :: inline (ch: u8) -> bool {
         ch == #char "." || ch == #char "<" || ch == #char ">" || ch == #char "/" || ch == #char "\"" || ch == #char "\\";
 }
 
-get_char_type :: (ch: u32) -> Char_Type {
-    if is_word_char(ch) {
-        return .word;
-    } else if is_space_char(ch) {
-        return .space;
-    } else if (#char "0" <= ch && ch <= #char "9" || ch == #char "-" || ch == #char "." || ch == #char "+") {
-        return .number;
-    } else if ch != #char "\n" {
-        return .non_word;
-    } else {
-        return .other;
-    }
-}
-
 is_all_whitespace :: (s: string) -> bool {
     for byte : to_bytes(s) {
         // Multi-byte whitespace is not included
@@ -496,13 +482,113 @@ Tween_Animation :: struct(T: Type) {
     func: enum { lerp; smoothstep; } = .smoothstep;
 }
 
-Char_Type :: enum {
+Char_Type :: enum_flags {
     none;
     word;
-    non_word;
     number;
+    word_or_number :: word | number;
+    non_word :: number * 2;
     space;
     other;
+}
+
+get_char_type_raw :: (ch: u32) -> Char_Type {
+    if ch == #char "."                      return .number;
+    if #char "0" <= ch && ch <= #char "9"   return .word_or_number;
+    if is_word_char(ch)                     return .word;
+    if is_space_char(ch)                    return .space;
+    if ch != #char "\n"                     return .non_word;
+                                            return .other;
+}
+
+get_char_type :: inline (ch: u32) -> Char_Type {
+    if ch <= 255  return char_type_table[ch];
+    else          return get_char_type_raw(ch);
+}
+
+#insert -> string {
+    builder : String_Builder;
+    append(*builder, trim(#string jai
+        char_type_table :: Char_Type.[
+    jai));
+    for 0 .. cast(u32)255 {
+        print_to_builder(*builder, trim(#string jai
+            %,
+        jai), cast(u8)get_char_type_raw(it));
+    }
+    append(*builder, trim(#string jai
+        ];
+    jai));
+    return builder_to_string(*builder);
+}
+
+
+scan_through_similar_chars_on_the_left :: (bytes: [] u8, line_start_offset: s32, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    if !bytes return 0;
+
+    char: u32;
+    t := bytes.data + offset;
+    t, char = unicode_prev_character(t);
+    found_char_type := get_char_type(char);
+    if char_type != .none && !(char_type & found_char_type)
+        return offset;
+
+    line_start := bytes.data + line_start_offset;
+    if skip_one_space && char == #char " " && t > line_start {
+        t, char = unicode_prev_character(t);
+        found_char_type = get_char_type(char);
+    }
+
+    accepted_char_type := get_char_type(char);
+    while t > bytes.data && accepted_char_type {
+        t, char = unicode_prev_character(t);
+        accepted_char_type &= get_char_type(char);
+    }
+
+    if !(get_char_type(char) & found_char_type)
+        t = unicode_next_character(t);
+
+    if t < bytes.data  t = bytes.data;
+
+    return cast(s32) max(0, t - bytes.data);
+}
+
+scan_through_similar_chars_on_the_right :: (bytes: [] u8, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    if !bytes return 0;
+    if offset >= bytes.count return offset;  // nowhere to go
+
+    _unicode_next_character :: (s: *u8) -> *u8, u32 {
+        t := unicode_next_character(s);
+        char, _, error := character_utf8_to_utf32(s, t - s);
+        if error  return t, 0;
+        else      return t, char;
+    }
+
+    char: u32;
+    t := bytes.data + offset;
+    t, char = _unicode_next_character(t);
+    found_char_type := get_char_type(char);
+    if char_type != .none && !(char_type & found_char_type)
+        return offset;
+
+    if skip_one_space && char == #char " " {
+        t, char = _unicode_next_character(t);
+        found_char_type = get_char_type(char);
+    }
+
+    accepted_char_type := get_char_type(char);
+    end_address := bytes.data + bytes.count;
+    while t < end_address && accepted_char_type {
+        t, char = _unicode_next_character(t);
+        accepted_char_type &= get_char_type(char);
+    }
+
+    if t >= end_address
+        t = end_address;
+    else if !(get_char_type(char) & found_char_type)
+        t = unicode_prev_character(t);
+
+    return cast(s32) min(bytes.count, t - bytes.data);
 }
 
 

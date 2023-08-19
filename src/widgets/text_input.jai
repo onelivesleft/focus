@@ -426,64 +426,13 @@ has_selection :: inline (using cursor: Text_Input.Cursor) -> bool {
     return cursor.pos != cursor.sel;
 }
 
-scan_through_similar_chars_on_the_left :: (using input: Text_Input, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
-    if !text return 0;
 
-    line_start := text.data;
-    char: u32;
-    t := text.data + offset;
-    t, char = unicode_prev_character(t);
-    if char_type != .none && char_type != get_char_type(char) return offset;
-    if skip_one_space && char == #char " " && t > line_start then t, char = unicode_prev_character(t);
-
-    if get_char_type(char) == {
-        case .space;
-            while t > text.data && is_space_char(char)  { t, char = unicode_prev_character(t); }
-            if char != #char " " then t = unicode_next_character(t);
-        case .word;
-            while t > text.data && is_word_char(char) { t, char = unicode_prev_character(t); }
-            if !is_word_char(char) then t = unicode_next_character(t);
-        case .non_word;
-            while t > text.data && is_non_word_char(char) { t, char = unicode_prev_character(t); }
-            if !is_non_word_char(char) then t = unicode_next_character(t);
-    }
-
-    if t < text.data then t = text.data;
-
-    return cast(s32) max(0, t - text.data);
+scan_through_similar_chars_on_the_left :: inline (input: *Text_Input, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    return scan_through_similar_chars_on_the_left(input.text, 0, offset, char_type, skip_one_space);
 }
 
-scan_through_similar_chars_on_the_right :: (using input: Text_Input, offset: s32, only: Char_Type = .none, skip_one_space := true) -> offset: s32 {
-    if !text return 0;
-    if offset >= text.count return offset;  // nowhere to go
-
-    s: string = ---;
-    s.data  = *text[offset];
-    s.count = (text.data + text.count) - s.data;
-
-    char := utf8_next_character(*s);
-    if only == {
-        case .word;     if !is_word_char(char)     return offset;
-        case .non_word; if !is_non_word_char(char) return offset;
-        case .space;    if  char != #char " "      return offset;
-    }
-    if skip_one_space && char == #char " " && s then char = utf8_next_character(*s);
-
-    if char == #char " " {
-        // Only spaces
-        while s && char == #char " "  { char = utf8_next_character(*s); }
-        if char != #char " " { s.data, char = unicode_prev_character(s.data); }
-    } else if is_word_char(char) {
-        // Only word chars
-        while s && is_word_char(char) { char = utf8_next_character(*s); }
-        if !is_word_char(char) { s.data, char = unicode_prev_character(s.data); }
-    } else if char != #char "\n" {
-        // Only non-word chars
-        while s && is_non_word_char(char) { char = utf8_next_character(*s); }
-        if !is_non_word_char(char) { s.data, char = unicode_prev_character(s.data); }
-    }
-
-    return cast(s32) min(text.count, s.data - text.data);
+scan_through_similar_chars_on_the_right :: inline (input: *Text_Input, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    return scan_through_similar_chars_on_the_right(input.text, offset, char_type, skip_one_space);
 }
 
 get_char_at_offset :: (using input: Text_Input, offset: s32) -> u32 {

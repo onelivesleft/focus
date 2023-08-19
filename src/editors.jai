@@ -1078,64 +1078,13 @@ select_line :: (cursor: *Cursor, buffer: Buffer) {
     cursor.pos = get_real_line_start_offset(buffer, end_line+1);
 }
 
-scan_through_similar_chars_on_the_left :: (using buffer: Buffer, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
-    if !buffer.bytes return 0;
-
-    line_start := bytes.data + line_starts[offset_to_real_line(buffer, offset)];
-    char: u32;
-    t := bytes.data + offset;
-    t, char = unicode_prev_character(t);
-    if char_type != .none && char_type != get_char_type(char) return offset;
-    if skip_one_space && char == #char " " && t > line_start then t, char = unicode_prev_character(t);
-
-    if get_char_type(char) == {
-        case .space;
-            while t > bytes.data && is_space_char(char)  { t, char = unicode_prev_character(t); }
-            if char != #char " " then t = unicode_next_character(t);
-        case .word;
-            while t > bytes.data && is_word_char(char) { t, char = unicode_prev_character(t); }
-            if !is_word_char(char) then t = unicode_next_character(t);
-        case .non_word;
-            while t > bytes.data && is_non_word_char(char) { t, char = unicode_prev_character(t); }
-            if !is_non_word_char(char) then t = unicode_next_character(t);
-    }
-
-    if t < bytes.data then t = bytes.data;
-
-    return cast(s32) max(0, t - bytes.data);
+scan_through_similar_chars_on_the_left :: inline (using buffer: Buffer, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    line_start_offset := line_starts[offset_to_real_line(buffer, offset)];
+    return scan_through_similar_chars_on_the_left(buffer.bytes, line_start_offset, offset, char_type, skip_one_space);
 }
 
-scan_through_similar_chars_on_the_right :: (using buffer: Buffer, offset: s32, only: Char_Type = .none, skip_one_space := true) -> offset: s32 {
-    if !buffer.bytes return 0;
-    if offset >= bytes.count return offset;  // nowhere to go
-
-    s: string = ---;
-    s.data  = *bytes[offset];
-    s.count = (bytes.data + bytes.count) - s.data;
-
-    char := utf8_next_character(*s);
-    if only == {
-        case .word;     if !is_word_char(char)     return offset;
-        case .non_word; if !is_non_word_char(char) return offset;
-        case .space;    if  char != #char " "      return offset;
-    }
-    if skip_one_space && char == #char " " && s then char = utf8_next_character(*s);
-
-    if char == #char " " {
-        // Only spaces
-        while s && char == #char " "  { char = utf8_next_character(*s); }
-        if char != #char " " { s.data, char = unicode_prev_character(s.data); }
-    } else if is_word_char(char) {
-        // Only word chars
-        while s && is_word_char(char) { char = utf8_next_character(*s); }
-        if !is_word_char(char) { s.data, char = unicode_prev_character(s.data); }
-    } else if char != #char "\n" {
-        // Only non-word chars
-        while s && is_non_word_char(char) { char = utf8_next_character(*s); }
-        if !is_non_word_char(char) { s.data, char = unicode_prev_character(s.data); }
-    }
-
-    return cast(s32) min(bytes.count, s.data - bytes.data);
+scan_through_similar_chars_on_the_right :: inline (buffer: Buffer, offset: s32, char_type: Char_Type = .none, skip_one_space := true) -> offset: s32 {
+    return scan_through_similar_chars_on_the_right(buffer.bytes, offset, char_type, skip_one_space);
 }
 
 cursors_start_blinking :: inline () {
