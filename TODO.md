@@ -1,11 +1,11 @@
 # Mine
 
 - [x] Fix ctrl-w not always working
-- [ ] Change window title to project first
+- [x] Change window title to project first
 - [ ] Small sections
-- [ ] Fix embedded lang hang
 - [ ] Fix Ctrl+Left/Right going over numbers
 - [ ] multicursor align: insert space or delete
+- [ ] Fix embedded lang hang
 
 - [ ] parse string literals to highlight escapes
 - [.] build system

@@ -344,6 +344,8 @@ get_char_type :: (ch: u32) -> Char_Type {
         return .word;
     } else if is_space_char(ch) {
         return .space;
+    } else if (#char "0" <= ch && ch <= #char "9" || ch == #char "-" || ch == #char "." || ch == #char "+") {
+        return .number;
     } else if ch != #char "\n" {
         return .non_word;
     } else {
@@ -498,6 +500,7 @@ Char_Type :: enum {
     none;
     word;
     non_word;
+    number;
     space;
     other;
 }

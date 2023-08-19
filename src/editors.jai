@@ -1226,15 +1226,28 @@ make_buffer_active :: (buffer_id: s64) {
 
 update_window_title :: (buffer_id: s64 = -1) {
     title := window_generic_title;
-    if current_project_name then title = tprint("% - %", current_project_name, title);
-    if buffer_id >= 0 {
-        buffer := open_buffers[buffer_id];
-        if buffer.has_file {
-            title = tprint("% • % • %", buffer.file.name, buffer.file.path, title);
-        } else {
-            title = tprint("% • %", get_buffer_name(buffer), title);
+    if current_project_name {
+        if buffer_id < 0 {
+            title = tprint("% | %", current_project_name, title);
+        }
+        else {
+            buffer := open_buffers[buffer_id];
+            if buffer.has_file {
+                title = tprint("% • % • % | %", current_project_name, buffer.file.name, buffer.file.path, title);
+            } else {
+                title = tprint("% • % | %", current_project_name, get_buffer_name(buffer), title);
+            }
         }
     }
+    else {
+        buffer := open_buffers[buffer_id];
+        if buffer.has_file {
+            title = tprint("% • % | %", buffer.file.name, buffer.file.path, title);
+        } else {
+            title = tprint("% | %", get_buffer_name(buffer), title);
+        }
+    }
+
     platform_set_window_title(title);
 }
 
