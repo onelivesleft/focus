@@ -1356,7 +1356,8 @@ create_cursors_around :: (using editor: *Editor, buffer: Buffer) {
 select_word :: (using editor: *Editor, buffer: Buffer) {
     editor.cursor_moved = .unimportant;
     for * editor.cursors {
-        if has_selection(it) continue;
+        if has_selection(it) && editor.cursors.count > 1
+            continue;
         select_word(buffer, it);
         editor.search_whole_words = true;
     }

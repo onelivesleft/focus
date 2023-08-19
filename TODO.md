@@ -1,9 +1,9 @@
 # Mine
 
-- [ ] Add sections to md
-- [x] Add sections to focus_config
+- [x] Fix ctrl-w not always working
+- [ ] Change window title to project first
+- [ ] Small sections
 - [ ] Fix embedded lang hang
-- [x] convert current buffer to [colors]
 - [ ] Fix Ctrl+Left/Right going over numbers
 - [ ] multicursor align: insert space or delete
 
@@ -76,6 +76,9 @@
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
 
+- [x] Add sections to md
+- [x] Add sections to focus_config
+- [x] convert current buffer to [colors]
 - [x] history big step
 - [x] Alt-w shouldn't close pane, it should go to previous buffer and remove file from buffer tab history
 - [x] Fix jumping around when search target is near top of file
