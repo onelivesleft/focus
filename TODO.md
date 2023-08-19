@@ -1,11 +1,7 @@
 # Mine
 
-- [x] Fix ctrl-w not always working
-- [x] Change window title to project first
 - [ ] Small sections
-- [x] Fix Ctrl+Left/Right going over numbers
 - [ ] multicursor align: insert space or delete
-- [ ] Fix embedded lang hang
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
@@ -76,6 +72,10 @@
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
 
+- [x] Fix ctrl-w not always working
+- [x] Change window title to project first
+- [x] Fix Ctrl+Left/Right going over numbers
+- [x] Fix embedded lang hang
 - [x] Add sections to md
 - [x] Add sections to focus_config
 - [x] convert current buffer to [colors]

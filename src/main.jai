@@ -969,3 +969,59 @@ Embedded_Font :: struct {
 }
 
 prev_key_pressed : Input.Key_Code;
+
+my_config :: #string focus_config
+[colors]
+background:                     15212AFF
+background_dark:                10191FFF
+background_highlight:           18262FFF
+background_light:               1A2831FF
+background_bright:              21333FFF
+background_region:              0000004F
+background_region_private:      2A1618FF
+background_region_public:       0B0B18FF
+
+selection_active:               1C4449FF
+selection_inactive:             1C44497F
+selection_highlight:            FCEDFC26
+search_result_active:           8E772EFF
+search_result_inactive:         FCEDFC26
+scrollbar:                      33CCCC19
+scrollbar_hover:                33CCCC4C
+scrollbar_background:           10191F4C
+cursor:                         26B2B2FF
+cursor_inactive:                196666FF
+paste_animation:                1C4449FF
+splitter:                       21333FFF
+splitter_hover:                 1C4449FF
+letter_highlight:               599999FF
+list_cursor_lite:               33CCCC19
+list_cursor:                    33CCCC4C
+shadow_dark:                    0E161C7F
+shadow_transparent:             0E161C00
+text_input_label:               3B4450FF
+
+ui_default:                     BFC9DBFF
+ui_dim:                         87919DAF
+ui_neutral:                     4C4C4CFF
+ui_warning:                     F8AD34FF
+ui_warning_dim:                 986032FF
+ui_error:                       772222FF
+ui_error_bright:                FF0000FF
+ui_success:                     227722FF
+
+code_default:                   BFC9DBFF
+code_comment:                   87919DFF
+code_type:                      82AAA3FF
+code_function:                  D0C5A9FF
+code_punctuation:               BFC9DBFF
+code_operation:                 E0AD82FF
+code_string:                    D4BC7DFF
+code_value:                     D699B5FF
+code_highlight:                 D89B75FF
+code_error:                     FF0000FF
+code_keyword:                   CFC9DBFF
+code_jump:                      E67D74FF
+code_directive:                 EDE694FF
+code_format_item:               55FFFFFF
+focus_config

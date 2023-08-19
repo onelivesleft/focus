@@ -10,8 +10,8 @@ highlight_focus_config_syntax :: (using buffer: *Buffer) {
 highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Tokenizer = ---;
     tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
+    tokenizer.max_t = bytes.data + start_index + count;
+    tokenizer.t     = bytes.data + start_index;
 
     highlight_focus_config_syntax(buffer, *tokenizer, false);
 }
