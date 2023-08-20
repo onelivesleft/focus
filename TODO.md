@@ -1,11 +1,10 @@
 # Mine
 
-- [x] Fix Ctrl+Left/Right going over numbers
-    - [x] Fix Alt+Left/Right!
-- [x] Small sections
-- [x] Highlight cursor line
-- [x] Make add cursor skip gaps
-- [x] multicursor align: insert space or delete
+- [.] Fancy minimal title bar
+- [ ] Action to show col/row/pos
+- [.] Highlight cursor line
+    - [ ] Fix when in right pane!
+    - [ ] Fade out: at least for when under title panel, perhaps always?
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
@@ -75,7 +74,11 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
-
+- [x] Fix Ctrl+Left/Right going over numbers
+    - [x] Fix Alt+Left/Right!
+- [x] Small sections
+- [x] Make add cursor skip gaps
+- [x] multicursor align: insert space or delete
 - [x] Fix ctrl-w not always working
 - [x] Change window title to project first
 - [x] Fix embedded lang hang

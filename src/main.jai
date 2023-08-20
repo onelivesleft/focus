@@ -5,6 +5,7 @@ DEBUG_SMALL_WINDOW :: true;
 DEBUG_SHOW_COLOR :: true;
 
 FOOTER_AT_TOP :: true;
+MINIMAL_FOOTER :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
