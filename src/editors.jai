@@ -85,22 +85,22 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         action := map_event_to_action(event, Action_Search_Dialog);
 
         if action == {
-            case .toggle_expand;                    search_bar_toggle_expand(editor);                                             return true;
-            case .toggle_case_sensitive;            search_bar_toggle_case_sensitive(editor, buffer);                             return true;
-            case .toggle_whole_word;                search_bar_toggle_whole_word(editor, buffer);                                 return true;
+            case .toggle_expand;                   search_bar_toggle_expand(editor);                                             return true;
+            case .toggle_case_sensitive;           search_bar_toggle_case_sensitive(editor, buffer);                             return true;
+            case .toggle_whole_word;               search_bar_toggle_whole_word(editor, buffer);                                 return true;
 
-            case .search_in_buffer;                 open_search_bar(editor, buffer, remember_cursor_position = false);            return true;
-            case .search_in_buffer_dropdown_mode;   open_search_bar(editor, buffer, .dropdown, remember_cursor_position = false); return true;
+            case .search_in_buffer;                open_search_bar(editor, buffer, remember_cursor_position = false);            return true;
+            case .search_in_buffer_dropdown_mode;  open_search_bar(editor, buffer, .dropdown, remember_cursor_position = false); return true;
 
-            case .move_up;                          search_bar_move_cursor(editor, buffer, -1, wrap = true);                      return true;
-            case .move_down;                        search_bar_move_cursor(editor, buffer,  1, wrap = true);                      return true;
-            case .move_up_fast;                     search_bar_move_cursor(editor, buffer, -5);                                   return true;
-            case .move_down_fast;                   search_bar_move_cursor(editor, buffer,  5);                                   return true;
+            case .move_up;                         search_bar_move_cursor(editor, buffer, -1, wrap = true);                      return true;
+            case .move_down;                       search_bar_move_cursor(editor, buffer,  1, wrap = true);                      return true;
+            case .move_up_fast;                    search_bar_move_cursor(editor, buffer, -5);                                   return true;
+            case .move_down_fast;                  search_bar_move_cursor(editor, buffer,  5);                                   return true;
 
-            case .close_current_editor;             close_search_bar(editor); close_editor(.current);                                  return true;
-            case .close_other_editor;               close_editor(.other);                                                              return true;
-            case .close_left_editor;                if editors.active == editors.left  close_search_bar(editor); close_editor(.left);  return true;
-            case .close_right_editor;               if editors.active == editors.right close_search_bar(editor); close_editor(.right); return true;
+            case .close_current_editor;            close_search_bar(editor); close_editor(.current);                                  return true;
+            case .close_other_editor;              close_editor(.other);                                                              return true;
+            case .close_left_editor;               if editors.active == editors.left  close_search_bar(editor); close_editor(.left);  return true;
+            case .close_right_editor;              if editors.active == editors.right close_search_bar(editor); close_editor(.right); return true;
         }
 
         if mode == .classic {
@@ -229,6 +229,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .change_case_to_lower;             change_case_of_selected_text        (editor, buffer, .lower); keep_selection = true;
         case .change_case_to_caps;              change_case_of_selected_text        (editor, buffer, .caps);  keep_selection = true;
         case .change_case_cycle;                change_case_of_selected_text        (editor, buffer, .cycle); keep_selection = true;
+
+        case .align_cursors;                    align_cursors                       (editor, buffer);
 
         case .break_line;                       break_line                          (editor, buffer);
         case .new_line_below_without_breaking;  new_line_below                      (editor, buffer);
@@ -1670,6 +1672,7 @@ new_edit_group_required_for_action :: (action: Action_Editors, cursor: Cursor) -
         case .change_case_to_lower;             return true;
         case .change_case_to_caps;              return true;
         case .change_case_cycle;                return true;
+        case .align_cursors;                    return true;
     }
 
     return false;
@@ -2497,6 +2500,79 @@ autoindent_lines :: (editor: *Editor, buffer: *Buffer) {
     editor.cursor_moved = .unimportant;
 }
 
+align_cursors :: (using editor: *Editor, buffer: *Buffer) {
+    // Don't work if a cursor has a selection larger than one line
+    for editor.cursors {
+        pos_line := offset_to_real_line(buffer, it.pos);
+        sel_line := offset_to_real_line(buffer, it.sel);
+        if pos_line != sel_line return;
+    }
+
+    // Merge cursors if they are on the same line and set positions at the start of selections
+    for * editor.cursors {
+        line  := offset_to_real_line(buffer, it.pos);
+        start := min(it.pos, it.sel);
+        end   := max(it.pos, it.sel);
+
+        for * other: editor.cursors {
+            if it == other continue;
+            other_line := offset_to_real_line(buffer, other.pos);
+            if other_line != line continue;
+
+            start = min(start, other.pos, other.sel);
+            end   = max(end  , other.pos, other.sel);
+        }
+
+        it.pos = start;
+        it.sel = end;
+    }
+    organise_cursors(editor);
+
+    // Compute the values needed to align the cursors
+    rightmost_col, largest_selection: s32;
+    for editor.cursors {
+        coords := get_real_cursor_coords(buffer, it);
+        rightmost_col     = max(rightmost_col, min(coords.pos.col, coords.sel.col));
+        largest_selection = max(largest_selection, abs(it.pos - it.sel));
+    }
+
+    offset_delta := 0;
+    for * editor.cursors {
+        it.pos += xx offset_delta;
+        it.sel += xx offset_delta;
+        it.col_wanted = -1;
+
+        coords              := get_real_cursor_coords(buffer, it);
+        selection_start_col := min(coords.pos.col, coords.sel.col);
+        selection_size      := abs(it.pos - it.sel);
+
+        // Compute the number of spaces and if we need to insert them before of after the cursor selection
+        spaces_before, spaces_after: s32;
+        if has_selection(it) {
+            spaces_before = rightmost_col - selection_start_col;
+            spaces_after  = ifx selection_size != largest_selection then largest_selection - selection_size;
+        } else {
+            spaces_before = rightmost_col - coords.pos.col + largest_selection;
+        }
+        str_before, str_after := get_tmp_spaces(spaces_before), get_tmp_spaces(spaces_after);
+
+        insert_string_at_offset(buffer, max(it.pos, it.sel), str_after);
+        insert_string_at_offset(buffer, min(it.pos, it.sel), str_before);
+
+        // insert_string_at_offset() make the buffer dirty
+        // we rescan to clean it else we can't call get_real_cursor_coords for the next cursors
+        rescan_for_lines(buffer);
+        if line_wrap_is_active(editor) then rescan_for_wrapped_lines(editor, buffer);
+
+        // Keep selections aligned
+        if it.pos < it.sel Swap(*it.pos, *it.sel); // Shouldn't be necessary since it's already reverted in the merge step
+        it.pos += xx (str_before.count + str_after.count);
+        it.sel = it.pos - largest_selection;
+        offset_delta += str_before.count + str_after.count;
+    }
+
+    editor.cursor_moved = .large_edit;
+}
 
 remove_additional_cursors :: (editor: *Editor) {
     cursor := leave_only_original_cursor(editor);

@@ -373,6 +373,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "change_case_to_lower",
     "change_case_to_caps",
     "change_case_cycle",
+    "align_cursors",
     "toggle_block_comment",
     "open_floating",
     "select_line",

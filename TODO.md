@@ -4,8 +4,8 @@
     - [x] Fix Alt+Left/Right!
 - [x] Small sections
 - [x] Highlight cursor line
-- [ ] multicursor align: insert space or delete
 - [x] Make add cursor skip gaps
+- [x] multicursor align: insert space or delete
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
