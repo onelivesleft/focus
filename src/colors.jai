@@ -20,6 +20,7 @@ Color_Values :: struct {
     BACKGROUND_REGION         := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 0.02 };
     BACKGROUND_REGION_PRIVATE := Color.{ r = 0.165, g = 0.086, b = 0.133 };
     BACKGROUND_REGION_PUBLIC  := Color.{ r = 0.086, g = 0.165, b = 0.133 };
+    BACKGROUND_CURSOR_ROW     := Color.{ r = 1.0, g = 1.0, b = 1.0, a = 0.1 };
 
     SELECTION_ACTIVE        := Color.{ r = 0.11, g = 0.267, b = 0.29 };
     SELECTION_INACTIVE      := Color.{ r = 0.11, g = 0.267, b = 0.29, a = 0.5 };
@@ -231,6 +232,7 @@ convert_active_buffer_to_colors :: () {
     do("background_region",              "editor.background");
     do("background_region_private",      "editor.background", bake=true);
     do("background_region_public",       "editor.background", bake=true);
+    do("background_cursor_row",          "editor.lineHighlightBackground");
     append(*builder, "\n");
     do("selection_active",               "editor.selectionBackground");
     do("selection_inactive",             "editor.selectionBackground", op=.darken);

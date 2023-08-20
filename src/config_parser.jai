@@ -97,6 +97,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "background_region";               return *config.colors.BACKGROUND_REGION;
         case "background_region_public";        return *config.colors.BACKGROUND_REGION_PUBLIC;
         case "background_region_private";       return *config.colors.BACKGROUND_REGION_PRIVATE;
+        case "background_cursor_row";           return *config.colors.BACKGROUND_CURSOR_ROW;
         case "selection_active";                return *config.colors.SELECTION_ACTIVE;
         case "selection_inactive";              return *config.colors.SELECTION_INACTIVE;
         case "selection_highlight";             return *config.colors.SELECTION_HIGHLIGHT;

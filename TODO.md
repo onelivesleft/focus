@@ -2,8 +2,9 @@
 
 - [x] Fix Ctrl+Left/Right going over numbers
     - [x] Fix Alt+Left/Right!
-- [ ] Small sections
+- [x] Small sections
 - [ ] multicursor align: insert space or delete
+- [x] Highlight cursor line
 
 - [ ] parse string literals to highlight escapes
 - [.] build system

@@ -105,6 +105,9 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
         else if token.type >= .emphasis1 && token.type <= .emphasis3 {
             push(*emphasis_stack, .{token.start, xx (token.type - token.Type.emphasis1 + 1)});
         }
+        else if token.type >= .header1 && token.type <= .header6 {
+            add_buffer_section(buffer, token.start, token.type <= .header2);
+        }
 
         if token.type == .hyperlink {
             color := COLOR_MAP[token.type];

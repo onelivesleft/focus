@@ -75,6 +75,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                         memset(colors.data + prev_token.start, xx Code_Color.FUNCTION, prev_token.len);
                     }
                     else if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
+                        add_buffer_section(buffer, before_prev_token.start, false);
                         memset(colors.data + before_prev_token.start, xx Code_Color.FUNCTION, before_prev_token.len);
                     }
 
@@ -109,6 +110,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
             if token.keyword == .kw_inline {
                 // Handle "func :: inline"
                 if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
+                    add_buffer_section(buffer, before_prev_token.start, false);
                     memset(colors.data + before_prev_token.start, xx Code_Color.FUNCTION, before_prev_token.len);
                     // @TODO next token should be l_paren, and should start scope
                 }
@@ -133,7 +135,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                 make_next_scope_directive_if = true;
 
                 case .directive_scope_export;
-                add_buffer_section(buffer, token.start);
+                add_buffer_section(buffer, token.start, true);
                 if current_scope {
                     pos := token.start;
                     back_to_line_start(*pos);
@@ -143,7 +145,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                 current_scope = 0;
 
                 case .directive_scope_file;
-                add_buffer_section(buffer, token.start);
+                add_buffer_section(buffer, token.start, true);
                 if current_scope == .scope_module {
                     pos := token.start;
                     back_to_line_start(*pos);
@@ -155,7 +157,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                 }
 
                 case .directive_scope_module;
-                add_buffer_section(buffer, token.start);
+                add_buffer_section(buffer, token.start, true);
                 if current_scope == .scope_file {
                     pos := token.start;
                     back_to_line_start(*pos);

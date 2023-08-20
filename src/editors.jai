@@ -205,8 +205,10 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_down_to_empty_line;          move_cursors_to_empty_line          (editor, buffer, .down);
         case .move_up_one_page;                 move_cursors_by_page                (editor, buffer, .up);
         case .move_down_one_page;               move_cursors_by_page                (editor, buffer, .down);
-        case .move_up_one_section;              move_cursors_by_section             (editor, buffer, .up);
-        case .move_down_one_section;            move_cursors_by_section             (editor, buffer, .down);
+        case .move_up_one_important_section;    move_cursors_by_section             (editor, buffer, .up,   true);
+        case .move_down_one_important_section;  move_cursors_by_section             (editor, buffer, .down, true);
+        case .move_up_one_section;              move_cursors_by_section             (editor, buffer, .up,   false);
+        case .move_down_one_section;            move_cursors_by_section             (editor, buffer, .down, false);
         case .jump_to_line_start;               move_cursors_home                   (editor, buffer);
         case .jump_to_line_end;                 move_cursors_end                    (editor, buffer);
         case .jump_to_file_start;               move_to_file_start                  (editor, buffer);
@@ -1060,7 +1062,7 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
 
     path_, basename, _, basename_with_extension := path_decomp(path);
 
-    if equal_nocase(basename, "todo") || equal_nocase(basename_with_extension, "FOCUS-CHANGELOG.txt") {
+    if equal_nocase(basename_with_extension, "FOCUS-CHANGELOG.txt") {
         buffer.lang = .Worklog;
     }
 }
@@ -1686,6 +1688,8 @@ is_a_move_action :: (action: Action_Editors) -> bool {
         case .move_down_one_page;               return true;
         case .move_up_one_section;              return true;
         case .move_down_one_section;            return true;
+        case .move_up_one_important_section;    return true;
+        case .move_down_one_important_section;  return true;
         case .jump_to_line_start;               return true;
         case .jump_to_line_end;                 return true;
         case .jump_to_file_start;               return true;
@@ -1814,26 +1818,32 @@ move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; 
     else           editor.cursor_moved = .moved_down;
 }
 
-move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; down; }) {
+move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; down; }, only_important: bool) {
     cursor := leave_only_original_cursor(editor);
     section_pos : s32 = ---;
     if dir == .up {
         section_pos = 0;
         for buffer.sections {
-            if it < cursor.pos
-                section_pos = it;
-            else
+            if  it.pos < cursor.pos {
+                if it.important || !only_important
+                    section_pos = it.pos;
+            }
+            else {
                 break;
+            }
         }
         editor.cursor_moved = .moved_up;
     }
     else {
         section_pos = xx buffer.bytes.count;
         for < buffer.sections {
-            if it > cursor.pos
-                section_pos = it;
-            else
+            if it.pos > cursor.pos {
+                if it.important || !only_important
+                    section_pos = it.pos;
+            }
+            else {
                 break;
+            }
         }
         editor.cursor_moved = .moved_down;
     }

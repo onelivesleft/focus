@@ -26,13 +26,11 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Token
         token = get_next_token(tokenizer);
         if token.type == .eof break;
 
-        if token.type == .header_top_level || token.type == .header {
-            add_buffer_section(buffer, token.start);
-        }
+        if token.type == .header_top_level || token.type == .header
+            add_buffer_section(buffer, token.start, token.type == .header_top_level);
 
-        if token.type == .color_value {
+        if token.type == .color_value
             add_color_square_decoration(buffer, token.start + token.len, token.color);
-        }
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);

@@ -981,6 +981,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
+        // Draw cursor row highlighy
+        if cursors.count == 1 {
+            cursor := cursors[0];
+            if cursor.pos >= visible_offset_range.start && cursor.pos <= visible_offset_range.end {
+                screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[0].pos);
+                cursor_rect := make_rect(0, screen_pos.y, rect.w - scrollbar_size, line_height);
+                draw_rect(cursor_rect, Colors.BACKGROUND_CURSOR_ROW);
+            }
+        }
+
         // Draw text
         hidden_chars_on_the_left := cast(s32) max((viewport.left / char_x_advance) - 2, 0);
         max_chars_horizontally   := cast(s32) (rect.w / char_x_advance) + 2;

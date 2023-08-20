@@ -310,6 +310,8 @@ ACTIONS_COMMON :: string.[
     "move_down_one_page",
     "move_up_one_section",
     "move_down_one_section",
+    "move_up_one_important_section",
+    "move_down_one_important_section",
     "move_left",
     "move_left_by_word",
     "move_left_by_word_ends",

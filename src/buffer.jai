@@ -834,6 +834,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     #if OS == .WINDOWS {
         if path.count > 248 return -1, false;  // Windows bad
     }
+
     lock(*open_buffers_lock);
 
     #if OS == .WINDOWS {
@@ -1181,7 +1182,7 @@ Buffer :: struct {
 
     regions : [..] Region;
     decorations : [..] Decoration;
-    sections : [..] s32;         // Position of section marker
+    sections : [..] Section;
 
     // TODO: put into enum_flags
     has_file               := false;  // a buffer might not have a corresponding file
@@ -1379,10 +1380,17 @@ add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32,
     array_add(*regions, .{ start_offset, end_offset, inclusive, depth, type });
 }
 
+
+Section :: struct {
+    pos: s32;
+    important: bool;
+}
+
 reset_buffer_sections :: (using buffer: *Buffer) {
     array_reset(*sections);
 }
 
-add_buffer_section :: (using buffer: *Buffer, pos: s32) {
-    array_add(*sections, pos);
+add_buffer_section :: (using buffer: *Buffer, pos: s32, important: bool) {
+    array_add(*sections, .{pos, important});
 }
+
