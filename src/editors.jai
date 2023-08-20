@@ -1250,11 +1250,16 @@ create_cursor :: (using editor: *Editor, buffer: Buffer, where: enum { above; be
         cursor := *cursors[cursors.count-1];
 
         pos_coords := offset_to_coords(editor, buffer, cursor.pos);
-        if where == .above then pos_coords.line -= 1; else pos_coords.line += 1;
-        pos_coords.col = original_pos_coords.col;
+        while true {
+            if where == .above then pos_coords.line -= 1; else pos_coords.line += 1;
+            pos_coords.col = original_pos_coords.col;
 
-        cursor.pos = coords_to_offset(editor, buffer, pos_coords);
-        cursor.col_wanted = original_pos_coords.col;
+            cursor.pos = coords_to_offset(editor, buffer, pos_coords);
+            cursor.col_wanted = original_pos_coords.col;
+
+            if cursor.pos <= 0 || cursor.pos >= buffer.bytes.count || original_pos_coords.col == 0 || offset_to_coords(editor, buffer, cursor.pos).col > 0
+                break;
+        }
 
         if has_selection(original) {
             sel_coords := pos_coords;

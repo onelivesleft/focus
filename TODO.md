@@ -3,8 +3,9 @@
 - [x] Fix Ctrl+Left/Right going over numbers
     - [x] Fix Alt+Left/Right!
 - [x] Small sections
-- [ ] multicursor align: insert space or delete
 - [x] Highlight cursor line
+- [ ] multicursor align: insert space or delete
+- [x] Make add cursor skip gaps
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
