@@ -1,5 +1,7 @@
 # Mine
 
+- [x] Fix Ctrl+Left/Right going over numbers
+    - [x] Fix Alt+Left/Right!
 - [ ] Small sections
 - [ ] multicursor align: insert space or delete
 
@@ -74,7 +76,6 @@
 
 - [x] Fix ctrl-w not always working
 - [x] Change window title to project first
-- [x] Fix Ctrl+Left/Right going over numbers
 - [x] Fix embedded lang hang
 - [x] Add sections to md
 - [x] Add sections to focus_config

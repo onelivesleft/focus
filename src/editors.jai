@@ -1711,7 +1711,7 @@ move_cursors_left :: (editor: *Editor, using buffer: *Buffer, by: enum { char; w
                     context.underscore_is_part_of_word = true;
                 case .word_ends;
                     char_type := get_char_type(get_char_at_offset(buffer, cursor.pos));
-                    if char_type != .word then cursor.pos = scan_through_similar_chars_on_the_left(buffer, cursor.pos, char_type, skip_one_space = false);
+                    if !(char_type & .word) then cursor.pos = scan_through_similar_chars_on_the_left(buffer, cursor.pos, char_type, skip_one_space = false);
                     cursor.pos = scan_through_similar_chars_on_the_left(buffer, cursor.pos, skip_one_space = skip_one_space);
             }
         }
@@ -1739,7 +1739,7 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
                 case .word_ends;
                     char := get_char_at_offset(buffer, cursor.pos);
                     char_type := get_char_type(char);
-                    if char_type != .word  then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, char_type, skip_one_space = false);
+                    if !(char_type & .word) then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, char_type, skip_one_space = false);
                     char_type = get_char_type(get_char_at_offset(buffer, cursor.pos));
                     if char_type != .other && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, skip_one_space = skip_one_space);
             }

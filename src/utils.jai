@@ -502,8 +502,9 @@ get_char_type_raw :: (ch: u32) -> Char_Type {
 }
 
 get_char_type :: inline (ch: u32) -> Char_Type {
-    if ch <= 255  return char_type_table[ch];
-    else          return get_char_type_raw(ch);
+    if ch == #char "_"  return ifx context.underscore_is_part_of_word then .word else .non_word;
+    if ch <= 191        return char_type_table[ch];
+                        return get_char_type_raw(ch);
 }
 
 #insert -> string {
@@ -511,7 +512,7 @@ get_char_type :: inline (ch: u32) -> Char_Type {
     append(*builder, trim(#string jai
         char_type_table :: Char_Type.[
     jai));
-    for 0 .. cast(u32)255 {
+    for 0 .. cast(u32)191 {
         print_to_builder(*builder, trim(#string jai
             %,
         jai), cast(u8)get_char_type_raw(it));
