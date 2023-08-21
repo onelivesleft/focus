@@ -1,10 +1,7 @@
 # Mine
 
 - [.] Fancy minimal title bar
-- [ ] Action to show col/row/pos
-- [.] Highlight cursor line
-    - [ ] Fix when in right pane!
-    - [ ] Fade out: at least for when under title panel, perhaps always?
+- [ ] Go to added_string source
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
@@ -74,6 +71,11 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Action to show col/row/pos
+- [x] Highlight cursor line
+    - [x] Fix when in right pane!
+    - [x] Disable when selecting
+    - [x] Fade out: at least for when under title panel, perhaps always?
 - [x] Fix Ctrl+Left/Right going over numbers
     - [x] Fix Alt+Left/Right!
 - [x] Small sections

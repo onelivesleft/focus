@@ -231,7 +231,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .change_case_cycle;                change_case_of_selected_text        (editor, buffer, .cycle); keep_selection = true;
 
         case .align_cursors;                    align_cursors                       (editor, buffer);
-
+        case .show_cursor_position;             show_cursor_position                (editor, buffer);
         case .break_line;                       break_line                          (editor, buffer);
         case .new_line_below_without_breaking;  new_line_below                      (editor, buffer);
         case .new_line_above_without_breaking;  new_line_above                      (editor, buffer);
@@ -568,6 +568,14 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
         should_jump_to_eye_tracker = editors.active;
 }
 
+show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
+    cursor := cursors[main_cursor];
+    coords := offset_to_coords(editor, buffer, cursor.pos);
+    message := tprint("\nRow: %  Col: %  Pos: %\n", coords.line, coords.col, cursor.pos);
+    if editors.floating == -1
+        add_delayed_action(hide_console, 5.0);
+    print_to_console(message);
+}
 
 move_cursor_to_viewport_center :: (editor: *Editor, buffer: Buffer) {
     using font_data;

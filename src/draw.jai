@@ -1,8 +1,5 @@
 footer_height : float32 : 26;
-#if MINIMAL_FOOTER && FOOTER_AT_TOP {
-    editor_top_margin :: footer_height * 1.5;
-}
-else #if FOOTER_AT_TOP {
+#if FOOTER_AT_TOP {
     editor_top_margin :: footer_height * 1.5;
 }
 else {
@@ -998,10 +995,21 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Draw cursor row highlight
         if editors.active == editor_id && cursors.count == 1 {
             cursor := cursors[main_cursor];
-            if cursor.pos >= visible_offset_range.start && cursor.pos <= visible_offset_range.end {
+            if !has_selection(cursor) && cursor.pos >= visible_offset_range.start && cursor.pos <= visible_offset_range.end {
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[main_cursor].pos);
-                cursor_rect := make_rect(rect.x, screen_pos.y, rect.w - rect.x - scrollbar_size, line_height);
-                draw_rect(cursor_rect, Colors.BACKGROUND_CURSOR_ROW);
+                //screen_pos.x -= rect.x;
+                fade_width := rect.w / 2;
+                left_rect := make_rect(rect.x, screen_pos.y, screen_pos.x - rect.x, line_height);
+                //cursor_left_rect := make_rect(screen_pos.x - fade_width, screen_pos.y, fade_width, line_height);
+                cursor_right_rect := make_rect(screen_pos.x, screen_pos.y, fade_width, line_height);
+                //left_rect := make_rect(rect.x, screen_pos.y, screen_pos.x - fade_width - rect.x, line_height);
+                right_rect := make_rect(screen_pos.x + fade_width, screen_pos.y, rect.x + rect.w - screen_pos.x + fade_width - scrollbar_size, line_height);
+                faded := with_alpha(Colors.BACKGROUND_CURSOR_ROW, 4.0/255);
+                Simp.set_shader_for_color(enable_blend = true);
+                draw_rect(left_rect, Colors.BACKGROUND_CURSOR_ROW);
+                //draw_rect_raw(cursor_left_rect, faded, faded, Colors.BACKGROUND_CURSOR_ROW, Colors.BACKGROUND_CURSOR_ROW);
+                draw_rect_raw(cursor_right_rect, Colors.BACKGROUND_CURSOR_ROW, Colors.BACKGROUND_CURSOR_ROW, faded, faded);
+                draw_rect(right_rect, faded);
             }
         }
 
@@ -2914,16 +2922,21 @@ draw_buffer_switcher_dialog :: (active_rect: Rect) {
 
     //box_rect := make_rect(margin, screen.h - margin - height, width, height);
     box_rect := cut_top(active_rect, footer_height);
+    box_rect.y -= char_x_advance / 2;
     if !is_valid(box_rect) return;
 
+    box_rect.x -= char_x_advance;
+    box_rect.w += char_x_advance * 2;
     draw_rounded_rect_with_shadow(box_rect, Colors.MOTIF, radius = rounding_radius_large);
+    box_rect.x += char_x_advance;
+    box_rect.w -= char_x_advance * 2;
 
     push_scissor(box_rect);
     defer pop_scissor();
 
     pen := box_rect.xy;
     pen.x += padding;
-    pen.y += padding * 2.5;
+    pen.y += padding * 2;
 
     buffer_id := buffer_order[buffer_switcher_index];
     buffer := *open_buffers[buffer_id];
