@@ -1409,7 +1409,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
 
     // Draw footer
-    {
+    if !MINIMAL_FOOTER || show_filename {
         outer_footer_rect := footer_rect;
         footer_rect = shrink_x(outer_footer_rect, text_offset.x);
 

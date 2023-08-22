@@ -324,6 +324,7 @@ ACTIONS_COMMON :: string.[
     "jump_to_file_end",
     "jump_to_error",
     "toggle_show_keystrokes",
+    "toggle_show_filename",
     "jump_to_commented_source_location",
     "delete_left_char",
     "delete_right_char",

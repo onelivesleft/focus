@@ -11,6 +11,7 @@ HIDE_SCROLLBARS :: true;
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
 show_keystrokes := false;
+show_filename := true;
 
 
 main :: () {
@@ -435,6 +436,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .jump_to_error;                                    jump_to_error();
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();
+        case .toggle_show_filename;                             toggle_show_filename();
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -666,6 +668,11 @@ update_window_size :: (w: s64, h: s64) {
 toggle_show_keystrokes :: () {
     show_keystrokes = !show_keystrokes;
     add_success_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), dismiss_in_seconds = 2);
+}
+
+toggle_show_filename :: () {
+    show_filename = !show_filename;
+    add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), dismiss_in_seconds = 2);
 }
 
 calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;

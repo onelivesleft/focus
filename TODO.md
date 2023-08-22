@@ -1,9 +1,6 @@
 # Mine
 
-- [x] Key logger
-- [x] Go to added_string source
-- [x] Better error msg crop for toast
-- [.] Fancy minimal title bar
+- [ ] RemedyBG
 - [ ] Redo jumps cursor too far forward
 
 - [ ] parse string literals to highlight escapes
@@ -74,6 +71,11 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Key logger
+- [x] Go to added_string source
+- [x] Better error msg crop for toast
+- [x] Fancy minimal title bar
+    - [x] Hide button
 - [x] Action to show col/row/pos
 - [x] Highlight cursor line
     - [x] Fix when in right pane!
