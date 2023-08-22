@@ -10,6 +10,8 @@ HIDE_SCROLLBARS :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
+show_keystrokes := false;
+
 
 main :: () {
     #if DEBUG && MEMORY_DEBUGGING {
@@ -253,6 +255,12 @@ main :: () {
                     should_quit = true;
 
                 case .KEYBOARD;
+                    if show_keystrokes && event.key_pressed {
+                        name := key_code_name(event.key_code);
+                        if starts_with(name, "(enum")  name = "";
+                        add_success_message(tprint("% <%>", name, cast(int)event.key_code), dismiss_in_seconds = 2);
+                    }
+
                     // Double shift click
                     if config.settings.double_shift_to_search_in_workspace && event.key_code == .SHIFT {
                         using shift_key;
@@ -425,6 +433,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .move_to_next_buffer;                              move_to_next_buffer();                              return true;
 
         case .jump_to_error;                                    jump_to_error();
+
+        case .toggle_show_keystrokes;                           toggle_show_keystrokes();
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -651,6 +661,11 @@ update_window_size :: (w: s64, h: s64) {
         dpi_scale = new_dpi_scale;
         init_fonts_and_dependent_things();
     }
+}
+
+toggle_show_keystrokes :: () {
+    show_keystrokes = !show_keystrokes;
+    add_success_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), dismiss_in_seconds = 2);
 }
 
 calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;

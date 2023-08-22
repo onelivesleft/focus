@@ -288,6 +288,93 @@ jai_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: 
     return false;
 }
 
+jai_jump_to_commented_source_location :: (using editor: *Editor, buffer: Buffer, placement: Editor_Placement = .in_place) {
+    cursor := cursors[main_cursor];
+    start_pos, end_pos := cursor.pos;
+    if start_pos > buffer.colors.count  return;
+
+    back_up_to_comment :: () #expand {
+        end_pos = start_pos - 1;
+        while end_pos > 0 && buffer.colors[end_pos] != xx Code_Color.COMMENT
+            end_pos -= 1;
+        if end_pos > 0 {
+            start_pos = end_pos - 1;
+            while start_pos > 0 && buffer.colors[start_pos] == xx Code_Color.COMMENT
+                start_pos -= 1;
+        }
+    }
+
+    s := cast(string) buffer.bytes;
+
+    while end_pos > 0 {
+        back_up_to_comment();
+        comment_s := slice(s, start_pos, end_pos);
+        path := "";
+        line : s32 = 0;
+        look_again_index := 1;
+        while look_again_index {
+            path, line, look_again_index = find_last_file_location_in_string(comment_s, ".jai:");
+            if look_again_index {
+                comment_s = slice(comment_s, 0, look_again_index);
+                continue;
+            }
+            if path == ""  break;
+            editors_open_file(path, placement);
+            if editors.active < 0  return;
+
+            editor := *open_editors[editors.active];
+            buffer := *open_buffers[editor.buffer_id];
+
+            cursor := leave_only_original_cursor(editor);
+            position := coords_to_offset(editor, buffer, .{ line, 0 });
+            cursor.pos = position;
+            cursor.sel = position;
+            add_paste_animation(editor, get_selection(cursor));
+            editor.cursor_moved = .jumped;
+            editor.scroll_to_cursor = .yes;
+            return;
+        }
+    }
+}
+
+jai_jump_to_added_string_source :: (added_string_editor: *Editor, added_string_buffer: Buffer, placement: Editor_Placement = .in_place) {
+    cursor_pos := added_string_editor.cursors[added_string_editor.main_cursor].pos;
+    if cursor_pos > added_string_buffer.bytes.count  return;
+
+    s := cast(string) added_string_buffer.bytes;
+
+    sentinel :: "Generated from ";
+    index, found := last_index(s, sentinel, cursor_pos);
+    if !found return;
+
+    path_index := index + sentinel.count;
+    end_line_index:, found = first_index(s, ".\n", path_index);
+    if !found return;
+
+    colon_index:, found = last_index(s, ":", end_line_index);
+    if !found return;
+
+    path := slice(s, path_index, colon_index);
+    line_s := slice(s, colon_index + 1, end_line_index);
+    line, ok := parse_int(*line_s);
+    if !ok  return;
+
+    editors_open_file(path, placement);
+    if editors.active < 0  return;
+
+    editor := *open_editors[editors.active];
+    buffer := *open_buffers[editor.buffer_id];
+
+    cursor := leave_only_original_cursor(editor);
+    position := coords_to_offset(editor, buffer, .{ cast(s32)line, 0 });
+    cursor.pos = position;
+    cursor.sel = position;
+    add_paste_animation(editor, get_selection(cursor));
+    editor.cursor_moved = .jumped;
+    editor.scroll_to_cursor = .yes;
+}
+
+
 jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
     cursor := *editor.cursors[editor.main_cursor];
 

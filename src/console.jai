@@ -178,7 +178,27 @@ make_build_error :: (s: string) -> Build_Error, ok: bool {
     if !ok  return result, false;
 
     result.path = copy_string(platform_normalize_path(slice(location, 0, coord_start)), console_allocator);
-    result.message = copy_string(slice(message, 0, 64), console_allocator);
+    message = split_into_two(message, #char "\n");
+    message_char_width :: 96;
+    if message.count > message_char_width {
+        builder : String_Builder;
+        part: string;
+        while message {
+            i := last_index(message, #char " ", message_char_width);
+            if i <= 0  i = message_char_width;
+            part, message = split_at_index(message, i);
+            append(*builder, part);
+            append(*builder, #char "\n");
+            message = trim_start(message);
+            if message.count <= message_char_width {
+                append(*builder, message);
+                append(*builder, #char "\n");
+                break;
+            }
+        }
+        message = builder_to_string(*builder, temp);
+    }
+    result.message = copy_string(trim_end(message), console_allocator);
     result.decorated_buffer = null;
 
     return result, true;

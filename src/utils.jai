@@ -661,3 +661,36 @@ to_lower :: (char: *u8) {
     if is_upper(char.*)
         char.* += 32;
 }
+
+find_last_file_location_in_string :: (s: string, file_end_colon: string) -> path: string, line: s32, look_again_from: int {
+    assert(ends_with(file_end_colon, #char ":"));
+    end_index, found := last_index(s, file_end_colon);
+    if !found  return "", 0, 0;
+
+    colon_index:, found = last_index(s, ":/", end_index);
+    if !found || colon_index == 0  return "", 0, 0;
+
+    path_start_index := colon_index - 1;
+    path_end_index := end_index + file_end_colon.count - 1;
+    line_start_index := path_end_index + 1;
+
+    path := slice(s, path_start_index, path_end_index);
+    line_s := slice(s, line_start_index);
+    line, ok := parse_int(*line_s);
+    if !ok  return "", 0, path_start_index;
+
+    return path, cast(s32)line, 0;
+}
+
+key_code_name :: (key_code: Input.Key_Code) -> string {
+    if #char "0" <= key_code && key_code <= #char "9"
+    || #char "a" <= key_code && key_code <= #char "z"
+    || #char "A" <= key_code && key_code <= #char "Z" {
+        c := cast(u8) key_code;
+        s : string = ---;
+        s.data = *c;
+        s.count = 1;
+        return tprint("%", s);
+    }
+    return tprint("%", key_code);
+}

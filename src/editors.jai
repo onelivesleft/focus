@@ -215,6 +215,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_file_end;                 move_to_file_end                    (editor, buffer);
         case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
         case .open_floating;                    open_floating                       (editor, buffer);
+        case .jump_to_commented_source_location; jump_to_commented_source_location  (editor, buffer);
 
         case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
         case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -440,6 +441,21 @@ jump_to_error :: () {
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .jumped;
     editor.scroll_to_cursor = .yes;
+
+    if buffer.lang == {
+        case .Jai;
+        if starts_with(buffer.file.name, ".added_strings")
+            jai_jump_to_added_string_source(editor, buffer, .on_the_side);
+    }
+}
+
+//delayed_jump_to_commented_source_location_editor_id : int = 0;
+
+
+jump_to_commented_source_location :: (editor: *Editor, buffer: Buffer, placement: Editor_Placement = .in_place) {
+    if buffer.lang == {
+        case .Jai;  jai_jump_to_commented_source_location(editor, buffer, placement);
+    }
 }
 
 editors_open_global_config :: (placement: Editor_Placement) {

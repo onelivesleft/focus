@@ -218,6 +218,7 @@ commands := #run Command.[
     .{ .toggle_line_numbers,                                "Toggle Line Numbers",                0, .None },
 
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
+    .{ .toggle_show_keystrokes,                             "Toggle Show Keystrokes",             0, .None },
 ];
 
 Command :: struct {

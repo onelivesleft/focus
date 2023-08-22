@@ -1,7 +1,10 @@
 # Mine
 
+- [x] Key logger
+- [x] Go to added_string source
+- [x] Better error msg crop for toast
 - [.] Fancy minimal title bar
-- [ ] Go to added_string source
+- [ ] Redo jumps cursor too far forward
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
