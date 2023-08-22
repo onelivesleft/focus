@@ -90,7 +90,11 @@ draw_frame :: () {
                     active_pane_rect = floating_area;
             }
 
-            splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + footer_height, 2, left_rect.h - footer_height);
+            #if MINIMAL_FOOTER
+                margin := 0;
+            else
+                margin := footer_height;
+            splitter_rect := make_rect(left_rect.x + left_rect.w, left_rect.y + margin, 2, left_rect.h - margin);
             draw_splitter(splitter_rect, split_x, .editor_splitter);
     }
 
@@ -664,7 +668,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Scrollbar
-        new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll, scrollbar_id);
+        new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll - xx rect.h, scrollbar_id, draw=!HIDE_SCROLLBARS);
         if new_scroll_target != viewport.scroll_y.target {
             // Jump immediately to the scroll point when dragging or clicking scrollbar
             viewport.top = new_scroll_target;
@@ -709,8 +713,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         text_origin = top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
 
         max_lines := get_max_line_num(editor, buffer);
-        visible_lines_start = clamp(cast(s32) (viewport.top / line_height) - 1, 0, max_lines);
-        visible_lines_end   = clamp(visible_lines_start + cast(s32) (rect.h / line_height) + 1, 0, max_lines);
+        visible_lines_start = clamp(cast(s32) (viewport.top / line_height) - 2, 0, max_lines);
+        visible_lines_end   = clamp(visible_lines_start + cast(s32) (rect.h / line_height) + 2, 0, max_lines);
         num_visible_lines   := visible_lines_end - visible_lines_start + 1;
 
         visible_offset_range = Offset_Range.{

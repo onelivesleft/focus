@@ -6,6 +6,7 @@ DEBUG_SHOW_COLOR :: true;
 
 FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
+HIDE_SCROLLBARS :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
@@ -519,7 +520,10 @@ init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale
     char_x_advance  = cast(float) font.x_advance;
     old_line_height = line_height;
     line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0) * line_height_scale;
-    scrollbar_size  = floor(1.5 * char_size);
+    #if HIDE_SCROLLBARS
+        scrollbar_size  = 4.0;
+    else
+        scrollbar_size  = floor(1.5 * char_size);
     rounding_radius = floor(char_size / 2);
     rounding_radius_large = floor(char_size / 1.5);
     rounding_radius_small = floor(char_size / 3);
