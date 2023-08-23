@@ -2,6 +2,8 @@
 
 - [ ] RemedyBG
 - [ ] Redo jumps cursor too far forward
+- [ ] History jumps are too large
+- [ ] Quit!
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
@@ -40,6 +42,7 @@
 - [?] FIX command runner!!!
 
 - [ ] Zen
+    - [ ] Zen theme
 - [.] Developer tool show scope at cursor
 - [ ] Create project from folder
 - [ ] search broken? possibly same problem as memory crash?
