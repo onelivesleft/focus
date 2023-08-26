@@ -1,9 +1,12 @@
 # Mine
 
 - [ ] RemedyBG
+- [ ] Fix buffer switcher breaking after save as
+- [ ] Match bracket doesnt work as last character
 - [ ] Redo jumps cursor too far forward
 - [ ] History jumps are too large
 - [ ] Quit!
+- [ ] Open project folder in explorer
 
 - [ ] parse string literals to highlight escapes
 - [.] build system
