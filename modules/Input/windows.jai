@@ -226,6 +226,25 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             }
             return hit;
 
+
+          case WM_NCRBUTTONUP;
+            if window_region_override {
+                TPM_LEFTALIGN :: 0x0000;
+                TPM_RETURNCMD :: 0x0100;
+
+                user32 :: #system_library "user32";
+                GetSystemMenu :: (hwnd: HWND, bRevert: bool) -> HWND #foreign user32;
+                TrackPopupMenuEx :: (hmenu: HWND, fuFlagsL: u32, x: s32, y: s32, hwnd: HWND, lptpm: HWND) -> HWND #foreign user32;
+                PostMessageW :: (hwnd: HWND, Msg: u32, wParam: HWND, lParam: HWND) -> HWND #foreign user32;
+
+                y : s32 = cast(s32)((lParam >> 16) & 0xFFFF);
+                x : s32 = cast(s32)((lParam)       & 0xFFFF);
+                wMenu := GetSystemMenu(hwnd, false);
+                command := TrackPopupMenuEx(wMenu, TPM_LEFTALIGN | TPM_RETURNCMD, x, y, hwnd, null);
+                if command
+                    PostMessageW(hwnd, WM_SYSCOMMAND, command, null);
+            }
+
           case WM_ACTIVATEAPP;
             if wParam {  // We are being activated.
 
@@ -417,7 +436,6 @@ MyWindowProc :: (hwnd: HWND, message: u32,
 	        else return DefWindowProcW(hwnd, message, wParam, lParam);
 
           case;
-            print("%\n", message); // 164 165 127
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
 	    }
 
