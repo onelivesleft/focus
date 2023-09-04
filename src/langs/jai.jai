@@ -1105,7 +1105,7 @@ Keyword_Token :: struct {
 
 KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     table: Table(string, Keyword_Token);
-    size := 2 * (KEYWORDS.count + TYPE_KEYWORDS.count + JUMP_KEYWORDS.count + VALUE_KEYWORDS.count);
+    size := 3 * (KEYWORDS.count + TYPE_KEYWORDS.count + JUMP_KEYWORDS.count + VALUE_KEYWORDS.count);
     init(*table, size);
 
     #insert -> string {

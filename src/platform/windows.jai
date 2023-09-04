@@ -62,14 +62,53 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
     return x, y, w, h;
 }
 
+normal_style : u32;
+
 platform_create_window :: () {
     window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
-    old_style := GetWindowLongW(window, GWL_STYLE);
-    //old_ex_style := GetWindowLongW(hwnd, GWL_EXSTYLE);
-    //SetWindowLongW(window, GWL_STYLE, old_style & ~cast(s32)(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME));
-    SetWindowLongW(window, GWL_STYLE, old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME));
+    old_style := cast(u32) GetWindowLongW(window, GWL_STYLE);
+    normal_style = old_style;// & ~cast(u32)(WS_CAPTION | WS_THICKFRAME);
+    SetWindowLongW(window, GWL_STYLE, xx normal_style);
     SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
     platform_set_border_color();
+}
+
+platform_set_window_sizable :: (sizable: bool) {
+    if sizable
+        SetWindowLongW(window, GWL_STYLE, normal_style | cast(u32)(WS_THICKFRAME));
+    else
+        SetWindowLongW(window, GWL_STYLE, normal_style);
+    SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+}
+
+TPM_LEFTALIGN :: 0x0000;
+TPM_RETURNCMD :: 0x0100;
+MF_ENABLED :: 0x00000000;
+MF_GRAYED :: 0x00000001;
+SC_MAXIMIZE :: 0xF030;
+SC_RESTORE :: 0xF120;
+
+GetSystemMenu :: (hwnd: HWND, bRevert: bool) -> HWND #foreign user32;
+TrackPopupMenuEx :: (hmenu: HWND, fuFlagsL: u32, x: s32, y: s32, hwnd: HWND, lptpm: HWND) -> HWND #foreign user32;
+PostMessageW :: (hwnd: HWND, Msg: u32, wParam: HWND, lParam: HWND) -> HWND #foreign user32;
+EnableMenuItem :: (hmenu: HWND, uIDEnableItem: u32, uEnable: u32) -> bool #foreign user32;
+
+show_system_menu :: () {
+ /*
+    wMenu := GetSystemMenu(window, false);
+    // Display the menu
+    //EnableMenuItem(wMenu, SC_MAXIMIZE, MF_GRAYED);
+    EnableMenuItem(wMenu, SC_MAXIMIZE, MF_ENABLED);
+    command := TrackPopupMenuEx(wMenu, TPM_LEFTALIGN | TPM_RETURNCMD, 100, 100, window, null);
+    if !command  return;
+
+    PostMessageW(window, WM_SYSCOMMAND, command, null);
+*/
+}
+
+platform_start_sizing :: () {
+    SC_SIZE :: 0xF000;
+    DefWindowProcW(window, WM_SYSCOMMAND, SC_SIZE, 0);
 }
 
 platform_maximize_window :: (window: Window_Type) {
@@ -362,4 +401,3 @@ DwmAttribute :: enum u32 {
   SYSTEMBACKDROP_TYPE;
   LAST;
 }
-

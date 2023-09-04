@@ -1,11 +1,5 @@
-footer_height : float32 : 26;
-#if FOOTER_AT_TOP {
-    editor_top_margin :: footer_height * 1.5;
-}
-else {
-    editor_top_margin : float32 : 0;
-}
-
+footer_height := 0.0;
+editor_top_margin := 0.0;
 simp_initialized := false;
 
 draw_frame :: () {
@@ -22,7 +16,9 @@ draw_frame :: () {
     // Check whether we need to deactivate elements before drawing
     if !mouse.left.is_down || mouse.left.just_released then ui.active = .none;
 
-    //footer_height := font_ui_line_height * 1.6;
+    footer_height = font_data.font_ui_line_height + floor(4 * dpi_scale);
+    #if FOOTER_AT_TOP
+        editor_top_margin = footer_height * 1.5;
 
     active_pane_rect: Rect = ---;
 
@@ -116,7 +112,7 @@ draw_frame :: () {
     draw_user_messages(screen, footer_height);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
-            draw_buffer_switcher_dialog(active_pane_rect);
+        draw_buffer_switcher_dialog(active_pane_rect);
 
     if eye_tracking_active && eye_tracking_hot {
         size :: 2.0;
@@ -1478,6 +1474,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             trans.a = 0;
             Simp.set_shader_for_color(enable_blend = true);
             draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
+        }
+
+        #if MINIMAL_FOOTER {
+            Input.window_region_override = .NONE;
+            footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
+            maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
+
+            is_hovering := mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id);
+            if is_hovering {
+                //if mouse.right.just_pressed
+                //    platform_start_sizing();
+                //else
+                Input.window_region_override = .TITLE_BAR;
+            }
         }
     }
 
@@ -3469,6 +3479,8 @@ Ui_Id :: enum s64 {
     delete_file_dialog  :: -13;
     save_file_dialog    :: -14;
     icon_search_dialog  :: -15;
+    footer_left         :: -16;
+    footer_right        :: -17;
 
     // The rest will be derived from loc
 }

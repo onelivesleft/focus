@@ -19,6 +19,10 @@ draw_frame: () -> ();
 update_window_size: (s64, s64) -> ();
 simp: **Immediate_State;
 
+window_region_override : enum {
+    NONE;
+    TITLE_BAR;
+}
 
 //
 // @Incomplete @Robustness: We should check whichever flags Windows gives us automatically
@@ -182,6 +186,7 @@ get_vk :: (key: Key_Code) -> VK: u64 {
 
 #add_context _windows_windowproc :: MyWindowProc;
 
+
 MyWindowProc :: (hwnd: HWND, message: u32,
                  wParam: WPARAM, lParam: LPARAM) -> s64 #c_call {
     new_context: Context;
@@ -204,6 +209,22 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             }
 */
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
+
+          case WM_NCHITTEST;
+            hit := DefWindowProcW(hwnd, message, wParam, lParam);
+            if window_region_override {
+                HTCLIENT :: 1;
+                HTCAPTION :: 2;
+                HTSYSMENU :: 3;
+                HTSIZE :: 4;
+                HTTOPRIGHT :: 14;
+                if hit == HTCLIENT {
+                    if window_region_override == {
+                        case .TITLE_BAR;  hit = HTCAPTION;
+                    }
+                }
+            }
+            return hit;
 
           case WM_ACTIVATEAPP;
             if wParam {  // We are being activated.
@@ -248,8 +269,8 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             keycode := wParam;
 
             // @Hack to allow AltGr shortcuts for AZERTY layout...
-            altgr_keycode := keycode == 126 || keycode == 35 || keycode == 123 || keycode == 91 || 
-                             keycode == 124 || keycode == 96 || keycode == 92  || keycode == 94 || 
+            altgr_keycode := keycode == 126 || keycode == 35 || keycode == 123 || keycode == 91 ||
+                             keycode == 124 || keycode == 96 || keycode == 92  || keycode == 94 ||
                              keycode == 64  || keycode == 93 || keycode == 125;
 
             if (keycode > 31 && keycode < 127 && !(ctrl_state || alt_state)) || (altgr_keycode && alt_state) {
@@ -396,6 +417,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
 	        else return DefWindowProcW(hwnd, message, wParam, lParam);
 
           case;
+            print("%\n", message); // 164 165 127
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
 	    }
 
