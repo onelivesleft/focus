@@ -3161,7 +3161,7 @@ paste_from_clipboard :: (editor: *Editor, buffer: *Buffer) {
 
 jump_to_matching_bracket :: (editor: *Editor, buffer: *Buffer, with_selection: bool) {
     for * cursor : editor.cursors {
-        if cursor.pos < 0 || cursor.pos >= buffer.bytes.count  continue;
+        if cursor.pos < 0 || cursor.pos > buffer.bytes.count  continue;
 
         check_buffer_position :: (i: s32) -> handled: bool #expand {
             initial_i := i;

@@ -1393,4 +1393,3 @@ reset_buffer_sections :: (using buffer: *Buffer) {
 add_buffer_section :: (using buffer: *Buffer, pos: s32, important: bool) {
     array_add(*sections, .{pos, important});
 }
-

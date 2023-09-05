@@ -1,7 +1,9 @@
 # Mine
 
 - [ ] Fade scope regions together
-- [x] Custom title bar
+- [.] Custom title bar
+    - [x] Move by dragging
+    - [x] Resize by right-click menu
     - [ ] Drag borders on edges to resize window
 - [.] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
     - [ ] Restrict cursor to visible area
@@ -16,7 +18,7 @@
 - [ ] Open project folder in explorer
 - [ ] Show file status: status bar things, but on request at cursor.
 - [ ] Sync settings
-- [ ] Fix vertical scrolling response when holding down up/down
+- [x] Fix vertical scrolling response when holding down up/down
 - [ ] MOAR CURSORS!
     - [ ] Search all -> cursors
     - [ ] Quick ctrl-rightarrow (one press does all in file)
