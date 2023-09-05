@@ -1,7 +1,6 @@
 footer_height := 0.0;
 editor_top_margin := 0.0;
 simp_initialized := false;
-whitespace_collapse_width := 0.0;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -276,7 +275,6 @@ draw_welcome_screen :: (main_area: Rect) {
             y -= line_height;
         }
     }
-
 }
 
 draw_user_messages :: (main_area: Rect, footer_height: float) {
@@ -382,6 +380,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if rect.w > panel_width then line_number_panel, rect = cut_left(rect, panel_width);
     }
 
+    if !(config.settings.collapse_leading_whitespace && editor_id != editors.floating)
+        whitespace_collapse_width = 0.0;
+    rect.w += whitespace_collapse_width;
     rect = align_to_grid(rect);
     if !is_valid(rect) return;
 
@@ -397,8 +398,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Calculate text origin in screen coordinates
     text_offset := make_vector2(char_x_advance, -char_x_advance);
-    text_origin := top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
-    text_origin.x -= whitespace_collapse_width;
+    text_origin : Vector2 = ---;
+    calculate_text_origin :: () #expand {
+        text_origin = top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
+        text_origin.x -= whitespace_collapse_width;
+    }
+    calculate_text_origin();
 
     if should_jump_to_eye_tracker == editor_id {
         should_jump_to_eye_tracker = -1;
@@ -708,8 +713,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Need to update after updating scrolling to reduce latency
-        text_origin = top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
-        text_origin.x -= whitespace_collapse_width;
+        calculate_text_origin();
 
         max_lines := get_max_line_num(editor, buffer);
         visible_lines_start = clamp(cast(s32) (viewport.top / line_height) - 2, 0, max_lines);
@@ -731,11 +735,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             line_pixel_width := cast(s32) ((get_num_chars(line) + min_visible_chars) * char_x_advance);
             max_line_pixel_width = max(max_line_pixel_width, line_pixel_width);
             spaces, has_text := count_leading_spaces(cast(string)line);
-            if has_text && spaces < min_prefix_spaces
+            if line_num > visible_lines_start + 1 && line_num < visible_lines_end && has_text && spaces < min_prefix_spaces
                 min_prefix_spaces = spaces;
         }
 
-        #if COLLAPSE_LEADING_WHITESPACE
+        if config.settings.collapse_leading_whitespace && editor_id != editors.floating
             whitespace_collapse_width = xx (min_prefix_spaces * char_x_advance);
 
         viewport_width := cast(s32) rect.w;
@@ -868,6 +872,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
+        //draw_cool_rect(rect);
+
         // Decorations  (maybe in the future we'll need two passes, one before and one after text, but for now we only draw things below text)
         for decoration: buffer.decorations {
             using decoration;
@@ -896,6 +902,17 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
                 draw_rect(hr_rect, color);
             }
+        }
+
+        // Draw whitespace collapse marker
+        if whitespace_collapse_width > 0 {
+            marker := rect;
+            marker.x += 2;
+            marker.w = 2;
+            marker_height := whitespace_collapse_width * 2;
+            marker.y += marker.h - marker_height;
+            marker.h = marker_height;
+            draw_rect_raw(marker, Colors.BACKGROUND, Colors.CODE_DEFAULT, Colors.BACKGROUND, Colors.CODE_DEFAULT);
         }
 
         // Draw scrollbar marks
@@ -1103,6 +1120,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
                 cursor_rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
+                if cursor_rect.x < rect.x {
+                    offscreen_cursor_shrink_margin := line_height / 3;
+                    cursor_rect.x = rect.x;
+                    cursor_rect.y += offscreen_cursor_shrink_margin;
+                    cursor_rect.h -= offscreen_cursor_shrink_margin * 2;
+                }
                 draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
 
                 // Draw the letter on top for better visibility
@@ -3308,7 +3331,7 @@ draw_top_down_shadow :: (rect: Rect) {
     t := Colors.SHADOW_TRANSPARENT;
     s := Colors.SHADOW_DARK;
     Simp.set_shader_for_color(enable_blend = true);
-    draw_rect_raw(rect, c00 = t, c10 = t, c01 = s, c11 = s);
+    draw_rect_raw(rect, t, s, t, s);
 }
 
 draw_rect :: (rect: Rect, color: Color) {
@@ -3316,12 +3339,40 @@ draw_rect :: (rect: Rect, color: Color) {
     draw_rect_raw(rect, color);
 }
 
+draw_permutated_rect :: (rect: Rect, color: Color) {
+    Simp.set_shader_for_color(enable_blend = true);
+    k :: 1.0 / 100;
+    permutations :: Color.[
+        .{r =  0, g = +k, b = -k, a = 0},
+        .{r =  0, g = -k, b = +k, a = 0},
+        .{r = +k, g = -k, b =  0, a = 0},
+        .{r = -k, g = +k, b =  0, a = 0},
+    ];
+    draw_rect_raw(rect, color + permutations[0],
+                        color + permutations[1],
+                        color + permutations[2],
+                        color + permutations[3]);
+}
+
+draw_cool_rect :: (rect: Rect) {
+    Simp.set_shader_for_color(enable_blend = true);
+    k :: 1.0 / 50;
+    a :: 0.2;
+    permutations :: Color.[
+        .{r = 0, g = k, b = 0, a = a},
+        .{r = 0, g = 0, b = 0, a = a},
+        .{r = k, g = 0, b = 0, a = a},
+        .{r = 0, g = 0, b = k, a = a},
+    ];
+    draw_rect_raw(rect, permutations[0], permutations[1], permutations[2], permutations[3]);
+}
+
 draw_rect_raw :: inline (using rect: Rect, color: Color) {
     Simp.immediate_quad(x, y, x + w, y + h, color);
 }
 
-draw_rect_raw :: inline (using rect: Rect, c00: Color, c01: Color, c10: Color, c11: Color) {
-    Simp.immediate_quad(x, y, x + w, y + h, c00, c01, c10, c11);
+draw_rect_raw :: inline (using rect: Rect, bottom_left: Color, top_left: Color, bottom_right: Color, top_right: Color) {
+    Simp.immediate_quad(x, y, x + w, y + h, bottom_left, top_left, bottom_right, top_right);
 }
 
 draw_top_shadow :: (using rect: Rect, size: float = 10.0) {

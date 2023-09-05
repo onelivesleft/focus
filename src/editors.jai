@@ -3479,6 +3479,8 @@ Editor :: struct {
     wrapped_line_starts: [..] s32;  // empty when line wrap is off
 
     paste_animations: [..] Paste_Animation;
+
+    whitespace_collapse_width := 0.0;
 }
 
 Cursor_Movement :: enum u8 {

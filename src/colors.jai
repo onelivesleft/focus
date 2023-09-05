@@ -11,7 +11,6 @@ Color :: struct {
 Color_Values :: struct {
     NONE :: Color.{ r = -1, g = -1, b = -1, a = -1 };  // an invalid color to denote no color
 
-
     BACKGROUND                := Color.{ r = 0.086, g = 0.133, b = 0.165 };
     BACKGROUND_DARK           := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     BACKGROUND_HIGHLIGHT      := Color.{ r = 0.097, g = 0.15, b = 0.185 };
@@ -67,6 +66,10 @@ Color_Values :: struct {
     CODE_KEYWORD            := Color.{ r = 0.902, g = 0.493, b = 0.457, a = 1.0 };
     CODE_FORMAT_ITEM        := Color.{ r = 0.493, g = 0.902, b = 0.902, a = 1.0 };
 };
+
+operator + :: (a: Color, b: Color) -> Color {
+    return Color.{r = a.r + b.r, g = a.g + b.g, b = a.b + b.b, a = a.a + b.a};
+}
 
 Colors: Color_Values;  // a hack to avoid replacing a lot of code
 

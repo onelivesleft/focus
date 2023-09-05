@@ -357,6 +357,7 @@ Settings :: struct {
     scroll_to_cursor_line_offset        := 1;
     ignore_whitespace_in_finder         := false;
     ignore_whitespace_in_search_bar     := false;
+    collapse_leading_whitespace         := false;
     line_wrap_is_on_by_default          := false;
     show_line_numbers                   := false;
     dark_titlebar                       := false;  // TODO: fix the issues with window resize first
@@ -403,6 +404,7 @@ SETTINGS :: Setting.[
     .{ "copy_whole_line_without_selection",   .boolean },
     .{ "ignore_whitespace_in_finder",         .boolean },
     .{ "ignore_whitespace_in_search_bar",     .boolean },
+    .{ "collapse_leading_whitespace",         .boolean },
 
     .{ "max_entries_in_open_file_dialog",     .integer },
     .{ "tab_size",                            .integer },
@@ -441,4 +443,3 @@ DEFAULT_CONFIG :: #run -> Config {
 }
 
 #load "config_parser.jai";
-

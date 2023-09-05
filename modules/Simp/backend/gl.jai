@@ -187,7 +187,7 @@ backend_init_shaders :: () {
 // Shaders Here!
 //
 //
-SHADER_TEXT :: #string END
+SHADER_TEXT :: #string glsl
 
 OUT_IN vec2 TextureCoords;
 OUT_IN vec4 iterated_color;
@@ -222,10 +222,10 @@ void main () {
     colorMask = vec4(sample_left * color.a, sample_center * color.a, sample_right * color.a, 1.0);
 }
 #endif // FRAGMENT_SHADER
-END
+glsl
 
 
-SHADER_COLOR :: #string END
+SHADER_COLOR :: #string glsl
 OUT_IN vec4 iterated_color;
 
 #ifdef VERTEX_SHADER
@@ -247,13 +247,13 @@ void main () {
     color = iterated_color;
 }
 #endif // FRAGMENT_SHADER
-END
+glsl
 
 
 // @Cleanup:
 // shader_sprite is 1-v from shader_text. Do we pack the text texture upside down,
 // or what?
-SHADER_SPRITE :: #string END
+SHADER_SPRITE :: #string glsl
 OUT_IN vec2 TexCoords;
 OUT_IN vec4 iterated_color;
 
@@ -283,9 +283,9 @@ void main () {
     color = color_tex;
 }
 #endif // FRAGMENT_SHADER
-END
+glsl
 
-SHADER_ROUNDED_RECT :: #string END
+SHADER_ROUNDED_RECT :: #string glsl
 OUT_IN vec4 iterated_color;
 flat OUT_IN vec2 rect_center;
 flat OUT_IN vec2 rect_size;
@@ -328,10 +328,10 @@ void main () {
 }
 
 #endif // FRAGMENT_SHADER
-END
+glsl
 
 // TODO: finish
-SHADER_CIRCLE :: #string END
+SHADER_CIRCLE :: #string glsl
 OUT_IN vec4 iterated_color;
 flat OUT_IN vec2 center;
 flat OUT_IN float radius;
@@ -368,7 +368,7 @@ void main () {
 }
 
 #endif // FRAGMENT_SHADER
-END
+glsl
 
 
 get_shader_program :: (shader_text: string) -> GLuint {
@@ -403,17 +403,17 @@ get_shader_program :: (shader_text: string) -> GLuint {
         return shader_object;
     }
 
-    PREFIX_V :: #string END
+    PREFIX_V :: #string glsl
     #version 330 core
     #define VERTEX_SHADER
     #define OUT_IN out
-    END
+    glsl
 
-    PREFIX_F :: #string END
+    PREFIX_F :: #string glsl
     #version 330 core
     #define FRAGMENT_SHADER
     #define OUT_IN in
-    END
+    glsl
 
     shader_v := make_shader_object(shader_text, PREFIX_V, GL_VERTEX_SHADER);
     shader_f := make_shader_object(shader_text, PREFIX_F, GL_FRAGMENT_SHADER);

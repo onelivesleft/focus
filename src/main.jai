@@ -10,8 +10,6 @@ HIDE_SCROLLBARS :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
-COLLAPSE_LEADING_WHITESPACE :: false;
-
 SKIP_CUTSCENES :: true;
 
 show_keystrokes := false;
@@ -443,6 +441,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();
         case .toggle_show_filename;                             toggle_show_filename();
+        case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -684,6 +683,11 @@ toggle_show_keystrokes :: () {
 toggle_show_filename :: () {
     show_filename = !show_filename;
     add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), dismiss_in_seconds = 2);
+}
+
+toggle_collapse_leading_whitespace :: () {
+    config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;
+    add_success_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), dismiss_in_seconds = 2);
 }
 
 calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;

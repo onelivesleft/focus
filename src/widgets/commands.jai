@@ -223,6 +223,7 @@ commands := #run Command.[
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
     .{ .toggle_show_keystrokes,                             "Toggle Show Keystrokes",             0, .None },
     .{ .toggle_show_filename,                               "Toggle Show Filename",               0, .None },
+    .{ .toggle_collapse_leading_whitespace,                 "Toggle Collapse Leading Whitespace", 0, .None },
 
     .{ .quit,                                               "Quit Focus",                         0, .None },
 ];
