@@ -735,7 +735,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 min_prefix_spaces = spaces;
         }
 
-        whitespace_collapse_width = xx (min_prefix_spaces * char_x_advance);
+        #if COLLAPSE_LEADING_WHITESPACE
+            whitespace_collapse_width = xx (min_prefix_spaces * char_x_advance);
 
         viewport_width := cast(s32) rect.w;
         max_x_scroll: s32 = 0;

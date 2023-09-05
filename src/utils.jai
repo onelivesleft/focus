@@ -403,7 +403,10 @@ start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: Time
             return;
         }
     }
-    #if snappy {
+    #if SKIP_CUTSCENES {
+        anim.started_at = 0;
+    }
+    else #if snappy {
         // Pretend the animation started last frame so we start moving right away
         anim.started_at = frame_time - MAX_FRAME_DT;
     } else {

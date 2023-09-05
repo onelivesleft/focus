@@ -10,6 +10,10 @@ HIDE_SCROLLBARS :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
 
+COLLAPSE_LEADING_WHITESPACE :: false;
+
+SKIP_CUTSCENES :: true;
+
 show_keystrokes := false;
 show_filename := true;
 
