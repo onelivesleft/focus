@@ -118,6 +118,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "shadow_transparent";              return *config.colors.SHADOW_TRANSPARENT;
         case "text_input_label";                return *config.colors.TEXT_INPUT_LABEL;
         case "motif";                           return *config.colors.MOTIF;
+        case "collapsed_area_marker";           return *config.colors.COLLAPSED_AREA_MARKER;
 
         case "ui_default";                      return *config.colors.UI_DEFAULT;
         case "ui_dim";                          return *config.colors.UI_DIM;

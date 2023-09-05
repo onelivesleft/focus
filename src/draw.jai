@@ -908,11 +908,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if whitespace_collapse_width > 0 {
             marker := rect;
             marker.x += 2;
-            marker.w = 2;
-            marker_height := whitespace_collapse_width * 2;
+            marker.w = 1;
+            marker_height := char_x_advance * 4;
             marker.y += marker.h - marker_height;
             marker.h = marker_height;
-            draw_rect_raw(marker, Colors.BACKGROUND, Colors.CODE_DEFAULT, Colors.BACKGROUND, Colors.CODE_DEFAULT);
+            measure := 0.0;
+            while measure < whitespace_collapse_width {
+                draw_rect_raw(marker, Colors.BACKGROUND, Colors.COLLAPSED_AREA_MARKER, Colors.BACKGROUND, Colors.COLLAPSED_AREA_MARKER);
+                marker.y -= marker_height;
+                measure += marker_height;
+            }
         }
 
         // Draw scrollbar marks
