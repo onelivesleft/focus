@@ -252,7 +252,6 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
             case .undo;                             undo                                (editor, buffer); keep_selection = true;
             case .redo;                             redo                                (editor, buffer); keep_selection = true;
-            case .align_cursors;                    align_cursors                       (editor, buffer); keep_selection = true;
 
             case .delete_left_char;                 delete_left_char                    (editor, buffer);
             case .delete_right_char;                delete_right_char                   (editor, buffer);

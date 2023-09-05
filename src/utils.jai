@@ -353,18 +353,6 @@ get_balancing_char :: (ch: u32) -> u32 {
     }
 }
 
-get_char_type :: (ch: u32) -> Char_Type {
-    if is_word_char(ch) {
-        return .word;
-    } else if is_space_char(ch) {
-        return .space;
-    } else if ch != #char "\n" {
-        return .non_word;
-    } else {
-        return .other;
-    }
-}
-
 is_all_word_chars :: (s: string) -> bool {
     for byte : to_bytes(s) {
         if !is_word_char(byte) then return false;

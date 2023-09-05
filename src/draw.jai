@@ -99,15 +99,15 @@ draw_frame :: () {
     //    active_global_widget = .open_project_dialog;
 
     if active_global_widget == {
-        case .open_file_dialog;         draw_open_file_dialog();
-        case .save_file_dialog;         draw_save_file_dialog();
-        case .delete_file_dialog;       draw_delete_file_dialog();
-        case .finder;                   draw_finder();
-        case .go_to_line_dialog;        draw_go_to_line_dialog(active_pane_rect);
-        case .open_project_dialog;      draw_open_project_dialog();
-        case .unsaved_buffers_dialog;   draw_unsaved_buffers_dialog();
-        case .commands_dialog;          draw_commands_dialog();
-        case .icon_search_dialog;       draw_icon_search_dialog();
+        case .open_file_dialog;        draw_open_file_dialog();
+        case .save_file_dialog;        draw_save_file_dialog();
+        case .delete_file_dialog;      draw_delete_file_dialog();
+        case .finder;                  draw_finder();
+        case .go_to_line_dialog;       draw_go_to_line_dialog(active_pane_rect);
+        case .open_project_dialog;     draw_open_project_dialog();
+        case .unsaved_buffers_dialog;  draw_unsaved_buffers_dialog();
+        case .commands_dialog;         draw_commands_dialog();
+        case .icon_search_dialog;      draw_icon_search_dialog();
     }
 
     draw_user_messages(screen, footer_height);

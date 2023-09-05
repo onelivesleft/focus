@@ -413,12 +413,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_icon_search;                                 show_icon_search_dialog();                          return true;
         case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
 
-        case .show_icon_search;                                 show_icon_search_dialog();                          return true;
-        case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
-
-        case .show_icon_search;                                 show_icon_search_dialog();                          return true;
-        case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
-
         case .go_to_line;                                       show_go_to_line_dialog();                           return true;
         case .create_new_file;                                  editors_create_new_file(placement);                 return true;
         case .create_new_file_on_the_side;                      editors_create_new_file(.on_the_side);              return true;
