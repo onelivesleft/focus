@@ -818,20 +818,48 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
             }
             else if region.type == .scope_file {
-                if end >= max_lines {
+                at_end_of_file := end >= max_lines;
+                if at_end_of_file {
                     region_rect.h += region_rect.y;
                     region_rect.y = 0;
                 }
-                draw_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE);
+                header_rect, remainder_rect := cut_top(region_rect, line_height);
+                scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                draw_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE);
+                draw_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE);
+                if !at_end_of_file {
+                    // Draw trailing rectangle to right of next scope tab
+                    region_rect.y -= line_height;
+                    region_rect.h = line_height;
+                    scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                    width := char_x_advance * (scope_line_count + 1);
+                    region_rect.x += width;
+                    region_rect.w -= width;
+                    draw_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE);
+                }
                 scope_background = Colors.BACKGROUND_REGION_PRIVATE;
                 scope_background_ends_at = end;
             }
             else if region.type == .scope_module {
-                if end >= max_lines {
+                at_end_of_file := end >= max_lines;
+                if at_end_of_file {
                     region_rect.h += region_rect.y;
                     region_rect.y = 0;
                 }
-                draw_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC);
+                header_rect, remainder_rect := cut_top(region_rect, line_height);
+                scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                draw_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC);
+                draw_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC);
+                if !at_end_of_file {
+                    // Draw trailing rectangle to right of next scope tab
+                    region_rect.y -= line_height;
+                    region_rect.h = line_height;
+                    scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                    width := char_x_advance * (scope_line_count + 1);
+                    region_rect.x += width;
+                    region_rect.w -= width;
+                    draw_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC);
+                }
                 scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                 scope_background_ends_at = end;
             }

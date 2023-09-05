@@ -3932,3 +3932,4 @@ global_config_buffer_id := -1;
 CURSOR_BLINK_SPEED_MS   :: 500;
 
 #import "Clipboard";
+

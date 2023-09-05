@@ -1,6 +1,6 @@
 # Mine
 
-- [ ] Fade scope regions together
+- [x] Fade scope regions together
 - [.] Custom title bar
     - [x] Move by dragging
     - [x] Resize by right-click menu
@@ -9,9 +9,10 @@
     - [ ] Restrict cursor to visible area
     - [ ] Draw vertical line / marker when we've collapsed something
     - [ ] Make it a setting
+    - [ ] Not in floating window
 - [ ] RemedyBG
 - [ ] Fix buffer switcher breaking after save as
-- [ ] Match bracket doesnt work as last character
+- [x] Match bracket doesnt work as last character
 - [ ] Redo jumps cursor too far forward
 - [ ] History jumps are too large
 - [ ] Quit!
