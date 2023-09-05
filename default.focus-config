@@ -71,6 +71,7 @@ hide_mouse_when_typing:                 true
 Alt-F4                      quit
 
 Ctrl-D                      select_word_or_create_another_cursor
+Ctrl-Shift-A                select_all_occurrences
 
 Ctrl-Shift-D                duplicate_lines
 
@@ -217,6 +218,8 @@ Ctrl-W                      close_current_editor
 Ctrl-Shift-W                close_other_editor
 
 Ctrl-Shift-L                toggle_expand
+
+F11                         toggle_fullscreen
 
 # {Shift}- means shift is optional, the key combination will still be matched.
 {Shift}-ArrowUp             move_up

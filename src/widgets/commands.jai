@@ -150,6 +150,7 @@ commands := #run Command.[
     .{ .open_projects_directory,                            "Open Projects Directory",            0, .None },
     .{ .open_project_config,                                "Open Config For Project",            0, .None },
     .{ .open_global_config,                                 "Open Global Config",                 0, .None },
+    .{ .show_default_config,                                "Show Default Config (readonly)",     0, .None },
 
     .{ .show_icon_search,                                   "Show Icon Search",                   0, .None },
     .{ .convert_buffer_to_colors,                           "Convert Current Buffer To [colors]", 0, .Single },
@@ -160,6 +161,7 @@ commands := #run Command.[
 
     .{ .select_all,                                         "Select All",                         0, .Single },
     .{ .select_line,                                        "Select Line",                        0, .Single },
+    .{ .select_all_occurrences,                             "Select All Occurrences",             0, .Single },
     .{ .go_to_line,                                         "Go To Line",                         0, .Single },
 
     .{ .close_current_editor,                               "Close File",                         0, .Single },
@@ -216,6 +218,7 @@ commands := #run Command.[
 
     .{ .toggle_line_wrap,                                   "Toggle Line Wrap",                   0, .Single },
     .{ .toggle_line_numbers,                                "Toggle Line Numbers",                0, .None },
+    .{ .toggle_fullscreen,                                  "Toggle Fullscreen",                  0, .None },
 
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },
     .{ .toggle_show_keystrokes,                             "Toggle Show Keystrokes",             0, .None },

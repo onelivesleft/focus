@@ -408,6 +408,13 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
         case .open_global_config;                               editors_open_global_config(placement);              return true;
         case .open_project_config;                              editors_open_project_config(placement);             return true;
+        case .show_default_config;                              editors_show_default_config(placement);             return true;
+
+        case .show_icon_search;                                 show_icon_search_dialog();                          return true;
+        case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
+
+        case .show_icon_search;                                 show_icon_search_dialog();                          return true;
+        case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
 
         case .show_icon_search;                                 show_icon_search_dialog();                          return true;
         case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
@@ -424,6 +431,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_console;                                     show_console();                                     return true;
         case .hide_console;                                     hide_console();                                     return true;
         case .toggle_console;                                   toggle_console();                                   return true;
+        case .toggle_fullscreen;                                editor_toggle_fullscreen();                         return true;
 
         case .dump_key_mappings;                                dump_key_mappings();                                return true;
 
@@ -590,6 +598,11 @@ update_mouse_state :: () {
     update_button(*mouse.middle, .MOUSE_BUTTON_MIDDLE);
 }
 
+editor_toggle_fullscreen :: () {
+    fullscreen = !fullscreen;
+    toggle_fullscreen(window, fullscreen, *fullscreen_state);  // platform-specific
+}
+
 increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
@@ -690,6 +703,9 @@ window_height := 0;
 window_x  := -1;
 window_y  := -1;
 dpi_scale := 1.0;
+
+fullscreen: bool;
+fullscreen_state: Saved_Window_Info;
 
 redraw_requested        := true;  // set to true to render the first frame
 should_quit             := false;
@@ -917,6 +933,22 @@ dont_ignore_next_window_resize := false;
 } else {
     #assert false, "Unsupported OS";
 }
+
+/*
+ * Idealy this would go under `#if OS == .LINUX`. However, that doesn't work at the moment,
+ * compilation fails with the following error:
+ *
+ *   Error: Cannot designate program parameters for the module "Linux_Display" because an import for that module has already been seen, so it's too late.
+ *
+ * This seems to happen because imports placed inside of an `#if` are processed after top-level
+ * imports, and `Linux_Display` is pulled-in by other modules (`Clipboard`, `Input`, `Simp`) that
+ * the editor imports at the top level. Not sure if this is a compiler bug or if it's working as
+ * intended, pretty hard to say considering evaluation order is not guaranteed in any way.
+ *
+ * `Linux_Display` is empty on platforms other than Linux, so importing it should be basically
+ * free on Windows/MacOS.
+ */
+_ :: #import "Linux_Display"()(VALIDATE_USAGE = DEBUG);
 
 #import "Atomics";
 #import "Basic";

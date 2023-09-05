@@ -272,7 +272,9 @@ ACTIONS_COMMON :: string.[
     "open_projects_directory",
     "open_global_config",
     "open_project_config",
-    "open_error_log",
+    "show_default_config",
+    // "open_error_log",  // todo
+    "toggle_fullscreen",
 
     "build_debug",
     "build_debug_and_run",
@@ -349,6 +351,7 @@ ACTIONS_COMMON :: string.[
 
 ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "select_word_or_create_another_cursor",
+    "select_all_occurrences",
     "create_cursor_above",
     "create_cursor_below",
     "create_cursors_around",
