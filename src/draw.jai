@@ -1,6 +1,7 @@
 footer_height := 0.0;
 editor_top_margin := 0.0;
 simp_initialized := false;
+whitespace_collapse_width := 0.0;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -397,6 +398,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     // Calculate text origin in screen coordinates
     text_offset := make_vector2(char_x_advance, -char_x_advance);
     text_origin := top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
+    text_origin.x -= whitespace_collapse_width;
 
     if should_jump_to_eye_tracker == editor_id {
         should_jump_to_eye_tracker = -1;
@@ -707,6 +709,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         // Need to update after updating scrolling to reduce latency
         text_origin = top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
+        text_origin.x -= whitespace_collapse_width;
 
         max_lines := get_max_line_num(editor, buffer);
         visible_lines_start = clamp(cast(s32) (viewport.top / line_height) - 2, 0, max_lines);
@@ -720,13 +723,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         // Calculate max horizontal scroll in pixels
         max_line_pixel_width: s32 = 0;
+        min_prefix_spaces := 99999;
         for line_num : visible_lines_start .. visible_lines_end {
             line_start := get_line_start_offset(editor, buffer, line_num);
             length     := get_line_start_offset(editor, buffer, line_num+1) - line_start;
             line := array_view(buffer.bytes, line_start, length);
             line_pixel_width := cast(s32) ((get_num_chars(line) + min_visible_chars) * char_x_advance);
             max_line_pixel_width = max(max_line_pixel_width, line_pixel_width);
+            spaces, has_text := count_leading_spaces(cast(string)line);
+            if has_text && spaces < min_prefix_spaces
+                min_prefix_spaces = spaces;
         }
+
+        whitespace_collapse_width = xx (min_prefix_spaces * char_x_advance);
+
         viewport_width := cast(s32) rect.w;
         max_x_scroll: s32 = 0;
         if max_line_pixel_width > viewport_width then max_x_scroll = max_line_pixel_width - viewport_width;

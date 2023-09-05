@@ -1,5 +1,12 @@
 # Mine
 
+- [ ] Fade scope regions together
+- [x] Custom title bar
+    - [ ] Drag borders on edges to resize window
+- [.] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
+    - [ ] Restrict cursor to visible area
+    - [ ] Draw vertical line / marker when we've collapsed something
+    - [ ] Make it a setting
 - [ ] RemedyBG
 - [ ] Fix buffer switcher breaking after save as
 - [ ] Match bracket doesnt work as last character
@@ -7,6 +14,15 @@
 - [ ] History jumps are too large
 - [ ] Quit!
 - [ ] Open project folder in explorer
+- [ ] Show file status: status bar things, but on request at cursor.
+- [ ] Sync settings
+- [ ] Fix vertical scrolling response when holding down up/down
+- [ ] MOAR CURSORS!
+    - [ ] Search all -> cursors
+    - [ ] Quick ctrl-rightarrow (one press does all in file)
+    - [ ] Cycle main cursor
+    - [ ] Remove cursor
+- [ ] Flash on search loop around
 
 - [ ] parse string literals to highlight escapes
 - [.] build system

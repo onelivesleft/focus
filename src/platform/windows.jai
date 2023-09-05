@@ -62,12 +62,12 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
     return x, y, w, h;
 }
 
-normal_style : u32;
+normal_style : s32;
 
 platform_create_window :: () {
     window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
-    old_style := cast(u32) GetWindowLongW(window, GWL_STYLE);
-    normal_style = old_style & ~cast(u32)(WS_CAPTION | WS_THICKFRAME);
+    old_style := cast(s32) GetWindowLongW(window, GWL_STYLE);
+    normal_style = old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME);
     SetWindowLongW(window, GWL_STYLE, xx normal_style);
     SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
     platform_set_border_color();
@@ -75,7 +75,7 @@ platform_create_window :: () {
 
 platform_set_window_sizable :: (sizable: bool) {
     if sizable
-        SetWindowLongW(window, GWL_STYLE, normal_style | cast(u32)(WS_THICKFRAME));
+        SetWindowLongW(window, GWL_STYLE, normal_style | cast(s32)(WS_THICKFRAME));
     else
         SetWindowLongW(window, GWL_STYLE, normal_style);
     SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);

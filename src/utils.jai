@@ -694,3 +694,16 @@ key_code_name :: (key_code: Input.Key_Code) -> string {
     }
     return tprint("%", key_code);
 }
+
+count_leading_spaces :: (s: string) -> count: int, has_text: bool {
+    if !s  return 0, false;
+    for 0 .. s.count - 1 {
+        if s[it] != #char " " {
+            if s[it] > #char " "
+                return it, true;
+            else
+                return it, false;
+        }
+    }
+    return s.count, false;
+}
