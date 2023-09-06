@@ -167,6 +167,9 @@ backend_init_shaders :: () {
     shader_color_with_blend.gl_handle   = shader_color.gl_handle;
     shader_color_with_blend.alpha_blend = true;
 
+    shader_cool.gl_handle = get_shader_program(SHADER_COOL);
+    shader_color.alpha_blend = true;
+
     shader_text.gl_handle   = get_shader_program(SHADER_TEXT);
     shader_text.alpha_blend = true;
 
@@ -248,6 +251,42 @@ void main () {
 }
 #endif // FRAGMENT_SHADER
 glsl
+
+
+
+
+
+SHADER_COOL :: #string glsl
+OUT_IN vec4 iterated_color;
+
+#ifdef VERTEX_SHADER
+in vec2 vert_position;
+in vec4 vert_color;
+
+uniform mat4 projection;
+
+void main() {
+    gl_Position = projection * vec4(vert_position, 0.0, 1.0);
+    iterated_color = vert_color;
+}
+#endif // VERTEX_SHADER
+
+#ifdef FRAGMENT_SHADER
+uniform vec2 u_resolution;
+uniform float u_time;
+
+out vec4 color;
+
+void main () {
+    vec2 st = gl_FragCoord.xy / u_resolution;
+    vec4 perm = vec4(st.x, st.x * st.y, st.x * (1.0-u_time), 0.0);
+    color = mix(iterated_color, perm, 0.1);
+}
+#endif // FRAGMENT_SHADER
+glsl
+
+
+
 
 
 // @Cleanup:

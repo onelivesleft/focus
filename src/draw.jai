@@ -191,11 +191,20 @@ draw_welcome_screen :: (main_area: Rect) {
             y -= 1.5 * font_ui_big_line_height;
             Simp.draw_prepared_text(font_ui_medium, xx x, xx y, color = Colors.UI_DIM);
         }
+
+        {
+            Input.window_region_override = .NONE;
+            ui_id := Ui_Id.splash_screen;
+            maybe_set_hot_or_active(ui_id, welcome_left_area, .PRESSABLE);
+
+            if mouse_pointer_is_within(welcome_left_area) && is_hovering_over(ui_id)
+                Input.window_region_override = .TITLE_BAR;
+        }
     }
 
     // Draw the right part
     {
-        draw_rect(welcome_right_area, Colors.BACKGROUND);
+        draw_cool_rect(welcome_right_area, Colors.BACKGROUND, 0.0);
         right_area := welcome_right_area;
 
         Shortcut :: struct { action: Action_Common; description: string; }
@@ -389,7 +398,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     if ui_id == .editor_floating
         draw_rounded_rect_with_shadow(rect, Colors.BACKGROUND_DARK);
     else
-        draw_rect(rect, Colors.BACKGROUND);
+        draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
 
     became_active := maybe_set_hot_or_active(ui_id, rect, .TEXT_SELECT);
     if became_active then activate_editors();
@@ -671,6 +680,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Scrollbar
+        shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
         new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll - xx rect.h, scrollbar_id, draw=!HIDE_SCROLLBARS);
         if new_scroll_target != viewport.scroll_y.target {
             // Jump immediately to the scroll point when dragging or clicking scrollbar
@@ -799,39 +809,45 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             if region.inclusive  start -= 1;
             if start > visible_lines_end  break; // @TODO this should work because regions are sorted by if regions are now wonky switch this back to continue
 
-
+            start_is_visible := start >= visible_lines_start;
             start = max(start, visible_lines_start);
+            end_is_visible := end <= visible_lines_end;
             end   = min(end,   visible_lines_end);
 
             region_rect := make_rect(
                 rect.x, text_origin.y - end * line_height,
-                rect.w - scrollbar_size, line_height * (end - start)
+                rect.w /*- scrollbar_size*/, line_height * (end - start)
             );
 
             if region.depth == 0 { // "inserting" code
                 bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
-                draw_rect(region_rect, bg);
+                draw_cool_rect(region_rect, bg, shader_value);
                 region_rect.w = char_x_advance;
-                draw_rect(region_rect, Colors.BACKGROUND_REGION);
+                draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
                 region_rect.x += char_x_advance;
                 fade_char_count :: 8;
                 for < fade_char_count .. 1 {
                     color := with_alpha(Colors.BACKGROUND_REGION, Colors.BACKGROUND_REGION.a * it / cast(float)fade_char_count);
-                    draw_rect(region_rect, xx color);
+                    draw_cool_rect(region_rect, xx color, shader_value);
                     region_rect.x += char_x_advance;
                 }
             }
             else if region.type == .scope_file {
                 at_end_of_file := end >= max_lines;
-                if at_end_of_file {
+                if at_end_of_file || !end_is_visible  {
                     region_rect.h += region_rect.y;
                     region_rect.y = 0;
                 }
-                header_rect, remainder_rect := cut_top(region_rect, line_height);
-                scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                draw_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE);
-                draw_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE);
-                if !at_end_of_file {
+                if start_is_visible {
+                    header_rect, remainder_rect := cut_top(region_rect, line_height);
+                    scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                    draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                    draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                }
+                else {
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                }
+                if !at_end_of_file && end_is_visible {
                     // Draw trailing rectangle to right of next scope tab
                     region_rect.y -= line_height;
                     region_rect.h = line_height;
@@ -839,22 +855,27 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     width := char_x_advance * (scope_line_count + 1);
                     region_rect.x += width;
                     region_rect.w -= width;
-                    draw_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE);
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
                 }
                 scope_background = Colors.BACKGROUND_REGION_PRIVATE;
                 scope_background_ends_at = end;
             }
             else if region.type == .scope_module {
                 at_end_of_file := end >= max_lines;
-                if at_end_of_file {
+                if at_end_of_file || !end_is_visible {
                     region_rect.h += region_rect.y;
                     region_rect.y = 0;
                 }
-                header_rect, remainder_rect := cut_top(region_rect, line_height);
-                scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                draw_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC);
-                draw_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC);
-                if !at_end_of_file {
+                if start_is_visible {
+                    header_rect, remainder_rect := cut_top(region_rect, line_height);
+                    scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                    draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                    draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                }
+                else {
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                }
+                if !at_end_of_file && end_is_visible {
                     // Draw trailing rectangle to right of next scope tab
                     region_rect.y -= line_height;
                     region_rect.h = line_height;
@@ -862,7 +883,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     width := char_x_advance * (scope_line_count + 1);
                     region_rect.x += width;
                     region_rect.w -= width;
-                    draw_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC);
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
                 }
                 scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                 scope_background_ends_at = end;
@@ -871,8 +892,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
             }
         }
-
-        //draw_cool_rect(rect);
 
         // Decorations  (maybe in the future we'll need two passes, one before and one after text, but for now we only draw things below text)
         for decoration: buffer.decorations {
@@ -1334,7 +1353,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
 
                 // The above operations could've updated scrollbar position, so drawing it here
-                draw_scrollbar(results_rect, scrollbar_size, content_height, scroll_y, scroll_anim.target, xx max_y_scroll, search_scrollbar_id);
+                draw_scrollbar(results_rect, scrollbar_size, content_height, scroll_y, scroll_anim.target, xx max_y_scroll, search_scrollbar_id, draw=!HIDE_SCROLLBARS);
             }
 
             visible_start := clamp(cast(s64) (scroll_y / entry_height), 0, results.count);
@@ -1548,13 +1567,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
             maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
 
-            is_hovering := mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id);
-            if is_hovering {
-                //if mouse.right.just_pressed
-                //    platform_start_sizing();
-                //else
+            if mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id)
                 Input.window_region_override = .TITLE_BAR;
-            }
         }
     }
 
@@ -3359,17 +3373,9 @@ draw_permutated_rect :: (rect: Rect, color: Color) {
                         color + permutations[3]);
 }
 
-draw_cool_rect :: (rect: Rect) {
-    Simp.set_shader_for_color(enable_blend = true);
-    k :: 1.0 / 50;
-    a :: 0.2;
-    permutations :: Color.[
-        .{r = 0, g = k, b = 0, a = a},
-        .{r = 0, g = 0, b = 0, a = a},
-        .{r = k, g = 0, b = 0, a = a},
-        .{r = 0, g = 0, b = k, a = a},
-    ];
-    draw_rect_raw(rect, permutations[0], permutations[1], permutations[2], permutations[3]);
+draw_cool_rect :: (rect: Rect, color: Color, value: float) {
+    Simp.set_shader_for_cool(value);
+    draw_rect_raw(rect, color);
 }
 
 draw_rect_raw :: inline (using rect: Rect, color: Color) {
