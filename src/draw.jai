@@ -1,6 +1,7 @@
 footer_height := 0.0;
 editor_top_margin := 0.0;
 simp_initialized := false;
+#if IPROF  iprof_active := false;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -120,6 +121,42 @@ draw_frame :: () {
         draw_rect(rect, Colors.CURSOR);
     }
 
+    #if IPROF {
+        if iprof_active {
+            iprof_rect := Rect.{screen.w / 2 + 20, 20, screen.w / 2 - 40, screen.h / 2 + 120};
+            iprof_ui_id := Ui_Id.profiler;
+            maybe_set_hot_or_active(iprof_ui_id, iprof_rect, .PRESSABLE);
+
+            push_scissor(iprof_rect);
+            defer pop_scissor();
+
+            click_result : __Iprof.Click_Result;
+            iprof_config.user_data = null;
+            if mouse_pointer_is_within(iprof_rect) && is_hovering_over(iprof_ui_id) {
+                if mouse.scroll_y_delta != 0
+                    iprof_move_frame(mouse.scroll_y_delta / 120);
+                if mouse.left.just_pressed
+                    iprof_config.user_data = *click_result;
+            }
+
+            __Iprof.draw(iprof_rect.x, screen.h - iprof_rect.y - iprof_rect.h, iprof_rect.w, iprof_rect.h, *iprof_config);
+            if click_result.result
+                iprof_click(click_result);
+
+            play_icon :: "";
+            lock_icon :: "🔒";
+            icon := ifx iprof_pause_recording then lock_icon else play_icon;
+            position := Vector2.{iprof_rect.x + iprof_rect.w - 160,
+                                 iprof_rect.y + iprof_rect.h - (font_icons_small_size * dpi_scale + iprof_config.line_spacing) / 2};
+            count := ifx iprof_pause_recording then 0 else cast(s32)floor(frame_time * 2) % 3;
+            position.x -= font_icons_small_size * dpi_scale * 0.25 * count;
+            for 0 .. count {
+                draw_icon(icon, position, size = .small);
+                position.x += font_icons_small_size * dpi_scale * 0.5;
+            }
+        }
+    }
+
     // Reset UI state after drawing
     if !mouse.left.is_down || mouse.left.just_released {
         ui.active = .none;
@@ -135,6 +172,7 @@ draw_frame :: () {
 welcome_left_area : Rect;
 welcome_right_area : Rect;
 floating_area : Rect;
+
 
 draw_welcome_screen :: (main_area: Rect) {
     using font_data;
@@ -2544,9 +2582,7 @@ draw_icon_search_dialog :: () {
 
                 if selected_by_mouse == entry_index && mouse.left.just_released {
                     selected = entry_index;
-                    // @TODO open_selected_project();
                     redraw_requested = true;
-                    break;
                 }
             }
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
@@ -2561,6 +2597,8 @@ draw_icon_search_dialog :: () {
             icon, found := table_find(icon_table, entry.name);
             if found {
                 icon_char := convert_utf32_to_utf8(xx icon);
+                if entry_index == selected
+                    os_clipboard_set_text(copy_string(to_string(*icon_char)));
                 icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
                 //icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
                 Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
@@ -3386,6 +3424,16 @@ draw_rect_raw :: inline (using rect: Rect, bottom_left: Color, top_left: Color, 
     Simp.immediate_quad(x, y, x + w, y + h, bottom_left, top_left, bottom_right, top_right);
 }
 
+draw_icon :: inline (icon: string, position: Vector2, size : enum {default; small; tiny;} = .default) {
+    draw_icon(icon, position, Colors.UI_DEFAULT, xx size);
+}
+
+draw_icon :: (icon: string, position: Vector2, color: Color, size : enum {default; small; tiny;} = .default) {
+    font := ifx size == .default then font_icons else ifx size == .small then font_icons_small else font_icons_tiny;
+    icon_width := Simp.prepare_text(font, icon);
+    Simp.draw_prepared_text(font, xx position.x, xx position.y, color = color);
+}
+
 draw_top_shadow :: (using rect: Rect, size: float = 10.0) {
     Simp.set_shader_for_color(enable_blend = true);
     s := Colors.SHADOW_DARK;
@@ -3491,6 +3539,44 @@ get_floating_area :: (rect: Rect) -> Rect {
 }
 
 
+draw_line :: (x0: $T, y0: T, x1: T, y1: T, color := Vector4.{1, 1, 1, 1}) {
+    triangles : [2] Triangle;
+    stroke_width :: 2;
+    triangles[0].p0 = Vector3.{x0, y0, 0};
+    triangles[0].p1 = Vector3.{x1, y1, 0};
+    triangles[0].p2 = Vector3.{x1 + stroke_width, y1 + stroke_width, 0};
+    triangles[1].p0 = Vector3.{x0, y0, 0};
+    triangles[1].p1 = Vector3.{x1, y1, 0};
+    triangles[1].p2 = Vector3.{x0 + stroke_width, y0 + stroke_width, 0};
+    draw_triangles(Vector2.{0, 0}, 0, triangles, color);
+}
+
+draw_triangles :: (position: Vector2, rotation: float, triangles: [] Triangle, color: Vector4) {
+    c := cos(rotation);
+    s := sin(rotation);
+    t : Triangle;
+    for triangle: triangles {
+        for i: 0..2 {
+            t.points[i].x = triangle.points[i].x * c - triangle.points[i].y * s + position.x;
+            t.points[i].y = triangle.points[i].x * s + triangle.points[i].y * c + position.y;
+        }
+        immediate_triangle(t, color);
+    }
+}
+
+immediate_triangle :: inline (triangle: Triangle, color: Vector4) {
+    Simp.immediate_triangle(triangle.p0, triangle.p1, triangle.p2, color, color, color);
+}
+
+Triangle :: struct {
+    p0: Vector3;
+    p1: Vector3;
+    p2: Vector3;
+
+    #place p0;
+    points : [3] Vector3;
+}
+
 #scope_file
 
 push_scissor :: (rect: Rect) {
@@ -3578,6 +3664,7 @@ Ui_Id :: enum s64 {
     icon_search_dialog  :: -15;
     footer_left         :: -16;
     footer_right        :: -17;
+    profiler            :: -18;
 
     // The rest will be derived from loc
 }

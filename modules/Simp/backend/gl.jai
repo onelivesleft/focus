@@ -280,7 +280,7 @@ out vec4 color;
 void main () {
     vec2 st = gl_FragCoord.xy / u_resolution;
     vec4 perm = vec4(st.x, st.x * st.y, st.x * (1.0-u_time), 0.0);
-    color = mix(iterated_color, perm, 0.1);
+    color = mix(iterated_color, perm, 0.05);
 }
 #endif // FRAGMENT_SHADER
 glsl

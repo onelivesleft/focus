@@ -152,6 +152,8 @@ main :: () {
     draw_frame();
 
     while !should_quit {
+        #if IPROF __Iprof.update(!iprof_pause_recording);
+
         redraw_requested = true;
         if !redraw_requested platform_wait_message();
 
@@ -384,6 +386,7 @@ main :: () {
 
     // report := make_leak_report();
     // log_leak_report(report);
+
 }
 
 debug_change_color := DEBUG_CHANGE_COLOR;
@@ -437,11 +440,21 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .move_to_previous_buffer;                          move_to_previous_buffer();                          return true;
         case .move_to_next_buffer;                              move_to_next_buffer();                              return true;
 
-        case .jump_to_error;                                    jump_to_error();
+        case .jump_to_error;                                    jump_to_error();                                    return true;
 
-        case .toggle_show_keystrokes;                           toggle_show_keystrokes();
-        case .toggle_show_filename;                             toggle_show_filename();
-        case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();
+        case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
+        case .toggle_show_filename;                             toggle_show_filename();                             return true;
+        case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
+        case .toggle_profiling;                                 toggle_profiling();                                 return true;
+
+        case .profiler_mode_cycle;                              #if IPROF { iprof_mode_cycle(); return true; } else return false;
+        case .profiler_up;                                      #if IPROF { iprof_up();         return true; } else return false;
+        case .profiler_down;                                    #if IPROF { iprof_down();       return true; } else return false;
+        case .profiler_select;                                  #if IPROF { iprof_select();     return true; } else return false;
+        case .profiler_back;                                    #if IPROF { iprof_back();       return true; } else return false;
+        case .profiler_frame_lock;                              #if IPROF { iprof_frame_lock(); return true; } else return false;
+        case .profiler_prev_frame;                              #if IPROF { iprof_prev_frame(); return true; } else return false;
+        case .profiler_next_frame;                              #if IPROF { iprof_next_frame(); return true; } else return false;
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -469,7 +482,12 @@ init_fonts_and_dependent_things :: () {
     assert(font != null, "Couldn't init main text font\n");
 
     font_console = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (font_console_size * dpi_scale));
-    assert(font != null, "Couldn't init console font\n");
+    assert(font_console != null, "Couldn't init console font\n");
+
+    #if IPROF {
+        font_iprof = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (iprof_config.font_character_height * dpi_scale));
+        assert(font_iprof != null, "Couldn't init iprof font\n");
+    }
 
     font_ui = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui != null, "Couldn't init main ui font\n");
@@ -690,6 +708,15 @@ toggle_collapse_leading_whitespace :: () {
     add_success_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), dismiss_in_seconds = 2);
 }
 
+toggle_profiling :: () {
+    #if IPROF {
+        iprof_active = !iprof_active;
+    }
+    else {
+        add_user_error("Profiling is not available in this build of Focus", dismiss_in_seconds = 2);
+    }
+}
+
 calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;
 
 // Important directories
@@ -794,6 +821,9 @@ font_ui_medium:     *Simp.Dynamic_Font;
 font_icons:         *Simp.Dynamic_Font;
 font_icons_small:   *Simp.Dynamic_Font;
 font_icons_tiny:    *Simp.Dynamic_Font;
+#if IPROF {
+    font_iprof : *Simp.Dynamic_Font;
+}
 
 DEFAULT_FONT_SIZE               :: 14;
 DEFAULT_FONT_UI_SIZE            :: 15;
@@ -883,6 +913,9 @@ cpu_info: Cpu_X86;
 // a full repaint.
 dont_ignore_next_window_resize := false;
 
+#if IPROF {
+    #load "profiling.jai";
+}
 
 #load "layout.jai";
 #load "editors.jai";

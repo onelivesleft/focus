@@ -27,7 +27,7 @@ Immediate_Vertex :: struct {
     position:    Vector2;
     color_scale: Vector4;
     uv0:         Vector2;
-    
+
     // The following values are for rendering rounded rects - most of the time they are not used, but it's ok
     // because it's simpler than the alternatives and the performance is good enough for our purposes
     rect_center: Vector2;
@@ -64,7 +64,7 @@ immediate_set_shader :: (s: *Shader) {
     s.position_loc    = glGetAttribLocation(p, "vert_position");
     s.color_scale_loc = glGetAttribLocation(p, "vert_color");
     s.uv_0_loc        = glGetAttribLocation(p, "vert_uv0");
-    
+
     s.rect_center_loc        = glGetAttribLocation(p, "vert_rect_center");
     s.rect_size_loc          = glGetAttribLocation(p, "vert_rect_size");
     s.rect_corner_radius_loc = glGetAttribLocation(p, "vert_rect_corner_radius");
@@ -157,13 +157,13 @@ set_vertex_format :: (shader: *Shader) {
         glEnableVertexAttribArray(xx shader.rect_size_loc);
         DumpGLErrors("rect_size");
     }
-    
+
     if shader.rect_corner_radius_loc != -1 {
         glVertexAttribPointer(xx shader.rect_corner_radius_loc, 1, GL_FLOAT, xx false, stride, xx *offset.rect_corner_radius);
         glEnableVertexAttribArray(xx shader.rect_corner_radius_loc);
         DumpGLErrors("rect_corner_radius");
     }
-    
+
     if shader.rect_edge_softness_loc != -1 {
         glVertexAttribPointer(xx shader.rect_edge_softness_loc, 1, GL_FLOAT, xx false, stride, xx *offset.rect_edge_softness);
         glEnableVertexAttribArray(xx shader.rect_edge_softness_loc);
@@ -189,6 +189,34 @@ put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector2, color: Vector
     rect_size    = size;
     rect_corner_radius = radius;
     rect_edge_softness = softness;
+}
+
+put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4, u: float, v: float) {
+    position     = p;
+    color_scale  = color;
+    normal       = .{z=1};
+    uv0.x        = u;
+    uv0.y        = v;
+    uv1          = .{};
+}
+
+put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4, _normal: Vector3, u: float, v: float) {
+    position     = p.xy;
+    color_scale  = color;
+    //normal       = _normal;
+    uv0.x        = u;
+    uv0.y        = v;
+    //uv1          = .{};
+}
+
+put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4,
+                      _normal: Vector3, _tangent: Vector4, _uv0: Vector2, _uv1: Vector2) {
+    position     = p;
+    color_scale  = color;
+    normal       = _normal;
+    tangent      = _tangent;
+    uv0          = _uv0;
+    uv1          = _uv1;
 }
 
 #scope_export
@@ -274,7 +302,7 @@ immediate_quad :: (x0: float, y0: float, x1: float, y1: float,
 // p0 = bottom left, p2 = top right
 immediate_rounded_rect :: (p0: Vector2, p2: Vector2, color: Vector4, center: Vector2, size: Vector2, radius: float, softness := 1.0) {
     CheckSpace(6);
-    
+
     p1 := Vector2.{ x = p0.x, y = p2.y };
     p3 := Vector2.{ x = p2.x, y = p0.y };
 
@@ -285,6 +313,17 @@ immediate_rounded_rect :: (p0: Vector2, p2: Vector2, color: Vector4, center: Vec
     put_vertex(*v[3], p0, color, center, size, radius, softness);
     put_vertex(*v[4], p2, color, center, size, radius, softness);
     put_vertex(*v[5], p3, color, center, size, radius, softness);
+}
+
+
+immediate_triangle :: (p0: Vector3, p1: Vector3, p2: Vector3,
+                       c1: Vector4, c2: Vector4, c3: Vector4,
+                       uv0 := Vector2.{}, uv1 := Vector2.{}, uv2 := Vector2.{},
+                       normal := Vector3.{z=1}) {
+    CheckSpace(3);
+    put_vertex(*v[0], p0, c1, normal, uv0.x, uv0.y);
+    put_vertex(*v[1], p1, c2, normal, uv1.x, uv1.y);
+    put_vertex(*v[2], p2, c3, normal, uv2.x, uv2.y);
 }
 
 immediate_triangle_fan :: (base: Vector2, points: [] Vector2, color: Vector4, base_color: Vector4) {

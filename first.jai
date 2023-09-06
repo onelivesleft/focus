@@ -4,6 +4,8 @@ RELEASE_DATE :: #run -> string {
     return calendar_to_string(current_time);
 }
 
+include_profiling := true;
+
 #run build();
 
 build :: () {
@@ -35,6 +37,7 @@ build :: () {
             options.array_bounds_check = .ON;
             options.null_pointer_check = .ON;
             options.arithmetic_overflow_check = .OFF;
+            include_profiling = false;
           case "debug";
           case;
             compiler_report(tprint("Command-line argument #%, '%', is invalid. Valid options are: 'debug', 'release'.\n", it_index+1, arg));
@@ -55,13 +58,27 @@ build :: () {
         }
     }
 
+    plugins: [..] *Metaprogram_Plugin;
+    intercept_flags: Intercept_Flags;
+    no_iprof : Metaprogram_Plugin;
+    iprof := *no_iprof;
+    if include_profiling {
+        init_plugins(string.["Iprof"], *plugins, w);
+        iprof = plugins[0];
+    }
+
+    if iprof.before_intercept  iprof.before_intercept(iprof, *intercept_flags);
+
     compiler_begin_intercept(w);
+
+    if iprof.add_source  iprof.add_source(iprof);
 
     add_build_file("src/main.jai", w);
     add_build_string(tprint(#string STRING
 VERSION      :: "%";
 RELEASE_DATE :: "%";
-STRING, VERSION, RELEASE_DATE), w);
+IPROF        :: %;
+STRING, VERSION, RELEASE_DATE, include_profiling), w);
 
     // Add a debug marker
     if optimized {
@@ -76,6 +93,8 @@ STRING, VERSION, RELEASE_DATE), w);
     while true {
         message := compiler_wait_for_message();
         if message.workspace != w continue;
+
+        if iprof.message  iprof.message(iprof, message);
 
         if message.kind == {
             case .TYPECHECKED;
@@ -111,6 +130,9 @@ STRING, VERSION, RELEASE_DATE), w);
     }
 
     compiler_end_intercept(w);
+
+    if iprof.finish    iprof.finish(iprof);
+    if iprof.shutdown  iprof.shutdown(iprof);
 
     #if OS == .WINDOWS {
         exe_name := tprint("%.exe", options.output_executable_name);
@@ -161,6 +183,7 @@ has_note :: (header: *Code_Procedure_Header, note: string) -> bool {
 
 #import "Compiler";
 #import "Basic";
+#import "Metaprogram_Plugins";
 
 #if OS == .WINDOWS {
     #import "Ico_File";

@@ -1,26 +1,17 @@
 # Mine
 
-- [x] Fade scope regions together
+- [ ] IProf
 - [.] Custom title bar
     - [x] Move by dragging
     - [x] Resize by right-click menu
     - [ ] Drag borders on edges to resize window
-- [x] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
-    - [x] Show when cursor is off to left
-    - [x] Draw vertical line / marker when we've collapsed something
-    - [x] Make it a setting
-        - [x] Persists
-    - [x] Not in floating window
 - [ ] RemedyBG
 - [ ] Fix buffer switcher breaking after save as
-- [x] Match bracket doesnt work as last character
 - [ ] Redo jumps cursor too far forward
 - [ ] History jumps are too large
-- [x] Quit!
 - [ ] Open project folder in explorer
 - [ ] Show file status: status bar things, but on request at cursor.
 - [ ] Sync settings
-- [x] Fix vertical scrolling response when holding down up/down
 - [ ] MOAR CURSORS!
     - [ ] Search all -> cursors
     - [ ] Quick ctrl-rightarrow (one press does all in file)
@@ -97,6 +88,16 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Fade scope regions together
+- [x] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
+    - [x] Show when cursor is off to left
+    - [x] Draw vertical line / marker when we've collapsed something
+    - [x] Make it a setting
+        - [x] Persists
+    - [x] Not in floating window
+- [x] Match bracket doesnt work as last character
+- [x] Quit!
+- [x] Fix vertical scrolling response when holding down up/down
 - [x] Key logger
 - [x] Go to added_string source
 - [x] Better error msg crop for toast

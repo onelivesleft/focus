@@ -328,6 +328,7 @@ ACTIONS_COMMON :: string.[
     "toggle_show_keystrokes",
     "toggle_show_filename",
     "toggle_collapse_leading_whitespace",
+    "toggle_profiling",
     "jump_to_commented_source_location",
     "delete_left_char",
     "delete_right_char",
@@ -346,6 +347,15 @@ ACTIONS_COMMON :: string.[
     "parse_file",
     "close_left_editor",
     "close_right_editor",
+
+    "profiler_mode_cycle",
+    "profiler_up",
+    "profiler_down",
+    "profiler_select",
+    "profiler_back",
+    "profiler_frame_lock",
+    "profiler_prev_frame",
+    "profiler_next_frame",
 
     "dump_key_mappings",
 ];
