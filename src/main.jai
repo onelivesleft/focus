@@ -66,7 +66,7 @@ main :: () {
         window_x = 1920;
         window_y = 0;
         window_width = 1542;
-        window_height = 1048;
+        window_height = 1041;
         if DEBUG && debug_small_window {
             window_width = window_width * 2 / 3;
             window_height = window_height * 2 / 3;
@@ -556,7 +556,7 @@ init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale
     old_line_height = line_height;
     line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0) * line_height_scale;
     #if HIDE_SCROLLBARS
-        scrollbar_size  = 4.0;
+        scrollbar_size  = 8.0;
     else
         scrollbar_size  = floor(1.5 * char_size);
     rounding_radius = floor(char_size / 2);

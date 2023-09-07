@@ -961,22 +961,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
-        // Draw whitespace collapse marker
-        if whitespace_collapse_width > 0 {
-            marker := rect;
-            marker.x += 2;
-            marker.w = 1;
-            marker_height := char_x_advance * 4;
-            marker.y += marker.h - marker_height;
-            marker.h = marker_height;
-            measure := 0.0;
-            while measure < whitespace_collapse_width {
-                draw_rect_raw(marker, Colors.BACKGROUND, Colors.COLLAPSED_AREA_MARKER, Colors.BACKGROUND, Colors.COLLAPSED_AREA_MARKER);
-                marker.y -= marker_height;
-                measure += marker_height;
-            }
-        }
-
         // Draw scrollbar marks
         if !line_wrap_is_active(editor) {
             Simp.set_shader_for_color(enable_blend = true);
@@ -1197,6 +1181,32 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         Simp.draw_text(font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
                     }
                 }
+            }
+        }
+
+        // Draw whitespace collapse marker
+        if whitespace_collapse_width > 0 {
+            marker_width := char_x_advance * 4;
+            marker_height :: 2;
+            foreground_color := Colors.CODE_DEFAULT;
+            background_color := Colors.SPLITTER;
+            background := rect;
+            background.h = marker_height + 2;
+            draw_rect(background, background_color);
+            background.y = rect.h - background.h;
+            draw_rect(background, background_color);
+            marker := rect;
+            marker.x = 2;
+            marker.w = marker_width;
+            marker.h = marker_height;
+            measure := 0.0;
+            while measure < whitespace_collapse_width {
+                marker.y = rect.y + 1;
+                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
+                marker.y = rect.y + rect.h - 1 - marker_height;
+                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
+                marker.x += marker_width;
+                measure += marker_width;
             }
         }
     }
@@ -1556,8 +1566,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         push_scissor(rect);
         defer pop_scissor();
 
-        draw_rect(outer_footer_rect, footer_color);
-        draw_top_shadow(outer_footer_rect);
+        draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
 
         push_scissor(footer_rect);
         defer pop_scissor();

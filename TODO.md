@@ -1,6 +1,7 @@
 # Mine
 
-- [ ] IProf
+- [x] IProf
+
 - [.] Custom title bar
     - [x] Move by dragging
     - [x] Resize by right-click menu
