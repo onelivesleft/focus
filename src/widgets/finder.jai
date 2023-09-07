@@ -309,21 +309,6 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
         assert(regex_is_valid, "Failed to compile regex: '%'", re_text);
     }
 
-    regex: re.Regexp;
-    regex_is_valid: bool;
-    defer if regex_search && regex_is_valid re.uninit(*regex);
-
-    if regex_search {
-        re_text := ifx whole_word then sprint("\\w%\\w", needle) else copy_string(needle);
-        defer free(re_text);
-
-        flags := BASE_REGEX_FLAGS;
-        if !case_sensitive flags |= .FoldCase;
-
-        regex, regex_is_valid = re.compile(re_text, flags);
-        assert(regex_is_valid, "Failed to compile regex: '%'", re_text);
-    }
-
     for buffer_id : buffer_start_index .. buffer_end_index {
         // Search in buffer
         buffer := *open_buffers[buffer_id];

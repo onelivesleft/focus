@@ -1575,20 +1575,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
 
     // Draw footer
-    {
-        footer_color := Colors.BACKGROUND_BRIGHT;
-        draw_rect(footer_rect, footer_color);
-        draw_top_shadow(footer_rect);
-
-            draw_rounded_rect(circle, with_alpha(Colors.BACKGROUND_DARK, 0.75), radius = radius, set_shader = true);
-            Simp.draw_prepared_text(font_icons, xx icon_x, xx icon_y, color = Colors.UI_WARNING);
-        }
-        return;
-    }
-
-
-
-    // Draw footer
     if !MINIMAL_FOOTER || show_filename {
         outer_footer_rect := footer_rect;
         footer_rect = shrink_x(outer_footer_rect, text_offset.x);
@@ -1599,27 +1585,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             footer_rect.x,
             footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
         );
-
-        footer_color := Colors.BACKGROUND_BRIGHT;
-        #if MINIMAL_FOOTER && FOOTER_AT_TOP {
-            outer_footer_rect.y -= char_x_advance / 2;
-            _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
-            outer_footer_rect.w = new_pen.x - pen.x + text_offset.x * 2;
-            outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
-            footer_rect = shrink_x(outer_footer_rect, text_offset.x);
-            pen = make_vector2(
-                footer_rect.x,
-                footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
-        }
-
-        push_scissor(rect);
-        defer pop_scissor();
-
-        draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
-
-        push_scissor(footer_rect);
-        defer pop_scissor();
 
         footer_color := Colors.BACKGROUND_BRIGHT;
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
@@ -1689,7 +1654,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 Input.window_region_override = .TITLE_BAR;
         }
     }
-
 }
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false, calculate_only := false) -> new_width: float, new_pen: Vector2 {
