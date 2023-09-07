@@ -110,7 +110,7 @@ draw_frame :: () {
         case .icon_search_dialog;      draw_icon_search_dialog();
     }
 
-    draw_user_messages(screen, footer_height);
+    draw_user_messages(screen, #ifx FOOTER_AT_TOP then 0; else footer_height;);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
         draw_buffer_switcher_dialog(active_pane_rect);
