@@ -175,7 +175,7 @@ NUM_FRAME_SLOTS :: 128;
 
 // number of unique zones allowed in the entire application
 // @Incomplete: This is now figured out at build time! Use that.
-MAX_PROFILING_ZONES :: 1024;
+MAX_PROFILING_ZONES :: 2048;
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -336,17 +336,17 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
                 // `contents` and keep track of our 'real' position in the original buffer
                 matched: bool;
                 matched, captures = re.match(contents, regex);
-                if !matched break;
+                if !matched  break;
+                defer free(captures.data);
 
                 c := captures[0];
+                if !c.count  break;
                 local_offset := c.data - contents.data;
                 offset = contents_advance + local_offset;
                 count  = c.count;
                 contents_advance = offset + count;
 
                 advance(*contents, local_offset + count);
-
-                free(captures.data);
             } else {
                 if case_sensitive {
                     offset = inline bmh_find_index_from_left(contents, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);

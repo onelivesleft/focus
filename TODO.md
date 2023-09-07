@@ -13,7 +13,7 @@
 - [ ] Open project folder in explorer
 - [ ] Show file status: status bar things, but on request at cursor.
 - [ ] Sync settings
-- [ ] MOAR CURSORS!
+- [ ] MOAR CURSORS
     - [ ] Search all -> cursors
     - [ ] Quick ctrl-rightarrow (one press does all in file)
     - [ ] Cycle main cursor

@@ -1034,24 +1034,24 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
             // `buffer_str` and keep track of our 'real' position in the original buffer
             matched: bool;
             matched, captures = re.match(buffer_str, regex);
-            if !matched break;
+            if !matched  break;
+            defer free(captures.data);
 
             c := captures[0];
+            if !c.count  break;
             local_offset := c.data - buffer_str.data;
             offset = buffer_advance + local_offset;
             count  = c.count;
             buffer_advance = offset + count;
 
             advance(*buffer_str, local_offset + count);
-
-            free(captures.data);
         } else {
             if case_sensitive {
                 offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
             } else {
                 offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false, ignore_whitespace = ignore_whitespace);
             }
-            if offset < 0 break;
+            if offset < 0  break;
 
             count = needle.count;
         }

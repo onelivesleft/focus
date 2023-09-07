@@ -5,6 +5,7 @@ RELEASE_DATE :: #run -> string {
 }
 
 include_profiling := true;
+include_profiling_modules := true;
 
 #run build();
 
@@ -65,6 +66,11 @@ build :: () {
     if include_profiling {
         init_plugins(string.["Iprof"], *plugins, w);
         iprof = plugins[0];
+        if include_profiling_modules
+            iprof.handle_one_option(iprof, .["-modules"], 0);
+    }
+    else {
+        init_plugins(string.[], *plugins, w);
     }
 
     if iprof.before_intercept  iprof.before_intercept(iprof, *intercept_flags);
@@ -183,6 +189,7 @@ has_note :: (header: *Code_Procedure_Header, note: string) -> bool {
 
 #import "Compiler";
 #import "Basic";
+#import "Iprof";
 #import "Metaprogram_Plugins";
 
 #if OS == .WINDOWS {

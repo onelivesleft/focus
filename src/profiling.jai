@@ -8,7 +8,10 @@ iprof_config := __Iprof.Config.{
     graph_end = iprof_graph_bookend,
     draw_line = iprof_draw_line,
     text_y_offset = -2,
+    selected_bar_whiten_amount = 0.1,
 };
+
+iprof_show_graph := false;
 
 iprof_text_width :: (text: string) -> float {
     return cast(float)Simp.prepare_text(font_iprof, text);
@@ -26,9 +29,9 @@ iprof_draw_text :: (x: float, y: float, str: string, color: Vector4) {
 }
 
 iprof_draw_line :: (p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, color: Vector4) {
-    draw_line(p0.x, p0.y, p1.x, p1.y, color);
-    draw_line(p1.x, p1.y, p2.x, p2.y, color);
-    draw_line(p2.x, p2.y, p3.x, p3.y, color);
+    draw_line(p0.x, window_height - p0.y, p1.x, window_height - p1.y, color);
+    draw_line(p1.x, window_height - p1.y, p2.x, window_height - p2.y, color);
+    draw_line(p2.x, window_height - p2.y, p3.x, window_height - p3.y, color);
     //draw_line(p3.x, p3.y, p0.x, p0.y, color);
 }
 

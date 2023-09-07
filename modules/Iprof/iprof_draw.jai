@@ -77,6 +77,7 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
                config: *Config) {
 
     if !config.graph_colors init_graph_colors(config);
+    click : *Click_Result = config.user_data;
 
     SAMPLES :: 128;
     MAGNIFICATION_HIER :: 10;
@@ -88,7 +89,7 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
     height *= (1 + graph_bigness_t);
     sy -= height;
 
-    config.draw_rectangle(sx, sy, sx + width, sy + height, title_bg_color);
+    config.draw_rectangle(sx, sy, sx + width, sy + height, title_bg_color, click);
 
     selected := zone_selected;
 
@@ -227,9 +228,9 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
         x := cursor_x + 2*h;
         y := cursor_y - 10; // - h;
 
-        config.draw_rectangle(x, y, x + width + 2*xmargin, y + h + 2*ymargin, config.graph_zone_under_cursor_background_color);
+        config.draw_rectangle(x, y, x + width + 2*xmargin, y + h + 2*ymargin, config.graph_zone_under_cursor_background_color, click);
         bottom_y := y-h - ymargin;
-        config.draw_rectangle(x, bottom_y, x + width + 2*xmargin, y, config.graph_zone_under_cursor_background_color); // y so we don't overlap the upper box.
+        config.draw_rectangle(x, bottom_y, x + width + 2*xmargin, y, config.graph_zone_under_cursor_background_color, click); // y so we don't overlap the upper bo, x.
         config.draw_text(x + xmargin, y, zone.name, config.graph_zone_under_cursor_text_color);
         config.draw_text(x + xmargin, y-h, timing_string, config.graph_zone_under_cursor_text_color);
     }
@@ -243,12 +244,12 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
 
         color := config.graph_current_time_marker_color;
         x := sx + width * (h / cast(float)num_frames);
-        config.draw_rectangle(x, y0, x+1, y1, color);
+        config.draw_rectangle(x, y0, x+1, y1, color, click);
 
         color.w = 0.8;
-        config.draw_rectangle(x+1, y0, x+2, y1, color);
+        config.draw_rectangle(x+1, y0, x+2, y1, color, click);
         color.w = 0.5;
-        config.draw_rectangle(x-2, y0, x+0, y1, color);
+        config.draw_rectangle(x-2, y0, x+0, y1, color, click);
     }
 
     // Draw the history rectangle
@@ -262,7 +263,7 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
         y1 := sy + height + extra_y*.5;
 
         color := config.graph_current_time_history_color;
-        config.draw_rectangle(x, y0, x+1, y1, color);
+        config.draw_rectangle(x, y0, x+1, y1, color, click);
     }
 
     // Draw the cursor rectangle
@@ -277,7 +278,7 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
             y1 := sy + height + extra_y;
 
             color := config.graph_time_cursor_color;
-            config.draw_rectangle(x, y0, x+1, y1, color);
+            config.draw_rectangle(x, y0, x+1, y1, color, click);
             current_graph_window_selected_sample = index;
         }
     }

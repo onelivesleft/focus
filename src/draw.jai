@@ -127,32 +127,60 @@ draw_frame :: () {
             iprof_ui_id := Ui_Id.profiler;
             maybe_set_hot_or_active(iprof_ui_id, iprof_rect, .PRESSABLE);
 
-            push_scissor(iprof_rect);
-            defer pop_scissor();
+            {
+                push_scissor(iprof_rect);
+                defer pop_scissor();
 
-            click_result : __Iprof.Click_Result;
-            iprof_config.user_data = null;
-            if mouse_pointer_is_within(iprof_rect) && is_hovering_over(iprof_ui_id) {
-                if mouse.scroll_y_delta != 0
-                    iprof_move_frame(mouse.scroll_y_delta / 120);
-                if mouse.left.just_pressed
-                    iprof_config.user_data = *click_result;
+                click_result : __Iprof.Click_Result;
+                iprof_config.user_data = null;
+                if mouse_pointer_is_within(iprof_rect) && is_hovering_over(iprof_ui_id) {
+                    if mouse.scroll_y_delta != 0
+                        iprof_move_frame(mouse.scroll_y_delta / 120);
+                    if mouse.left.just_pressed
+                        iprof_config.user_data = *click_result;
+                }
+
+                __Iprof.draw(iprof_rect.x, screen.h - iprof_rect.y - iprof_rect.h, iprof_rect.w, iprof_rect.h, *iprof_config);
+                if click_result.result
+                    iprof_click(click_result);
+
+                play_icon :: "";
+                lock_icon :: "🔒";
+                icon := ifx iprof_pause_recording then lock_icon else play_icon;
+                position := Vector2.{iprof_rect.x + iprof_rect.w - 160,
+                                     iprof_rect.y + iprof_rect.h - (font_icons_small_size * dpi_scale + iprof_config.line_spacing) / 2};
+                count := ifx iprof_pause_recording then 0 else cast(s32)floor(frame_time * 2) % 3;
+                position.x -= font_icons_small_size * dpi_scale * 0.25 * count;
+                for 0 .. count {
+                    draw_icon(icon, position, size = .small);
+                    position.x += font_icons_small_size * dpi_scale * 0.5;
+                }
             }
 
-            __Iprof.draw(iprof_rect.x, screen.h - iprof_rect.y - iprof_rect.h, iprof_rect.w, iprof_rect.h, *iprof_config);
-            if click_result.result
-                iprof_click(click_result);
+            {
+                button_rect := iprof_rect;
+                button_rect.w = xx font_icons_size * 1.5;
+                button_rect.h = button_rect.w;
+                button_rect.x -= button_rect.w - 3;
+                button_rect.y += iprof_rect.h - button_rect.h + 2;
+                close_icon :: "🗙";
+                if draw_button(font_icons, close_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DEFAULT, iprof_ui_id, button_rect, .left, 1, 4)
+                    iprof_active = false;
 
-            play_icon :: "";
-            lock_icon :: "🔒";
-            icon := ifx iprof_pause_recording then lock_icon else play_icon;
-            position := Vector2.{iprof_rect.x + iprof_rect.w - 160,
-                                 iprof_rect.y + iprof_rect.h - (font_icons_small_size * dpi_scale + iprof_config.line_spacing) / 2};
-            count := ifx iprof_pause_recording then 0 else cast(s32)floor(frame_time * 2) % 3;
-            position.x -= font_icons_small_size * dpi_scale * 0.25 * count;
-            for 0 .. count {
-                draw_icon(icon, position, size = .small);
-                position.x += font_icons_small_size * dpi_scale * 0.5;
+                button_rect.x += 1;
+                button_rect.y -= button_rect.h - 2;
+                graph_icon :: "";
+                if draw_button(font_icons, graph_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DEFAULT, iprof_ui_id, button_rect, .left, 0, 0)
+                    iprof_show_graph = !iprof_show_graph;
+
+                if iprof_show_graph {
+                    graph_rect := iprof_rect;
+                    graph_rect.x = 20;
+                    push_scissor(graph_rect);
+                    defer pop_scissor();
+
+                    __Iprof.draw_graph(graph_rect.x, screen.h - graph_rect.y - graph_rect.h, graph_rect.w, -graph_rect.h, *iprof_config);
+                }
             }
         }
     }
@@ -1147,7 +1175,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             length     := get_line_start_offset(editor, buffer, line_num+1) - line_start;
             line := to_string(array_view(buffer.bytes, line_start, length));
             tab_spaces := 0;
-            line, tab_spaces = advance_by_chars  (line, hidden_chars_on_the_left);
+            line, tab_spaces = advance_by_chars(line, hidden_chars_on_the_left);
             line = take_first_n_chars(line, max_chars_horizontally);
             line = trim_right(line, " \r\n");
             colors := ifx line then array_view(buffer.colors, line.data - buffer.bytes.data, line.count) else .[];
@@ -1214,33 +1242,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             background.y = rect.h - background.h;
             draw_rect(background, background_color);
             marker := rect;
-            marker.x = 2;
-            marker.w = marker_width;
-            marker.h = marker_height;
-            measure := 0.0;
-            while measure < whitespace_collapse_width {
-                marker.y = rect.y + 1;
-                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
-                marker.y = rect.y + rect.h - 1 - marker_height;
-                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
-                marker.x += marker_width;
-                measure += marker_width;
-            }
-        }
-
-        // Draw whitespace collapse marker
-        if whitespace_collapse_width > 0 {
-            marker_width := char_x_advance * 4;
-            marker_height :: 2;
-            foreground_color := Colors.CODE_DEFAULT;
-            background_color := Colors.SPLITTER;
-            background := rect;
-            background.h = marker_height + 2;
-            draw_rect(background, background_color);
-            background.y = rect.h - background.h;
-            draw_rect(background, background_color);
-            marker := rect;
-            marker.x = 2;
             marker.w = marker_width;
             marker.h = marker_height;
             measure := 0.0;
