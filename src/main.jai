@@ -157,9 +157,8 @@ main :: () {
         redraw_requested = true;
         if !redraw_requested platform_wait_message();
 
-        if eye_tracking_active {
+        if eye_tracking_active && Input.input_application_has_focus
             eye_tracking_tick();
-        }
 
         Input.update_window_events();
 
