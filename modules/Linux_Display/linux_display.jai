@@ -34,14 +34,14 @@ ACTIVE_BACKEND :: enum {
 init_display :: (display: *Display, desired_backend := BACKEND_CHOICE.PREFER_BEST_USER_EXPERIENCE, desired_gl_backend := GL_BACKEND_CHOICE.AUTOSELECT, app_id := "com.jai.application") -> bool {
     timers_init();
 
-    bd: *Base_Display = display;
-    if bd.type != Base_Display return true;
-
-    if bd.app_id free(bd.app_id);
-    bd.app_id = copy_string(app_id);
+    if display.base.type != Base_Display return true;
 
     display.* = .{};
-    display.base.desired_gl_backend = desired_gl_backend;
+
+    bd: *Base_Display = display;
+    if bd.app_id free(bd.app_id);
+    bd.app_id = copy_string(app_id);
+    bd.desired_gl_backend = desired_gl_backend;
 
     if #complete desired_backend == {
         case .PREFER_BEST_USER_EXPERIENCE; {
@@ -222,7 +222,7 @@ update_window_events :: (display: *Display) {
         bd.mouse_delta_y = 0;
         bd.mouse_delta_z = 0;
 
-        // A little copypaste from `input_per_frame_even_and_flag_update`
+        // A little copypaste from `input_per_frame_event_and_flag_update`
         // Basically, we also need to reset "just clicked" and "just released"
         // flags so they don't get carried over multiple frames, messing up with
         // selection while scrolling and some other things
@@ -230,7 +230,7 @@ update_window_events :: (display: *Display) {
         end_mask := ~(Input.Key_Current_State.END | .DOWN | .START);
 
         for * bd.input_button_states {
-            if (it.* & .END) {
+            if (it.* & .END || !Input.input_application_has_focus) {
                 it.* &= end_mask;
             } else {
                 it.* &= mask;

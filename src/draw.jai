@@ -704,6 +704,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     if !array_find(cursor_offsets, xx offset) {  // @Speed: slow when many cursors
                         highlight := array_add(*editor.highlights);
                         highlight.offset = offset;
+                        highlight.count  = selected_text.count;
                         highlight.line   = offset_to_real_line(buffer, offset);
                     }
 
@@ -1017,7 +1018,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Draw selection highlights
         if !search_bar_is_open(editor) {
             for highlights {
-                start, end := it.offset, it.offset + selected_text_length;
+                start, end := it.offset, it.offset + it.count;
                 if end   < visible_offset_range.start continue;
                 if start > visible_offset_range.end   break;
 
@@ -1030,11 +1031,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         cursors_active := editor_is_active && active_global_widget == .editors;
 
-        // Draw selections
         if !search_bar_is_open(editor) {
             Simp.set_shader_for_rects();
             for cursor : cursors {
                 if has_selection(cursor) {
+                    // Draw selections
                     range := get_selection(cursor);
                     if range.end   < visible_offset_range.start continue;
                     if range.start > visible_offset_range.end   break;
@@ -1044,19 +1045,36 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     color := ifx cursors_active then Colors.SELECTION_ACTIVE else Colors.SELECTION_INACTIVE;
                     draw_range(selection, editor, buffer, visible_lines_start, visible_lines_end, text_origin, color);
                 }
+                else if cursors_active && config.settings.highlight_line_with_cursor {
+                    // Draw current line highlight
+                    coords := cursor_coords[it_index];
+                    line_start_offset := get_line_start_offset(editor, buffer, coords.pos.line);
+                    line_start_coords := offset_to_coords(editor, buffer, line_start_offset);
+
+                    // @Note: modified from hidden_chars_on_the_left below, get the x offset if we are scrolled horizontally
+                    x_offset := max((viewport.left / char_x_advance) - 1, 0);
+
+                    line_rect := Rect.{
+                        x = text_origin.x + (x_offset * char_x_advance),
+                        y = text_origin.y - coords.pos.line * line_height,
+                        w = rect.w - scrollbar_size - ifx x_offset == 0 then char_x_advance,   // @Note: text_origin.x is 1 char_x_advance in, so if we can see the beginning of the line, shorten the rect
+                        h = line_height,
+                    };
+                    draw_rect(line_rect, Colors.BACKGROUND_BRIGHT);
+                }
             }
         }
 
         // Draw search results
         if search_bar_is_open(editor) {
             for search_bar.results {
-                start, end := it.offset, it.offset + search_bar.input.text.count;
+                start, end := it.offset, it.offset + it.count;
                 if end   < visible_offset_range.start continue;
                 if start > visible_offset_range.end   break;
 
                 range: Coords_Range = ---;
                 range.start = offset_to_coords(editor, buffer, it.offset);
-                range.end   = offset_to_coords(editor, buffer, it.offset + search_bar.input.text.count);
+                range.end   = offset_to_coords(editor, buffer, it.offset + it.count);
                 color := ifx search_bar.selected_result == it_index then Colors.SEARCH_RESULT_ACTIVE else Colors.SEARCH_RESULT_INACTIVE;
                 draw_range(range, editor, buffer, visible_lines_start, visible_lines_end, text_origin, color);
             }
@@ -1116,8 +1134,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw text
-        hidden_chars_on_the_left := cast(s32) max((viewport.left / char_x_advance) - 2, 0);
         max_chars_horizontally   := cast(s32) (rect.w / char_x_advance) + 2;
+        hidden_chars_on_the_left := cast(s32) max((viewport.left / char_x_advance) - 2, 0);
 
         pen := text_origin;
         pen.y += (line_height - char_x_advance) / 2 - visible_lines_start * line_height;
@@ -1181,6 +1199,32 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         Simp.draw_text(font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
                     }
                 }
+            }
+        }
+
+        // Draw whitespace collapse marker
+        if whitespace_collapse_width > 0 {
+            marker_width := char_x_advance * 4;
+            marker_height :: 2;
+            foreground_color := Colors.CODE_DEFAULT;
+            background_color := Colors.SPLITTER;
+            background := rect;
+            background.h = marker_height + 2;
+            draw_rect(background, background_color);
+            background.y = rect.h - background.h;
+            draw_rect(background, background_color);
+            marker := rect;
+            marker.x = 2;
+            marker.w = marker_width;
+            marker.h = marker_height;
+            measure := 0.0;
+            while measure < whitespace_collapse_width {
+                marker.y = rect.y + 1;
+                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
+                marker.y = rect.y + rect.h - 1 - marker_height;
+                draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
+                marker.x += marker_width;
+                measure += marker_width;
             }
         }
 
@@ -1309,10 +1353,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         Simp.draw_prepared_text(font_ui_small, xx (numbers_rect.x + padding), xx (numbers_rect.y + (numbers_rect.h - font_ui_small.character_height) / 2.0), color = Colors.UI_DEFAULT);
         input_active := editor_is_active && search_bar.active && active_global_widget == .editors;
-        draw_text_input(*search_bar.input, input_rect, active = input_active, ui_id = input_id, label = " Find in buffer", margin_right = input_rect.h * 2);
+        color := ifx !regex_search || (regex_search && regex_is_valid) then Colors.NONE else Colors.UI_ERROR_BRIGHT;
+        draw_text_input(*search_bar.input, input_rect, active = input_active, ui_id = input_id, label = " Find in buffer", margin_right = input_rect.h * 2, _color = color);
 
         button_width := input_rect.h;
-        pressed, hover_match_case, hover_match_word := false, false, false;
+        pressed, hover_match_case, hover_match_word, hover_regex_search := false, false, false, false;
 
         pressed, hover_match_case = draw_text_input_modifier_button(input_id, input_rect, button_width, case_sensitive, CASE_SENSITIVE_ICON);
         if pressed {
@@ -1328,6 +1373,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             redraw_requested = true;
         }
 
+        input_rect.w -= button_width - 4 * dpi_scale;
+
+        pressed, hover_regex_search = draw_text_input_modifier_button(input_id, input_rect, button_width, regex_search, REGEX_SEARCH_ICON);
+        if pressed {
+            search_bar_toggle_regex_search(editor, buffer);
+            redraw_requested = true;
+        }
+
         // Draw tooltips last
         tooltip := "";
         if hover_match_case {
@@ -1337,6 +1390,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         } else if hover_match_word {
             tooltip = "Match Whole Word";
             combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_whole_word);
+            if combo then tooltip = tprint("% (%)", tooltip, combo);
+        } else if hover_regex_search {
+            tooltip = "Regex search";
+            combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_regex_search);
             if combo then tooltip = tprint("% (%)", tooltip, combo);
         }
         if tooltip then draw_tooltip_bottom_left(tooltip, Vector2.{ x = mouse.pointer.x - input_rect.h / 2, y = input_rect.y + input_rect.h / 3 });
@@ -1451,7 +1508,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 // Draw code line
                 {
                     match_start := entry.offset;
-                    match_end   := min(entry.offset + search_bar.input.text.count, line_range.end);  // if we have a multi-line match, we will still show only the first line
+                    match_end   := min(entry.offset + entry.count, line_range.end);  // if we have a multi-line match, we will still show only the first line
                     line_start  := ifx text_start <= match_start then text_start else line_range.start;
                     chars_until_match_start := get_num_chars(array_view(buffer.bytes, line_start, match_start - line_start));
                     chars_until_match_end   := get_num_chars(array_view(buffer.bytes, line_start, match_end   - line_start));
@@ -1517,26 +1574,19 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     }
 
-    if ui_id == .editor_floating {
-        if build_task_running {
-            push_scissor(rect);
-            defer pop_scissor();
-            duration :: 0.75;
-            icon := build_icons[cast(int)(fmod_cycling(frame_time, duration * build_icons.count) / duration) % build_icons.count];
-            icon_char := convert_utf32_to_utf8(xx icon);
-            icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
-
-            radius := font_icons_size * 0.85;
-            icon_x := rect.x + rect.w - 25;
-            icon_y := rect.y + rect.h - 20;
-            circle := make_rect(icon_x - radius + icon_width * 0.5, icon_y - radius + font_icons_size * 0.5 - 2.5, radius * 2, radius * 2);
-            //circle := make_rect(rect.x + rect.w - radius, rect.y + rect.h - radius, radius * 2, radius * 2);
+    // Draw footer
+    {
+        footer_color := Colors.BACKGROUND_BRIGHT;
+        draw_rect(footer_rect, footer_color);
+        draw_top_shadow(footer_rect);
 
             draw_rounded_rect(circle, with_alpha(Colors.BACKGROUND_DARK, 0.75), radius = radius, set_shader = true);
             Simp.draw_prepared_text(font_icons, xx icon_x, xx icon_y, color = Colors.UI_WARNING);
         }
         return;
     }
+
+
 
     // Draw footer
     if !MINIMAL_FOOTER || show_filename {
@@ -1549,6 +1599,27 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             footer_rect.x,
             footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
         );
+
+        footer_color := Colors.BACKGROUND_BRIGHT;
+        #if MINIMAL_FOOTER && FOOTER_AT_TOP {
+            outer_footer_rect.y -= char_x_advance / 2;
+            _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
+            outer_footer_rect.w = new_pen.x - pen.x + text_offset.x * 2;
+            outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
+            footer_rect = shrink_x(outer_footer_rect, text_offset.x);
+            pen = make_vector2(
+                footer_rect.x,
+                footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+            );
+        }
+
+        push_scissor(rect);
+        defer pop_scissor();
+
+        draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
+
+        push_scissor(footer_rect);
+        defer pop_scissor();
 
         footer_color := Colors.BACKGROUND_BRIGHT;
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
@@ -2761,10 +2832,11 @@ draw_finder :: () {
     input_rect = shrink(input_rect, margin);
     input_id := get_ui_id_from_loc(parent_id = ui_id);
     label := ifx initted then "Type to search in workspace" else "Still scanning the workspace. Please wait...";
-    draw_text_input(*finder.input, input_rect, ui_id = input_id, active = true, label = label, margin_right = input_rect.h * 2);
+    color := ifx !regex_search || (regex_search && regex_is_valid) then Colors.NONE else Colors.UI_ERROR_BRIGHT;
+    draw_text_input(*finder.input, input_rect, ui_id = input_id, active = true, label = label, margin_right = input_rect.h * 2, _color = color);
 
     button_width := input_rect.h;
-    pressed, hover_match_case, hover_match_word := false, false, false;
+    pressed, hover_match_case, hover_match_word, hover_regex_search := false, false, false, false;
 
     pressed, hover_match_case = draw_text_input_modifier_button(input_id, input_rect, button_width, case_sensitive, CASE_SENSITIVE_ICON);
     if pressed {
@@ -2780,6 +2852,14 @@ draw_finder :: () {
         redraw_requested = true;
     }
 
+    input_rect.w -= button_width - 4 * dpi_scale;
+
+    pressed, hover_regex_search = draw_text_input_modifier_button(input_id, input_rect, button_width, regex_search, REGEX_SEARCH_ICON);
+    if pressed {
+        finder_toggle_regex_search();
+        redraw_requested = true;
+    }
+
     // Draw tooltips last
     tooltip := "";
     if hover_match_case {
@@ -2789,6 +2869,10 @@ draw_finder :: () {
     } else if hover_match_word {
         tooltip = "Match Whole Word";
         combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_whole_word);
+        if combo then tooltip = tprint("% (%)", tooltip, combo);
+    } else if hover_regex_search {
+        tooltip = "Regex search";
+        combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_regex_search);
         if combo then tooltip = tprint("% (%)", tooltip, combo);
     }
     if tooltip then draw_tooltip_bottom_left(tooltip, Vector2.{ x = mouse.pointer.x - input_rect.h / 2, y = input_rect.y + input_rect.h / 3 });
@@ -2931,7 +3015,7 @@ draw_finder :: () {
             // Draw code line
             {
                 match_start := entry.match_offset;
-                match_end   := min(entry.match_offset + finder.needle.count, line_range.end);  // if we have a multi-line match, we will still show only the first line
+                match_end   := min(entry.match_offset + entry.match_count, line_range.end);  // if we have a multi-line match, we will still show only the first line
                 line_start  := ifx text_start <= match_start then text_start else line_range.start;
                 chars_until_match_start := get_num_chars(array_view(buffer.bytes, line_start, match_start - line_start));
                 chars_until_match_end   := get_num_chars(array_view(buffer.bytes, line_start, match_end   - line_start));
@@ -2994,6 +3078,10 @@ draw_finder :: () {
                 if whole_word {
                     combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_whole_word);
                     label = tprint("%   Match whole word is active (% to toggle).", label, combo);
+                }
+                if regex_search {
+                    combo := key_sequence_for_action_as_string(Action_Search_Dialog.toggle_regex_search);
+                    label = tprint("%   Regex search is active (% to toggle).", label, combo);
                 }
             }
             entry_rect := cut_top(files_rect, entry_height);

@@ -211,22 +211,12 @@ main :: () {
                 continue;
             }
 
-            // Try to avoid hot-looping on Linux/macOS
+            // Try to avoid hot-looping on macOS
             if nothing_to_do_this_frame {
                 sleep_milliseconds(1);
                 continue;
             }
         }
-
-        // NOTE: this optimisation has caused some problems, so commenting it out for now
-        // // Don't redraw if we're mousing around outside the window
-        // if !redraw_requested
-        //     && !Input.events_this_frame
-        //     && !mouse_pointer_is_within(screen_with_title_bar)
-        //     && window_has_focus == Input.input_application_has_focus
-        //     && !window_resized
-        // then
-        //     continue;
 
         redraw_requested = false;
         window_resized   = false;
@@ -805,6 +795,7 @@ WHEEL_SENSITIVITY :: 1.0;
 PEN_ICON            :: #run to_string(*convert_utf32_to_utf8(0xf304));
 CASE_SENSITIVE_ICON :: #run to_string(*convert_utf32_to_utf8(0xf031));
 WHOLE_WORD_ICON     :: #run to_string(*convert_utf32_to_utf8(0xe4ba));
+REGEX_SEARCH_ICON   :: #run to_string(*convert_utf32_to_utf8(0xf621));
 BULLET_ICON         :: #run to_string(*convert_utf32_to_utf8(0x2022));
 XMARK_ICON          :: #run to_string(*convert_utf32_to_utf8(0xf057));
 
@@ -1006,6 +997,12 @@ using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #imp
 #import "Strings";
 temp_strings :: #import "Strings_Alloc"(temp);
 new_strings :: #import "Strings_Alloc";
+
+re :: #import "uniform";
+
+// NOTE to future self: remove `.NeverCapture` from `BASE_REGEX_FLAGS` if we ever want to have
+//                      find-and-replace with regex capture support
+BASE_REGEX_FLAGS :: re.ParseFlags.LikePerl & ~.OneLine | .NeverCapture;
 
 // #if DEBUG {
 //     #import "Tracy";

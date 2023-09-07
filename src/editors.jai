@@ -88,6 +88,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
             case .toggle_expand;                   search_bar_toggle_expand(editor);                                             return true;
             case .toggle_case_sensitive;           search_bar_toggle_case_sensitive(editor, buffer);                             return true;
             case .toggle_whole_word;               search_bar_toggle_whole_word(editor, buffer);                                 return true;
+            case .toggle_regex_search;              search_bar_toggle_regex_search(editor, buffer);                               return true;
 
             case .search_in_buffer;                open_search_bar(editor, buffer, remember_cursor_position = false);            return true;
             case .search_in_buffer_dropdown_mode;  open_search_bar(editor, buffer, .dropdown, remember_cursor_position = false); return true;
@@ -931,6 +932,14 @@ search_bar_toggle_case_sensitive :: (using editor: *Editor, buffer: Buffer) {
     search_and_update_results(editor, buffer);
 }
 
+search_bar_toggle_regex_search :: (using editor: *Editor, buffer: Buffer) {
+    using search_bar;
+
+    if !active return;
+    regex_search = !regex_search;
+    search_and_update_results(editor, buffer);
+}
+
 search_bar_move_cursor :: (using editor: *Editor, buffer: Buffer, delta: s64, wrap := false, snap := true) {
     using search_bar;
 
@@ -988,24 +997,70 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
     needle := to_string(input.text);
     if !needle return;
 
+    regex: re.Regexp;
+    defer  if regex_search && regex_is_valid re.uninit(*regex);
+
+    if regex_search {
+        re_text := ifx whole_word then sprint("\\w%\\w", needle) else copy_string(needle);
+        defer free(re_text);
+
+        flags := BASE_REGEX_FLAGS;
+        if !case_sensitive flags |= .FoldCase;
+
+        regex, regex_is_valid = re.compile(re_text, flags);
+        if !regex_is_valid return;
+
+        matched, captures := re.match("dummy string", regex);
+        if matched && !captures[0].count {
+            // disallow expressions that generate empty results (such as `\s*`)
+            regex_is_valid = false;
+            re.uninit(*regex);
+            return;
+        }
+    }
+
     buffer_str := to_string(buffer.bytes);
 
     assert(buffer_str.count < S32_MAX && needle.count < S32_MAX);
     skip_table := bmh_prepare_skip_table(needle, case_sensitive);
     offset := 0;
+    count := 0;
     i := 0;
+    buffer_advance := 0;
+    captures: [] string;
     while true {
-        if case_sensitive {
-            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
-        } else {
-            offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false, ignore_whitespace = ignore_whitespace);
-        }
-        if offset < 0 break;
+        if regex_search {
+            // `re.match()` does not take a start index so we need to constantly advance
+            // `buffer_str` and keep track of our 'real' position in the original buffer
+            matched: bool;
+            matched, captures = re.match(buffer_str, regex);
+            if !matched break;
 
-        if !whole_word || (whole_word && match_whole_word(buffer_str, offset, needle.count)) {
+            c := captures[0];
+            local_offset := c.data - buffer_str.data;
+            offset = buffer_advance + local_offset;
+            count  = c.count;
+            buffer_advance = offset + count;
+
+            advance(*buffer_str, local_offset + count);
+
+            free(captures.data);
+        } else {
+            if case_sensitive {
+                offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
+            } else {
+                offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = false, ignore_whitespace = ignore_whitespace);
+            }
+            if offset < 0 break;
+
+            count = needle.count;
+        }
+
+        if regex_search || !whole_word || (whole_word && match_whole_word(buffer_str, offset, count)) {
             result := array_add(*results);
             result.offset = offset;
-            result.line = offset_to_real_line(buffer, offset);
+            result.count  = count;
+            result.line   = offset_to_real_line(buffer, offset);
             if selected_result < 0 && result.offset >= search_point_offset then selected_result = i;
             i += 1;
         }
@@ -1065,7 +1120,7 @@ jump_to_search_result :: (using editor: *Editor, buffer: Buffer, move_search_poi
     result := results[selected_result];
     cursor := leave_only_original_cursor(editor);
     cursor.sel = xx result.offset;
-    cursor.pos = xx (result.offset + input.text.count);
+    cursor.pos = xx (result.offset + result.count);
     scroll_to_cursor = .yes;
 
     if move_search_point {
@@ -1752,8 +1807,10 @@ toggle_expand :: (expanded: bool) {
 }
 
 smooth_scroll :: (editor: Editor, direction: Smooth_Scroll_Direction, fast := false) {
-    editor_smooth_scroll.direction = direction;
-    if editor_smooth_scroll.direction != .none {
+    // Only set this if there's a new set of inputs. Since keystrokes will repeat if held down for long,
+    // the start_*/started_at values would be reset constantly in the middle of scrolling, causing stutter.
+    if direction != editor_smooth_scroll.direction || fast != editor_smooth_scroll.fast {
+        editor_smooth_scroll.direction  = direction;
         editor_smooth_scroll.started_at = frame_time;
         editor_smooth_scroll.start_x    = editor.viewport.left;
         editor_smooth_scroll.start_y    = editor.viewport.top;
@@ -3227,95 +3284,162 @@ jump_to_matching_bracket :: (editor: *Editor, buffer: *Buffer, with_selection: b
 }
 
 toggle_comment :: (editor: *Editor, buffer: *Buffer) {
-    comment_without_space: string;
-    comment: string;
 
+    comment: string = ---;
     if buffer.lang == {
-        case .C;            comment_without_space = "//";
-        case .CSharp;       comment_without_space = "//";
-        case .Golang;       comment_without_space = "//";
-        case .Glsl;         comment_without_space = "//";
-        case .Jai;          comment_without_space = "//";
-        case .Focus_Config; comment_without_space = "#";
+        case .C;            comment = "//";
+        case .CSharp;       comment = "//";
+        case .Golang;       comment = "//";
+        case .Glsl;         comment = "//";
+        case .Jai;          comment = "//";
+        case .Focus_Config; comment = "#";
         case;               return;
     }
-    comment = tprint("% ", comment_without_space);
 
     // Get the affected lines
     line_starts, last_line_end_offset := get_line_starts_for_lines_with_cursors_tmp(editor, buffer);
-    array_add(*line_starts, last_line_end_offset);
+    last_line := line_starts.count - 1;
+    array_add(*line_starts, last_line_end_offset); // So that line_starts[it+1] will always work.
 
-    // Figure out whether we're commenting out or removing comments
-    min_whitespace := -1;
+    // NOTE: Before commenting/uncommenting, we loop over the selected lines once to do the following:
+    //       A. Remember if the line is empty, because empty lines are ignored.
+    //       B. Determine whether we're adding or removing comments.
+    //       C. Find the minimum indent (which is only for adding comments, but we don't know if we need it until the end of the loop)
+    //       Minimum indent works as follows:
+
+    //         if foo {
+    //             bar();
+    //         }
+    // ^^^^^^^^   <- minimum indent
+
+    //       To make this work intuitively and robustly, we have to measure the VISUAL width of the minimum indent.
+    //       We cannot count the whitespace characters because there may be tabs, and tabs have weird alignment rules.
+
+    // We're using a single bit on the line start offset to mark lines as empty. This saves us from having to loop over every line *again*
+    // once we start adding/removing comments. Since it is the sign bit, this doesn't overwrite any bits that could be part of valid offsets.
+    // We set this bit manually instead of multiplying with -1 because this way it also works for offset 0.
+    EMPTY_LINE_BIT  :: (cast(s64) 1) >>> 1;
+    LINE_START_MASK :: ~EMPTY_LINE_BIT;
+
+    min_indent  := -1;
     add_comment := false;
-    for 0..line_starts.count-2 {
+    for 0..last_line {
         start, end := line_starts[it], line_starts[it+1];
-        str := to_string(array_view(buffer.bytes, start, end-start));
-        trimmed_str := trim_left(str, " \r\n\t");
-        if !trimmed_str continue;
+        str := cast(string) array_view(buffer.bytes, start, end-start);
 
-        if !add_comment && !begins_with(trimmed_str, comment_without_space) then add_comment = true;
-        len_whitespace := str.count - trimmed_str.count;
-        if min_whitespace < 0 || len_whitespace < min_whitespace then min_whitespace = len_whitespace;
+        // NOTE: 'str' may actually be multiple lines! This happens when you have two cursors and they are spaced multiple lines apart.
+        //       You get the start offsets of both lines, and with start=[i] and end=[i+1] you are selecting the whole region in between
+        //       those lines. Having multiple lines inside 'str' may seem weird but it's usually not a problem. Since we are using
+        //       line-comments, placing or removing a comment from the start of 'str' will only affect the first line, the lines below
+        //       are unchanged. And that's exactly what should happen, since we only want to modify the first line and leave the rest
+        //       unaffected.
+
+        indent        := 0;
+        is_empty_line := true;
+        trimmed_str: string = ---;
+        for c : cast([]u8) str {
+            if c == {
+                case #char "\t"; indent += TAB_SIZE - (indent % TAB_SIZE); continue c;
+                case #char " ";  indent += 1;                              continue c;
+
+                // In this case, this one line is empty, but str contains multiple lines. See the large comment above.
+                case #char "\r"; #through;
+                case #char "\n";
+                    break c;
+
+                case;
+                    trimmed_str   = slice(str, it_index, str.count - it_index);
+                    is_empty_line = false;
+                    break c;
+            }
+        }
+
+        if is_empty_line { line_starts[it] |= EMPTY_LINE_BIT; continue; }
+        if min_indent < 0 || indent < min_indent then min_indent = indent;
+        if !add_comment && !begins_with(trimmed_str, comment) then add_comment = true;
     }
-    if min_whitespace < 0 then min_whitespace = 0;
+
+    if min_indent < 0 then min_indent = 0;
 
     // Build a replacement string
     b: String_Builder;  // not using temp because the string may be too large
+
     if add_comment {
-        // Add comments to nonempty strings
-        spaces := get_tmp_spaces(min_whitespace);
-        chars_added := 0;
-        for 0..line_starts.count-2 {
-            start, end := line_starts[it], line_starts[it+1];
-            if start > buffer.bytes.count continue;
-            str := to_string(array_view(buffer.bytes, start, end-start));
-            trimmed_str := trim_left(str, " \r\n\t");
-            if !trimmed_str { append(*b, str); continue; }  // append as is
-
-            append(*b, spaces);
-            append(*b, comment);
-            append(*b, to_string(array_view(buffer.bytes, start + min_whitespace, end - start - min_whitespace)));
-
-            adjusted_start := start + chars_added + min_whitespace;
-            for * cursor : editor.cursors {
-                if cursor.pos >= adjusted_start then cursor.pos += xx comment.count;
-                if cursor.sel >= adjusted_start then cursor.sel += xx comment.count;
-            }
-
-            chars_added += comment.count;
+        use_spaces := config.settings.insert_spaces_when_pressing_tab;
+        new_whitespace := ifx use_spaces then get_tmp_spaces(min_indent) else {
+            tab_count := min_indent / TAB_SIZE; // Aligns the indentation with tab columns because of integer division.
+            min_indent = tab_count * TAB_SIZE;  // Update min_indent too. If you use tabs, your comments will align with tab columns.
+            get_tmp_tabs(tab_count);
         }
-    } else {
-        // Remove comments from nonempty strings
-        chars_removed := 0;
-        for 0..line_starts.count-2 {
-            start, end := line_starts[it], line_starts[it+1];
-            if start > buffer.bytes.count continue;
-            str := to_string(array_view(buffer.bytes, start, end-start));
-            trimmed_str := trim_left(str, " \r\n\t");
-            if !trimmed_str { append(*b, str); continue; }  // append as is
 
-            len_whitespace := str.count - trimmed_str.count;
-            append(*b, to_string(array_view(buffer.bytes, start, len_whitespace)));  // spaces before the comment
-            advance(*str, len_whitespace);
-            len_comment := ifx begins_with(str, comment) then comment.count else comment_without_space.count;
-            advance(*str, len_comment);
-            append(*b, str);
+        adjustment := 0;
+        for 0..last_line {
+            start, end := line_starts[it] & LINE_START_MASK, line_starts[it+1] & LINE_START_MASK;
+            str        := cast(string) array_view(buffer.bytes, start, end-start);
+            if line_starts[it] & EMPTY_LINE_BIT { append(*b, str); continue; }
 
-            adjusted_start := start - chars_removed + len_whitespace;
-            for * cursor : editor.cursors {
-                if cursor.pos >= adjusted_start then cursor.pos -= xx min(len_comment, cursor.pos - adjusted_start);
-                if cursor.sel >= adjusted_start then cursor.sel -= xx min(len_comment, cursor.sel - adjusted_start);
+            // Count how many characters are in the minimum indent, then cut off those characters since they will be replaced with new_whitespace
+            indent, old_whitespace_count := 0;
+            while indent < min_indent {
+                c := str[old_whitespace_count];
+                if c == {
+                    case #char " ";  indent += 1;
+                    case #char "\t"; indent += TAB_SIZE - (indent % TAB_SIZE);
+                    case;            assert(false, "Unexpected character 0x%, (expected only tabs/spaces)\n", formatInt(c, base=16));
+                }
+                old_whitespace_count += 1;
             }
+            if indent > min_indent then old_whitespace_count -= 1;
+            trimmed_str := advance(str, old_whitespace_count);
 
-            chars_removed += len_comment;
+            append(*b, new_whitespace);
+            append(*b, comment);
+            append(*b, " ");
+            append(*b, trimmed_str);
+
+            adjusted_start             := start + adjustment;
+            adjusted_old_comment_start := start + adjustment + old_whitespace_count;
+            adjusted_new_comment_start := start + adjustment + new_whitespace.count;
+
+            line_length_difference := -old_whitespace_count + new_whitespace.count + (comment.count + 1);
+
+            for * cursor : editor.cursors {
+                if      cursor.pos > adjusted_old_comment_start then cursor.pos += xx line_length_difference;
+                else if cursor.pos >= adjusted_start            then cursor.pos  = xx adjusted_new_comment_start;
+                if      cursor.sel > adjusted_old_comment_start then cursor.sel += xx line_length_difference;
+                else if cursor.sel >= adjusted_start            then cursor.sel  = xx adjusted_new_comment_start;
+            }
+            adjustment += line_length_difference;
+        }
+    } else { // Remove comments
+        adjustment := 0;
+        for 0..last_line {
+            start, end := line_starts[it] & LINE_START_MASK, line_starts[it+1] & LINE_START_MASK;
+            str        := cast(string) array_view(buffer.bytes, start, end-start);
+            if line_starts[it] & EMPTY_LINE_BIT { append(*b, str); continue; }
+
+            found, whitespace, after_comment := split_from_left(str, comment);
+            assert(found, "When un-commenting, all non-empty lines should have a comment.");
+
+            len_comment := comment.count;
+            if begins_with(after_comment, " ") { advance(*after_comment, 1); len_comment += 1; }
+
+            append(*b, whitespace);
+            append(*b, after_comment);
+
+            adjusted_comment_start := start + whitespace.count + adjustment;
+            for * cursor : editor.cursors {
+                if cursor.pos > adjusted_comment_start then cursor.pos -= xx min(len_comment, cursor.pos - adjusted_comment_start);
+                if cursor.sel > adjusted_comment_start then cursor.sel -= xx min(len_comment, cursor.sel - adjusted_comment_start);
+            }
+            adjustment -= len_comment;
         }
     }
 
     new_str := builder_to_string(*b);
     defer free(new_str);
 
-    range := Offset_Range.{ start = xx line_starts[0], end = xx last_line_end_offset };
+    range := Offset_Range.{ start = xx line_starts[0] & LINE_START_MASK, end = xx last_line_end_offset };
     replace_range(buffer, range, new_str);
 
     for * cursor : editor.cursors { cursor.col_wanted = -1; }
@@ -3526,6 +3650,8 @@ Search_Bar :: struct {
     case_sensitive := true;
     ignore_whitespace := false;
     whole_word: bool;
+    regex_search: bool;
+    regex_is_valid: bool;
 
     original_cursor_position: Cursor.State;  // remember main cursor position so we can go back to it on Esc
     jumped := false;
@@ -3549,6 +3675,7 @@ Scroll_Mode :: enum { no; yes; snap; };
 
 Text_Highlight :: struct {
     offset: s64;    // we'll convert this to position range, but only for the visible highlights
+    count: s64;
     line: s32;      // useful to know line immediately to display in the scrollbar area
 }
 
@@ -3935,4 +4062,3 @@ global_config_buffer_id := -1;
 CURSOR_BLINK_SPEED_MS   :: 500;
 
 #import "Clipboard";
-

@@ -33,6 +33,8 @@
     + New command: `show_default_config`. Can be used to view the default editor config for your reference (readonly)
     + New command: `select_all_occurrences`. Used to create a cursor on each selection occurrence (thanks @hfr4)
     + New command: `toggle_fullscreen`. Defaults to F11 (thanks @ustance)
+    + New option: `highlight_line_with_cursor` (thanks @SentientCoffee)
+    + Added support for regular expressions in file/project search
 
 + Bug fixes:
     + It should now be possible to scroll the viewport by dragging ouside it in all cases (previously it wasn't always possible - see issue #101)
@@ -41,9 +43,11 @@
     + Fixed a bug with multi-cursor range replace by typing
     + Fixed a bug with move_lines_up/down near EOF whilst using multi-cursor
     + Fixed visual bug where tabs would align to the wrong columns
+    + Fix `toggle_comment` command when tabs are enabled (thanks @Sanian-Creations)
     + Linux: fixed selection while scrolling due to "stuck" START and END states of the mouse button presses.
     + Linux: Clipboard handling should become way faster on X11 because we let event loop to handle more requests before drawing.
     + Linux: fix drag-n-drop crash caused by calling Basic.free on the memory allocated with temp allocator
+    + Fix for stuck keys when the editor loses window focus (such as alt-tabbing or moving to other workspaces on Linux)
 
 + Other changes:
     + When the workspace is done scanning, the open file dialog input will no longer be cleared
