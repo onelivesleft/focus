@@ -105,6 +105,7 @@ try_parsing_header :: (using tokenizer: *Tokenizer, token: *Token) {
     if str == {
         case "[[workspace]]";   section = .workspace; token.type = .header_top_level;
         case "[[settings]]";    section = .settings;  token.type = .header_top_level;
+        case "[[script]]";      section = .script;    token.type = .header_top_level;
         case "[[keymap]]";      section = .keymap;    token.type = .header_top_level;
         case "[[style]]";       section = .style;     token.type = .header_top_level;
 
@@ -245,6 +246,7 @@ Tokenizer :: struct {
         workspace;
         keymap;
         settings;
+        script;
         style;  // unused
         ui;
         colors;

@@ -1,4 +1,4 @@
-parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
+parse_config :: (name: string, filename: string, file_data: string, space: Space) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
     using parser: Config_Parser;
 
     // NOTE: we don't free on purpose, because some of the parsed data will point into the file data
@@ -14,15 +14,22 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
     warnings: [..] string;
     warnings.allocator = temp;
     reset_build_configs();
+    script_string : string;
+    prev_line_start : *u8;
 
     while true {
+        prev_line_start = handler.file_data.data;
         line, found := consume_next_line(*handler);
         if !found break;
 
         // Maybe switch to a different top section
         if begins_with(line, "[[") {
+            if top_section == .script
+                script_string.count = prev_line_start - script_string.data;
             error, error_msg := switch_top_section(*parser, line);
             if error return Parsed_Config.{}, false, error_msg, .[];
+            if top_section == .script
+                script_string.data = handler.file_data.data;
             continue;
         }
 
@@ -35,6 +42,9 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
             case .keymap;       success, error_msg = parse_keymap_line(*parser, line);
             case .style;        success, error_msg = parse_style_line(*parser, line);
             case .platform;     success, error_msg = platform_parse_config_line(*parser, line);
+
+            case .script;       success = true;
+
             case .none;
                 error_msg := log_parser_error(handler, "Expected a top-level section definition, got '%'", line);
                 return Parsed_Config.{}, false, error_msg, .[];
@@ -43,6 +53,12 @@ parse_config :: (name: string, filename: string, file_data: string) -> Parsed_Co
         if !success return Parsed_Config.{}, false, error_msg, warnings;
         if success && error_msg then array_add(*warnings, error_msg);
     }
+
+    if top_section == .script
+        script_string.count = handler.file_data.data - script_string.data;
+    if script_string
+        fig_startup_script = copy_string(script_string);
+
 
     build_config_error := validate_build_configs();
     if build_config_error {
@@ -235,6 +251,14 @@ switch_top_section :: (using parser: *Config_Parser, line: string) -> error: boo
             }
             seen_top_sections |= .keymap;
 
+        case "[[script]]";
+            top_section = .script;
+            if seen_top_sections & .script {
+                error_msg := log_parser_error(handler, "The section '[[script]]' is defined twice. This is an error.");
+                return true, error_msg;
+            }
+            seen_top_sections |= .script;
+
         case "[[settings]]";
             top_section = .settings;
             if seen_top_sections & .settings {
@@ -260,7 +284,7 @@ switch_top_section :: (using parser: *Config_Parser, line: string) -> error: boo
             seen_top_sections |= .platform;
 
         case;
-            error_msg := log_parser_error(handler, "Expected one of the following top-level sections: [[workspace]], [[settings]], [[keymap]], [[style]], but found '%'", line);
+            error_msg := log_parser_error(handler, "Expected one of the following top-level sections: [[workspace]], [[settings]], [[keymap]], [[script]], [[style]], but found '%'", line);
             return true, error_msg;
     }
 
@@ -711,6 +735,7 @@ Config_Parser :: struct {
         workspace;
         keymap;
         settings;
+        script;
         style;
         platform;
     } = .none;
@@ -719,6 +744,7 @@ Config_Parser :: struct {
         workspace;
         keymap;
         settings;
+        script;
         style;
         platform;
     };

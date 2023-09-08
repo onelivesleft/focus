@@ -1,0 +1,11 @@
+# test fig file
+
+main:
+    "100" 100
+
+words
+dump
+clear
+dump
+
+main

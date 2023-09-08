@@ -15,12 +15,19 @@ init_output_buffer :: () {
     buffer := *open_buffers[output_buffer];
     buffer.readonly = true;
     buffer.ignore = true;
+    insert_string_raw(buffer, buffer.bytes.count, tprint("Focus %\n", VERSION), false);
+    rescan_for_lines(buffer);
 }
 
 print_to_console :: (output: string) {
+    print_to_console(output, false);
+}
+
+print_to_console :: (output: string, append_newline: bool) {
     assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
     buffer := *open_buffers[output_buffer];
-    insert_string_raw(buffer, buffer.bytes.count, output, false);
+    s := ifx append_newline then tprint("%\n", output) else output;
+    insert_string_raw(buffer, buffer.bytes.count, s, false);
     rescan_for_lines(buffer);
     editors_open_buffer(output_buffer, .floating);
     editor := *open_editors[editors.floating];
@@ -74,7 +81,7 @@ build :: (mode : Build_Mode) {
         return;
     }
 
-    save_all();
+    save_all(null, null, false);
 
     task := New(Console_Task, allocator=console_allocator);
     task.title = copy_string(tprint(build_mode_labels[mode], name), console_allocator);

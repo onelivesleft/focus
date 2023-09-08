@@ -419,15 +419,17 @@ recalculate_colors :: (buffer: *Buffer) {
     buffer.needs_coloring = false;
     array_resize(*buffer.colors, buffer.bytes.count);  // this will reset colors to 0
 
-    if buffer.lang == {
+    if #complete buffer.lang == {
         case .Jai;          highlight_jai_syntax(buffer);
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
         case .Golang;       highlight_golang_syntax(buffer);
+        case .Fig;          highlight_fig_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
         case .Markdown;     highlight_md_syntax(buffer);
         case .Glsl;         highlight_glsl_syntax(buffer);
         case .Worklog;      highlight_worklog(buffer);
+        case .Plain_Text;
     }
 
     if build_error_exists  decorate_last_build_error(buffer);
@@ -1214,6 +1216,7 @@ Buffer :: struct {
         C;
         CSharp;
         Golang;
+        Fig;
         Focus_Config;
         Markdown;
         Glsl;

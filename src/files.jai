@@ -211,6 +211,7 @@ File_Icon :: enum u16 {
     drive   :: 0xf0a0;
     js      :: 0xf15c;
     shell   :: 0xf2d0;
+    fig     :: 0xf06c;
 
     dots    :: 0xf141;
 }

@@ -421,6 +421,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_editor_to_the_right",
     "create_new_file",
     "create_new_file_on_the_side",
+    "create_new_fig_file",
+    "create_new_fig_file_on_the_side",
     "move_to_previous_editor_history",
     "move_to_previous_editor_history_big",
     "move_to_previous_buffer",
@@ -429,6 +431,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_to_next_editor_history_big",
     "toggle_line_wrap",
     "toggle_line_numbers",
+    "fig_run_current",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

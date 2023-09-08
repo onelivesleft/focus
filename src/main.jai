@@ -4,11 +4,12 @@ DEBUG_CHANGE_COLOR :: true;
 DEBUG_SMALL_WINDOW :: true;
 DEBUG_SHOW_COLOR :: true;
 
+EYE_TRACKING :: true;
 FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
 HIDE_SCROLLBARS :: true;
 
-HIDE_CONSOLE_ON_SUCCESS :: true; // @TODO make into an actual config option
+HIDE_CONSOLE_ON_SUCCESS :: true;
 
 SKIP_CUTSCENES :: true;
 
@@ -142,8 +143,15 @@ main :: () {
         press_count := 0;
     };
 
-    if eye_tracking_active {
-        eye_tracking_init();
+    #if EYE_TRACKING {
+        if eye_tracking_active
+            eye_tracking_init();
+    }
+
+    if fig_startup_script {
+        execute_string(fig_startup_script, .global, .errors);
+        execute_string("startup", .global, .errors);
+        free(fig_startup_script);
     }
 
     // On Wayland and X11 the main window needs to be mapped before we can get input focus.
@@ -157,8 +165,10 @@ main :: () {
         redraw_requested = true;
         if !redraw_requested platform_wait_message();
 
-        if eye_tracking_active && Input.input_application_has_focus
-            eye_tracking_tick();
+        #if EYE_TRACKING {
+            if eye_tracking_active && Input.input_application_has_focus
+                eye_tracking_tick();
+        }
 
         Input.update_window_events();
 
@@ -369,8 +379,9 @@ main :: () {
         }
     }
 
-    if eye_tracking_active {
-        eye_tracking_done();
+    #if EYE_TRACKING {
+        if eye_tracking_active
+            eye_tracking_done();
     }
 
     // report := make_leak_report();
@@ -410,6 +421,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .go_to_line;                                       show_go_to_line_dialog();                           return true;
         case .create_new_file;                                  editors_create_new_file(placement);                 return true;
         case .create_new_file_on_the_side;                      editors_create_new_file(.on_the_side);              return true;
+        case .create_new_fig_file;                              editors_create_new_file(placement, .Fig);           return true;
+        case .create_new_fig_file_on_the_side;                  editors_create_new_file(.on_the_side, .Fig);        return true;
 
         case .show_open_file_dialog_in_search_mode;             show_open_file_dialog(.search);                     return true;
         case .show_open_file_dialog_in_navigate_mode;           show_open_file_dialog(.navigate);                   return true;
@@ -914,6 +927,7 @@ dont_ignore_next_window_resize := false;
 #load "draw.jai";
 #load "pointer_image.jai";
 #load "utils.jai";
+#load "fig.jai";
 #load "files.jai";
 #load "workspace.jai";
 #load "config.jai";
@@ -922,7 +936,8 @@ dont_ignore_next_window_resize := false;
 #load "session.jai";
 #load "meow_hash.jai";
 #load "user_messages.jai";
-#load "eye_tracking.jai";
+#if EYE_TRACKING
+    #load "eye_tracking.jai";
 #load "console.jai";
 #load "threads.jai";
 #load "font_awesome.jai";
@@ -943,6 +958,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/c.jai";
 #load "langs/csharp.jai";
 #load "langs/golang.jai";
+#load "langs/fig_syntax.jai";
 #load "langs/focus_config.jai";
 #load "langs/md.jai";
 #load "langs/glsl.jai";

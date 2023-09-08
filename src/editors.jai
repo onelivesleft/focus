@@ -189,6 +189,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_to_next_editor_history_big;  move_to_next_editor_history         (big_steps = true);
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
         case .parse_file;                       parse_file                          (editor, buffer);
+        case .fig_run_current;                  execute_editor(editor, buffer);
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -508,10 +509,12 @@ editors_show_default_config :: (placement: Editor_Placement) {
     editors_open_buffer(global_config_buffer_id, placement);
 }
 
-editors_create_new_file :: (placement: Editor_Placement = .in_place) {
+editors_create_new_file :: (placement: Editor_Placement = .in_place, lang := type_of(Buffer.lang).Plain_Text) {
     buffer_id := find_or_create_an_empty_buffer();
 
     editors_open_buffer(buffer_id, placement);
+    open_buffers[buffer_id].lang = lang;
+    open_buffers[buffer_id].file.icon = icon_for_lang(lang);
 }
 
 editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place) {
@@ -616,10 +619,14 @@ center_viewport_on_cursor :: (using editor: *Editor, buffer: Buffer) {
     editor.scroll_to_cursor = .yes;
 }
 
-
 jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
-    if eye_tracking_active
-        should_jump_to_eye_tracker = editors.active;
+    #if EYE_TRACKING {
+        if eye_tracking_active
+            should_jump_to_eye_tracker = editors.active;
+    }
+    else {
+        add_user_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2);
+    }
 }
 
 show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
@@ -1167,6 +1174,7 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
     if found_extension {
         if extension == {
             case "jai";            buffer.lang = .Jai;
+            case "fig";            buffer.lang = .Fig;
             case "focus-config";   buffer.lang = .Focus_Config;
             case "cs";             buffer.lang = .CSharp;
             case "go";             buffer.lang = .Golang;
@@ -1693,9 +1701,10 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
 
 #scope_export
 
-save_all :: (editor : *Editor = null, buffer : *Buffer = null) {
+save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true) {
     for * b, b_id : open_buffers {
         if !b.modified continue;
+        if !include_fileless_buffers && !b.has_file  continue;
 
         if b.num_editors_open {
             for * e: open_editors {
@@ -3998,7 +4007,7 @@ remove_active_buffer_from_history :: () {
     make_buffer_active(editor.buffer_id); // guarantees buffer is on top of buffer_order;
     buffer_order.count -= 1;
     if buffer_order.count == 0
-        close_current_editor();
+        editors.layout = .None;
     else
         make_buffer_active(buffer_order[buffer_order.count - 1]);
 }

@@ -69,11 +69,13 @@ draw_frame :: () {
                 just_dropped_file = "";
             }
 
-            if eye_tracking_active && should_jump_to_eye_tracker >= 0 {
-                if point_within(calibrated_eye_position, left_rect)
-                    should_jump_to_eye_tracker = editors.left;
-                else
-                    should_jump_to_eye_tracker = editors.right;
+            #if EYE_TRACKING {
+                if eye_tracking_active && should_jump_to_eye_tracker >= 0 {
+                    if point_within(calibrated_eye_position, left_rect)
+                        should_jump_to_eye_tracker = editors.left;
+                    else
+                        should_jump_to_eye_tracker = editors.right;
+                }
             }
 
             draw_editor(editors.left,  left_rect,  footer_height, .editor_left,  screen);
@@ -115,10 +117,12 @@ draw_frame :: () {
     if buffer_switcher_hot && buffer_switcher_index >= 0
         draw_buffer_switcher_dialog(active_pane_rect);
 
-    if eye_tracking_active && eye_tracking_hot {
-        size :: 2.0;
-        rect := Rect.{x=calibrated_eye_position.x-size, y=calibrated_eye_position.y-size, w=size*2, h=size*2};
-        draw_rect(rect, Colors.CURSOR);
+    #if EYE_TRACKING {
+        if eye_tracking_active && eye_tracking_hot {
+            size :: 2.0;
+            rect := Rect.{x=calibrated_eye_position.x-size, y=calibrated_eye_position.y-size, w=size*2, h=size*2};
+            draw_rect(rect, Colors.CURSOR);
+        }
     }
 
     #if IPROF {
@@ -480,16 +484,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
     calculate_text_origin();
 
-    if should_jump_to_eye_tracker == editor_id {
-        should_jump_to_eye_tracker = -1;
+    #if EYE_TRACKING {
+        if should_jump_to_eye_tracker == editor_id {
+            should_jump_to_eye_tracker = -1;
 
-        pointer := snap_to_rect(calibrated_eye_position, rect);
-        mouse_pos := pointer - bottom_left(rect) - text_offset;
-        mouse_pos.x += viewport.left;
-        mouse_pos.y = rect.h - mouse_pos.y + viewport.top - ifx dpi_scale > 1.0 then 1 else 0;
-        coords := Coords.{ line = xx (mouse_pos.y / line_height), col = xx ((mouse_pos.x / char_x_advance) + 0.5) };
+            pointer := snap_to_rect(calibrated_eye_position, rect);
+            mouse_pos := pointer - bottom_left(rect) - text_offset;
+            mouse_pos.x += viewport.left;
+            mouse_pos.y = rect.h - mouse_pos.y + viewport.top - ifx dpi_scale > 1.0 then 1 else 0;
+            coords := Coords.{ line = xx (mouse_pos.y / line_height), col = xx ((mouse_pos.x / char_x_advance) + 0.5) };
 
-        jump_to_closest_line(editor, buffer, coords, true);
+            jump_to_closest_line(editor, buffer, coords, true);
+        }
     }
 
     width_in_chars := clamp(cast(s32) ((rect.w - 1.5 * text_offset.x)  / char_x_advance), 1, S32_MAX);
@@ -1665,7 +1671,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     draw := !calculate_only;
 
     // Icon
-    icon_char := convert_utf32_to_utf8(xx ifx buffer.has_file then buffer.file.icon else File_Icon.text);
+    icon_char := convert_utf32_to_utf8(xx buffer.file.icon);
     icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
     icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
     if draw  Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = file_name_color);
@@ -2643,7 +2649,7 @@ draw_icon_search_dialog :: () {
             if found {
                 icon_char := convert_utf32_to_utf8(xx icon);
                 if entry_index == selected
-                    os_clipboard_set_text(copy_string(to_string(*icon_char)));
+                    os_clipboard_set_text(tprint("\\u%", formatInt(cast(u32)icon, base=16)));
                 icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
                 //icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
                 Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);

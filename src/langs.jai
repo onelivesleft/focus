@@ -16,6 +16,8 @@ language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
         return .Markdown;
     else if matches("focus") || matches("focus_config")
         return .Focus_Config;
+    else if matches("fig")
+        return .Fig;
 
     return .Plain_Text;
 }
@@ -33,6 +35,7 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buff
         case .Markdown;      highlight_proc = highlight_md_syntax;
         case .Worklog;       highlight_proc = highlight_worklog;
         case .Focus_Config;  highlight_proc = highlight_focus_config_syntax;
+        case .Fig;           highlight_proc = highlight_fig_syntax;
 
         case .Plain_Text;
         if use_jai_by_default
@@ -60,10 +63,17 @@ is_lang_which_likes_to_indent :: (lang: type_of(Buffer.lang)) -> bool {
         || lang == .Glsl;
 }
 
-
-#scope_file
-
-
-is_whitespace :: inline (char: u8) -> bool {
-    return char == #char " " || char == #char "\t" || char == #char "\r" || char == #char "\n";
+icon_for_lang :: (lang: type_of(Buffer.lang)) -> File_Icon {
+    if #complete lang == {
+        case .Jai;           return .jai;
+        case .CSharp;        return .cs;
+        case .C;             return .cpp;
+        case .Golang;        return .unknown;
+        case .Glsl;          return .unknown;
+        case .Markdown;      return .unknown;
+        case .Worklog;       return .worklog;
+        case .Focus_Config;  return .gear;
+        case .Fig;           return .fig;
+        case .Plain_Text;    return .text;
+    }
 }

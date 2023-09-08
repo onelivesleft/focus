@@ -9,7 +9,7 @@ load_global_config :: (fallback_to_default_on_failure := false) -> success: bool
         if !success panic_messagebox("Couldn't create a new config file '%'.\nIs the directory writable?", global_config_path);
     }
 
-    success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash);
+    success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash, space = .global);
     if !success && fallback_to_default_on_failure {
         config = DEFAULT_CONFIG;
         saved_global_config = config;
@@ -27,7 +27,7 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     project_name := ifx project then project else current_project_name;
     config_path  := sprint("%/%.focus-config", projects_dir, project_name);
 
-    success, changed, there_were_warnings := load_and_merge_config(config_path, into = saved_global_config, hash = *project_config_hash);
+    success, changed, there_were_warnings := load_and_merge_config(config_path, into = saved_global_config, hash = *project_config_hash, space = .project);
     if success {
         current_project_name = project_name;
         project_config_path  = config_path;
@@ -140,7 +140,7 @@ find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp *
 
 #scope_file
 
-load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> success: bool, changed: bool, there_were_warnings: bool {
+load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : Space) -> success: bool, changed: bool, there_were_warnings: bool {
 
     file_data, success_read := read_entire_file(file_path);
     // NOTE: we're not freeing because the config will take ownership of it (and if you reload it'll leak the old data, which we should probably fix at some point)
@@ -151,7 +151,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64) -> succes
         return false, false, false;
     }
 
-    parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data);
+    parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data, space);
     if !success_parse {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
         log_error(error_msg);
@@ -430,7 +430,7 @@ EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
 #scope_export
 
 DEFAULT_CONFIG :: #run -> Config {
-    parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);
+    parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA, .global);
     assert(success, "Couldn't parse the default config file '%'", DEFAULT_CONFIG_NAME);
     default_config: Config;
     merge_configs(*default_config, parsed_config);
@@ -439,7 +439,7 @@ DEFAULT_CONFIG :: #run -> Config {
 
 // Validate the example project config
 #run {
-    _, success := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA);
+    _, success := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA, .none);
     assert(success, "Couldn't parse the example project config file '%'", EXAMPLE_PROJECT_CONFIG_NAME);
 }
 

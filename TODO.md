@@ -1,9 +1,36 @@
 # Mine
 
-- [x] IProf
+
+- [.] Fig
+    - [ ] open_file take project relative path
+    - [ ] open_files
+    - [ ] quote strings on output (shrink large ones too)
+    - [ ] memory corruption in words
+    - [ ] sequences
+    - [ ] references
+    - [ ] conditionals
+    - [ ] loops
+    - [ ] all the builtins
+    - [ ] .sentinel / .marker
+    - [ ] keybinds
+    - [ ] can't find help
+    - [ ] amalgamate fig & fig_syntax as much as possible
+    - [ ] generate intrinsics via tagged procs
+    - [ ] Test project [[scripts]]
+    - [ ] herestrings in .fig
+    - [ ] fig herestrings (in config for instance)
+
+- [.] output window
+    - [ ] clickable
+    - [ ] input box
+    - [x] threaded !!!FIX threading!!!
+    - [ ] color errors
+    - [x] don't save
+    - [x] don't show in open dialogs
 
 - [.] Custom title bar
     - [x] Move by dragging
+        - [ ] Fix left one not working when there are two
     - [x] Resize by right-click menu
     - [ ] Drag borders on edges to resize window
 - [ ] RemedyBG
@@ -62,12 +89,6 @@
 - [ ] Create project from folder
 - [ ] search broken? possibly same problem as memory crash?
 
-- [.] output window
-    - [ ] clickable
-    - [x] threaded !!!FIX threading!!!
-    - [ ] color errors
-    - [x] don't save
-    - [x] don't show in open dialogs
 
 - [ ] next/prev search result
 
@@ -89,6 +110,7 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] IProf
 - [x] Fade scope regions together
 - [x] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
     - [x] Show when cursor is off to left

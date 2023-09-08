@@ -46,20 +46,39 @@ open_selected_project :: () {
     if selected >= filtered.count return;
 
     entry := filtered[selected];
+    open_project(entry.name);
+}
 
-    success := load_project_config(entry.name);
+open_project :: (name: string) -> bool {
+    success := load_project_config(copy_string(name)); //@Leak
     if success {
         should_reload_workspace = true;
         if unsaved_buffers_exist() {
             show_unsaved_buffers_dialog(.reload_workspace);
             should_reload_workspace = false;
         }
-        //if editors.layout == .None
-        //    show_open_file_dialog(.navigate);
     } else {
-        add_user_error(tprint("Couldn't load project config for %", entry.name), dismiss_in_seconds = 10);
-        editors_open_file(get_project_config_path(entry.name));
+        add_user_error(tprint("Couldn't load project config for %", name), dismiss_in_seconds = 10);
+        editors_open_file(get_project_config_path(name));
     }
+    return success;
+}
+
+get_project_names :: () -> [] string {
+    names: [..] string;
+    names.allocator = temp;
+
+    visitor :: (info: *File_Visit_Info, names: *[..] string) {
+        if !ends_with_nocase(info.full_name, ".focus-config") return;
+
+        full_path := copy_string(info.full_name, temp);   // @leak: we leak project file names for now
+        path, basename, extension, name := path_decomp(full_path);
+
+        array_add(names, basename);
+    }
+    visit_files(projects_dir, recursive = true, *names, visitor, visit_files = true, visit_directories = false);
+
+    return names;
 }
 
 #scope_file
