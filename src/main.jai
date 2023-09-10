@@ -58,10 +58,11 @@ main :: () {
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
     init_file_watcher();
-    load_global_config(fallback_to_default_on_failure = true);
+    load_global_config(.load, fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
     init_console();
+    init_ficus();
 
     if config.settings.open_on_monitor_one {
         window_x = 1920;
@@ -83,7 +84,7 @@ main :: () {
     init_session_with_no_guidance :: () #expand {
         session = maybe_load_previous_session();
         if session.project {
-            success := load_project_config(session.project);
+            success := load_project_config(.load, session.project);
             if !success then log_error("Couldn't load project config '%'", session.project);
         }
     }
@@ -148,11 +149,10 @@ main :: () {
             eye_tracking_init();
     }
 
-    if fig_startup_script {
-        execute_string(fig_startup_script, .global, .errors);
-        execute_string("startup", .global, .errors);
-        free(fig_startup_script);
-    }
+    // Calling ths twice means we can load a project in global config, then a file in project
+    // config, and we'll skip drawing the splash screen.
+    ficus_execute_main_thread_scripts();
+    ficus_execute_main_thread_scripts();
 
     // On Wayland and X11 the main window needs to be mapped before we can get input focus.
     // Thus we force one draw here in order to ensure we start the main loop with the window
@@ -169,6 +169,8 @@ main :: () {
             if eye_tracking_active && Input.input_application_has_focus
                 eye_tracking_tick();
         }
+
+        ficus_execute_main_thread_scripts();
 
         Input.update_window_events();
 
@@ -351,6 +353,7 @@ main :: () {
             should_quit = false;
         }
 
+
         refresh_open_buffers();
 
         draw_frame();
@@ -408,7 +411,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .build_run_debug;                                  build(.RUN_DEBUG);                                  return true;
         case .build_run_release;                                build(.RUN_RELEASE);                                return true;
 
-        case .open_project; /* deprecated */                    show_open_project_dialog();                         return true;
         case .switch_to_project;                                show_open_project_dialog();                         return true;
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
         case .open_global_config;                               editors_open_global_config(placement);              return true;
@@ -421,8 +423,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .go_to_line;                                       show_go_to_line_dialog();                           return true;
         case .create_new_file;                                  editors_create_new_file(placement);                 return true;
         case .create_new_file_on_the_side;                      editors_create_new_file(.on_the_side);              return true;
-        case .create_new_fig_file;                              editors_create_new_file(placement, .Fig);           return true;
-        case .create_new_fig_file_on_the_side;                  editors_create_new_file(.on_the_side, .Fig);        return true;
+        case .create_new_ficus_file;                            editors_create_new_file(placement, .Ficus);         return true;
+        case .create_new_ficus_file_on_the_side;                editors_create_new_file(.on_the_side, .Ficus);      return true;
 
         case .show_open_file_dialog_in_search_mode;             show_open_file_dialog(.search);                     return true;
         case .show_open_file_dialog_in_navigate_mode;           show_open_file_dialog(.navigate);                   return true;
@@ -927,7 +929,7 @@ dont_ignore_next_window_resize := false;
 #load "draw.jai";
 #load "pointer_image.jai";
 #load "utils.jai";
-#load "fig.jai";
+#load "ficus.jai";
 #load "files.jai";
 #load "workspace.jai";
 #load "config.jai";
@@ -958,7 +960,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/c.jai";
 #load "langs/csharp.jai";
 #load "langs/golang.jai";
-#load "langs/fig_syntax.jai";
+#load "langs/ficus_syntax.jai";
 #load "langs/focus_config.jai";
 #load "langs/md.jai";
 #load "langs/glsl.jai";

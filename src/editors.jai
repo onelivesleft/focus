@@ -245,6 +245,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
             case .align_cursors;                    align_cursors                       (editor, buffer);
             case .show_cursor_position;             show_cursor_position                (editor, buffer);
+            case .show_file_info;                   show_file_info                      (editor, buffer);
             case .break_line;                       break_line                          (editor, buffer);
             case .new_line_below_without_breaking;  new_line_below                      (editor, buffer);
             case .new_line_above_without_breaking;  new_line_above                      (editor, buffer);
@@ -633,6 +634,13 @@ show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
     cursor := cursors[main_cursor];
     coords := offset_to_coords(editor, buffer, cursor.pos);
     message := tprint("\nRow: %  Col: %  Pos: %\n", coords.line, coords.col, cursor.pos);
+    if editors.floating == -1
+        add_delayed_action(hide_console, 5.0);
+    print_to_console(message);
+}
+
+show_file_info :: (using editor: *Editor, buffer: Buffer) {
+    message := tprint("\nFilename: %\nPath: %\nType: %\n", buffer.file.name, buffer.file.full_path, buffer.lang);
     if editors.floating == -1
         add_delayed_action(hide_console, 5.0);
     print_to_console(message);
@@ -1174,7 +1182,7 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
     if found_extension {
         if extension == {
             case "jai";            buffer.lang = .Jai;
-            case "fig";            buffer.lang = .Fig;
+            case "fig";            buffer.lang = .Ficus;
             case "focus-config";   buffer.lang = .Focus_Config;
             case "cs";             buffer.lang = .CSharp;
             case "go";             buffer.lang = .Golang;
@@ -2100,7 +2108,7 @@ move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; do
     if dir == .up {
         section_pos = 0;
         for buffer.sections {
-            if  it.pos < cursor.pos {
+            if it.pos < cursor.pos {
                 if it.important || !only_important
                     section_pos = it.pos;
             }

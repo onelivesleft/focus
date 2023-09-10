@@ -1,24 +1,34 @@
 # Mine
 
+- [.] IProf
+    - [ ] Clickable to go to proc
 
-- [.] Fig
+- [x] Fix buffer sections in lang syntax parsers
+
+- [.] Ficus
+    - [x] event system
+    - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
+    - [x] allow project startup w/e and disallow nested open_project calls
+    - [x] execute_word / try_execute_word need to be top level
     - [ ] open_file take project relative path
     - [ ] open_files
-    - [ ] quote strings on output (shrink large ones too)
-    - [ ] memory corruption in words
+    - [.] quote strings on output
+        - [ ] (shrink large ones too)
+    - [x] memory corruption in words
+    - [x] section headers
     - [ ] sequences
-    - [ ] references
+    - [ ] references - '
     - [ ] conditionals
     - [ ] loops
-    - [ ] all the builtins
+    - [x] all the actions
     - [ ] .sentinel / .marker
     - [ ] keybinds
-    - [ ] can't find help
-    - [ ] amalgamate fig & fig_syntax as much as possible
+    - [x] can't find help
+    - [x] amalgamate ficus & ficus_syntax
     - [ ] generate intrinsics via tagged procs
-    - [ ] Test project [[scripts]]
-    - [ ] herestrings in .fig
-    - [ ] fig herestrings (in config for instance)
+    - [x] Test project [[script]]
+    - [x] herestrings in ficus
+    - [x] ficus herestrings (in config for instance)
 
 - [.] output window
     - [ ] clickable
@@ -110,7 +120,6 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
-- [x] IProf
 - [x] Fade scope regions together
 - [x] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
     - [x] Show when cursor is off to left

@@ -10,6 +10,8 @@ include_profiling_modules := true;
 #run build();
 
 build :: () {
+    context.logger = logger;
+
     options := get_build_options();
     options.minimum_macos_version = .{12, 0};
     args := options.compile_time_command_line;
@@ -187,10 +189,16 @@ has_note :: (header: *Code_Procedure_Header, note: string) -> bool {
     return false;
 }
 
+logger :: (message: string, data: *void, info: Log_Info) {
+    if info.common_flags & .ERROR || !begins_with(message, "[Iprof]")
+        context.default_logger(message, data, info);
+}
+
 #import "Compiler";
 #import "Basic";
-#import "Iprof";
+#import,file "modules/Iprof/module.jai";
 #import "Metaprogram_Plugins";
+#import "String";
 
 #if OS == .WINDOWS {
     #import "Ico_File";

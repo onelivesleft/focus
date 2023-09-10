@@ -1,3 +1,5 @@
+console_initialized := false;
+
 init_console :: () {
     init_output_buffer();
 
@@ -8,6 +10,7 @@ init_console :: () {
     for * console_thread_group.worker_info { it.thread.starting_context.logger_data = context.logger_data; }
 
     start(*console_thread_group);
+    console_initialized = true;
 }
 
 init_output_buffer :: () {

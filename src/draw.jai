@@ -450,6 +450,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     using editor := *open_editors[editor_id];
     buffer := *open_buffers[buffer_id];
+    lock(*buffer.content_lock); // @TODO Urgh, do not like, but buffer.dirty will screw up offset_to_coords calls, etc.
+    defer unlock(*buffer.content_lock);
 
     line_number_panel: Rect;
     if config.settings.show_line_numbers {

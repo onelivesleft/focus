@@ -1,6 +1,6 @@
 CURRENT_CONFIG_VERSION :: 2;
 
-load_global_config :: (fallback_to_default_on_failure := false) -> success: bool, changed: bool, there_were_warnings: bool {
+load_global_config :: ($mode: enum { load; refresh; }, fallback_to_default_on_failure := false) -> success: bool, changed: bool, there_were_warnings: bool {
     global_config_path = sprint("%/global.focus-config", config_dir);
 
     if !file_exists(global_config_path) {
@@ -9,7 +9,7 @@ load_global_config :: (fallback_to_default_on_failure := false) -> success: bool
         if !success panic_messagebox("Couldn't create a new config file '%'.\nIs the directory writable?", global_config_path);
     }
 
-    success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash, space = .global);
+    success, changed, there_were_warnings := load_and_merge_config(global_config_path, into = Config.{}, hash = *global_config_hash, .global, mode==.load);
     if !success && fallback_to_default_on_failure {
         config = DEFAULT_CONFIG;
         saved_global_config = config;
@@ -19,7 +19,7 @@ load_global_config :: (fallback_to_default_on_failure := false) -> success: bool
     return success, changed, there_were_warnings;
 }
 
-load_project_config :: (project: string = "") -> success: bool, changed: bool, there_were_warnings: bool {
+load_project_config :: ($mode : enum { load; refresh; }, project: string = "") -> success: bool, changed: bool, there_were_warnings: bool {
     if !project && !current_project_name {
         log_error("Attempted to load an empty project config. This is a bug.");
         return false, false, false;
@@ -27,7 +27,7 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     project_name := ifx project then project else current_project_name;
     config_path  := sprint("%/%.focus-config", projects_dir, project_name);
 
-    success, changed, there_were_warnings := load_and_merge_config(config_path, into = saved_global_config, hash = *project_config_hash, space = .project);
+    success, changed, there_were_warnings := load_and_merge_config(config_path, into = saved_global_config, hash = *project_config_hash, .project, mode==.load);
     if success {
         current_project_name = project_name;
         project_config_path  = config_path;
@@ -44,19 +44,19 @@ refresh_config :: (path: string) {
     old_workspace_dirs := array_copy_tmp(config.workspace.workspace_dirs);
 
     if platform_path_equals(path, global_config_path) {
-        success, changed, there_were_warnings := load_global_config();
+        success, changed, there_were_warnings := load_global_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
             add_success_message("Global config changes have been applied", dismiss_in_seconds = 3);
         }
         if current_project_name {
-            success, changed, there_were_warnings = load_project_config(current_project_name);
+            success, changed, there_were_warnings = load_project_config(.refresh, current_project_name);
             if success && changed && !there_were_warnings {
                 add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3);
             }
         }
     } else if platform_path_equals(path, project_config_path) {
-        success, changed, there_were_warnings := load_project_config();
+        success, changed, there_were_warnings := load_project_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
             add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3);
@@ -140,7 +140,7 @@ find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp *
 
 #scope_file
 
-load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : Space) -> success: bool, changed: bool, there_were_warnings: bool {
+load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : Space, $is_initial_load: bool) -> success: bool, changed: bool, there_were_warnings: bool {
 
     file_data, success_read := read_entire_file(file_path);
     // NOTE: we're not freeing because the config will take ownership of it (and if you reload it'll leak the old data, which we should probably fix at some point)
@@ -151,7 +151,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
         return false, false, false;
     }
 
-    parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data, space);
+    parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data, space, is_initial_load);
     if !success_parse {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
         log_error(error_msg);
@@ -430,7 +430,7 @@ EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
 #scope_export
 
 DEFAULT_CONFIG :: #run -> Config {
-    parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA, .global);
+    parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA, .global, false);
     assert(success, "Couldn't parse the default config file '%'", DEFAULT_CONFIG_NAME);
     default_config: Config;
     merge_configs(*default_config, parsed_config);
@@ -439,7 +439,7 @@ DEFAULT_CONFIG :: #run -> Config {
 
 // Validate the example project config
 #run {
-    _, success := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA, .none);
+    _, success := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA, .none, false);
     assert(success, "Couldn't parse the example project config file '%'", EXAMPLE_PROJECT_CONFIG_NAME);
 }
 

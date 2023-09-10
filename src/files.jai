@@ -88,6 +88,8 @@ get_file_icon :: (name: string, extension: string) -> File_Icon {
             icon = .font;
         case "js";
             icon = .js;
+        case "fig";
+            icon = .fig;
     }
 
     // Special cases

@@ -50,7 +50,7 @@ open_selected_project :: () {
 }
 
 open_project :: (name: string) -> bool {
-    success := load_project_config(copy_string(name)); //@Leak
+    success := load_project_config(.load, copy_string(name)); //@Leak
     if success {
         should_reload_workspace = true;
         if unsaved_buffers_exist() {

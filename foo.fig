@@ -1,4 +1,4 @@
-# test fig file
+# test ficus file
 
 main:
     "100" 100
@@ -9,3 +9,6 @@ clear
 dump
 
 main
+
+clear
+words

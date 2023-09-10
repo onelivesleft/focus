@@ -1,5 +1,4 @@
 language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
-
     matches :: (postfix: string) -> bool #expand {
         return ends_with(identifier, postfix, ignore_case);
     }
@@ -17,7 +16,7 @@ language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
     else if matches("focus") || matches("focus_config")
         return .Focus_Config;
     else if matches("fig")
-        return .Fig;
+        return .Ficus;
 
     return .Plain_Text;
 }
@@ -35,7 +34,7 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buff
         case .Markdown;      highlight_proc = highlight_md_syntax;
         case .Worklog;       highlight_proc = highlight_worklog;
         case .Focus_Config;  highlight_proc = highlight_focus_config_syntax;
-        case .Fig;           highlight_proc = highlight_fig_syntax;
+        case .Ficus;         highlight_proc = highlight_ficus_syntax;
 
         case .Plain_Text;
         if use_jai_by_default
@@ -73,7 +72,7 @@ icon_for_lang :: (lang: type_of(Buffer.lang)) -> File_Icon {
         case .Markdown;      return .unknown;
         case .Worklog;       return .worklog;
         case .Focus_Config;  return .gear;
-        case .Fig;           return .fig;
+        case .Ficus;         return .fig;
         case .Plain_Text;    return .text;
     }
 }

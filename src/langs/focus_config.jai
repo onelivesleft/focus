@@ -17,14 +17,24 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count
 }
 
 highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
-    if reset  reset_buffer_info_arrays(buffer);
+    if_reset_then_generate_buffer_info_arrays();
 
     token: Token;
+    prev_section := section;
+    script_section_start, script_section_end: s32;
 
     while true {
         prev_token = token;
+        prev_section = section;
         token = get_next_token(tokenizer);
         if token.type == .eof break;
+
+        if token.type == .header_top_level {
+            if section == .script
+                script_section_start = token.start + token.len;
+            else if prev_section == .script
+                script_section_end = token.start;
+        }
 
         if token.type == .header_top_level || token.type == .header
             add_buffer_section(buffer, token.start, token.type == .header_top_level);
@@ -35,6 +45,12 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Token
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
     }
+
+
+    if prev_section == .script
+        script_section_end = token.start + token.len;
+    if script_section_end
+        highlight_ficus_syntax(buffer, script_section_start, script_section_end - script_section_start);
 }
 
 #scope_file

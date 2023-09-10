@@ -424,7 +424,7 @@ recalculate_colors :: (buffer: *Buffer) {
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
         case .Golang;       highlight_golang_syntax(buffer);
-        case .Fig;          highlight_fig_syntax(buffer);
+        case .Ficus;        highlight_ficus_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
         case .Markdown;     highlight_md_syntax(buffer);
         case .Glsl;         highlight_glsl_syntax(buffer);
@@ -1216,7 +1216,7 @@ Buffer :: struct {
         C;
         CSharp;
         Golang;
-        Fig;
+        Ficus;
         Focus_Config;
         Markdown;
         Glsl;
@@ -1323,12 +1323,18 @@ Indentation_Token :: struct {
     };
 }
 
-reset_buffer_info_arrays :: (buffer: *Buffer) {
-        reset_buffer_decorations(buffer);
-        reset_buffer_regions(buffer);
-        reset_buffer_sections(buffer);
-}
+if_reset_then_generate_buffer_info_arrays :: () #expand {
+    if !`reset  return;
 
+    reset_buffer_decorations(`buffer);
+    reset_buffer_regions(`buffer);
+    reset_buffer_sections(`buffer);
+    `defer {
+        quick_sort(`decorations, x => x.position.start);
+        quick_sort(`regions, x => x.start_offset);
+        quick_sort(`sections, x => x.pos);
+    }
+}
 
 Decoration :: struct {
     type : enum {

@@ -1,4 +1,4 @@
-parse_config :: (name: string, filename: string, file_data: string, space: Space) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
+parse_config :: (name: string, filename: string, file_data: string, space: Space, $is_initial_load: bool) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
     using parser: Config_Parser;
 
     // NOTE: we don't free on purpose, because some of the parsed data will point into the file data
@@ -16,6 +16,7 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
     reset_build_configs();
     script_string : string;
     prev_line_start : *u8;
+    end_of_file_data := handler.file_data.data + handler.file_data.count;
 
     while true {
         prev_line_start = handler.file_data.data;
@@ -55,10 +56,12 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
     }
 
     if top_section == .script
-        script_string.count = handler.file_data.data - script_string.data;
-    if script_string
-        fig_startup_script = copy_string(script_string);
+        script_string.count = end_of_file_data - script_string.data;
 
+    if script_string {
+        event :: #ifx is_initial_load then "on_open"; else "";
+        execute_on_main_thread(copy_string(script_string), event, space);
+    }
 
     build_config_error := validate_build_configs();
     if build_config_error {

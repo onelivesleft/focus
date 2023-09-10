@@ -25,9 +25,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
 }
 
 highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
-    color: Code_Color;
-    if reset  reset_buffer_info_arrays(buffer);
+    if_reset_then_generate_buffer_info_arrays();
 
+    color: Code_Color;
     current_indent_level : s8 = 0;
     is_new_line := false;
 
@@ -204,10 +204,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
     if current_scope
         add_buffer_region(buffer, current_scope_start, xx (max_t - bytes.data), true, 1, current_scope);
 
-    if reset {
-        quick_sort(regions, x => x.start_offset);
-    }
-    else {
+    if !reset {
         // We're in an inner jai code block, i.e. a string, i.e. a format string
         // So... highlight any % markers
         percent_color := COLOR_MAP[Token.Type.punctuation];

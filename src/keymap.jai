@@ -267,8 +267,7 @@ ACTIONS_COMMON :: string.[
 
     "quit",
 
-    "open_project",
-    "switch_to_project",  // same as open_project, renaming for consistency
+    "switch_to_project",
     "open_projects_directory",
     "open_global_config",
     "open_project_config",
@@ -406,6 +405,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "jump_to_eye_tracker",
     "jump_to_definition",
     "show_cursor_position",
+    "show_file_info",
     "move_cursor_to_viewport_center",
     "remove_additional_cursors",
     "break_line",
@@ -421,8 +421,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_editor_to_the_right",
     "create_new_file",
     "create_new_file_on_the_side",
-    "create_new_fig_file",
-    "create_new_fig_file_on_the_side",
+    "create_new_ficus_file",
+    "create_new_ficus_file_on_the_side",
     "move_to_previous_editor_history",
     "move_to_previous_editor_history_big",
     "move_to_previous_buffer",
