@@ -268,6 +268,7 @@ ACTIONS_COMMON :: string.[
     "quit",
 
     "switch_to_project",
+    "close_project",
     "open_projects_directory",
     "open_global_config",
     "open_project_config",

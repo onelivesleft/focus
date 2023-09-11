@@ -388,29 +388,15 @@ get_tmp_tabs :: (num: int) -> string {
     return tabs;
 }
 
-start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: Time = xx 0.0, $snappy := false) {
+start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: Time = xx 0.0) {
     anim.start  = start;
     anim.target = target;
     if speed > 0 then anim.speed = speed;
 
-    #if OS == .LINUX {
-        // Don't restart the animation at the current frame if it's already started.
-        // But still cap it's starting time at just a single frame delta to be conservative.
-        // This lets us start animation smoothly, as in the "else" branch below, but
-        // continue in a snappy way as we scroll.
-        if anim.started_at {
-            anim.started_at = frame_time - MAX_FRAME_DT;
-            return;
-        }
-    }
     #if SKIP_CUTSCENES {
         anim.started_at = 0;
     }
-    else #if snappy {
-        // Pretend the animation started last frame so we start moving right away
-        anim.started_at = frame_time - MAX_FRAME_DT;
-    } else {
-        // Things will start moving next frame - but usually in a more smooth way
+    else {
         anim.started_at = frame_time;
     }
 }
@@ -497,7 +483,9 @@ is_white_space :: inline (char : u8) -> bool #no_aoc {
     return cast,no_check(bool) result;
 }
 
-#scope_export
+starts_with :: inline (s: string, ch: u8) -> bool {
+    return (s.count >= 1) && (s[0] == ch);
+}
 
 Tween_Animation :: struct(T: Type) {
     start, target: T;

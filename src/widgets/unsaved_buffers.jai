@@ -12,6 +12,8 @@ unsaved_buffers_dialog_handle_event :: (event: Input.Event) -> bool {
 }
 
 show_unsaved_buffers_dialog :: (requested_mode: Mode = .exit_program) {
+    using unsaved_buffers_dialog;
+
     active_global_widget = .unsaved_buffers_dialog;
     mode = requested_mode;
 
@@ -24,15 +26,14 @@ show_unsaved_buffers_dialog :: (requested_mode: Mode = .exit_program) {
 }
 
 close_unsaved_buffers_dialog :: () {
-    array_reset_keeping_memory(*modified_buffers);
+    array_reset_keeping_memory(*unsaved_buffers_dialog.modified_buffers);
 
     activate_editors();
 }
 
 unsaved_buffers_save_all :: () {
-    unsaved_buffers := get_unsaved_buffer_ids();
     errors_when_saving := false;
-    for buffer_id : unsaved_buffers {
+    for buffer_id : unsaved_buffers_dialog.modified_buffers {
         buffer := *open_buffers[buffer_id];
         if buffer.ignore  continue;
         saved := save_buffer_to_disk(buffer, buffer_id);
@@ -42,25 +43,25 @@ unsaved_buffers_save_all :: () {
 }
 
 unsaved_buffers_dialog_proceed :: () {
-    if mode == .exit_program {
-        force_quit  = true;
-        should_quit = true;
-    } else {
-        should_reload_workspace = true;
+    if #complete unsaved_buffers_dialog.mode == {
+        case .exit_program;
+            force_quit  = true;
+            should_quit = true;
+        case .reload_workspace;
+            should_reload_workspace = true;
     }
 
     close_unsaved_buffers_dialog();
 }
 
-get_unsaved_buffer_ids :: () -> [] s64 {
-    return modified_buffers;
-}
+#scope_export
 
+unsaved_buffers_dialog: struct {
+    modified_buffers: [..] s64;
+    mode: Mode;
+};
 
 #scope_file
-
-modified_buffers: [..] s64;
-mode: Mode;
 
 Mode :: enum {
     exit_program;

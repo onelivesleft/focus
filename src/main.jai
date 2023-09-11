@@ -412,6 +412,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .build_run_release;                                build(.RUN_RELEASE);                                return true;
 
         case .switch_to_project;                                show_open_project_dialog();                         return true;
+        case .close_project;                                    close_project();                                    return true;
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
         case .open_global_config;                               editors_open_global_config(placement);              return true;
         case .open_project_config;                              editors_open_project_config(placement);             return true;
@@ -721,6 +722,22 @@ toggle_profiling :: () {
     }
 }
 
+current_time_consensus_backwards_compatible :: () -> Apollo_Time {
+    #if WINDOWS7 {
+        #assert OS == .WINDOWS;
+        // GetSystemTimePreciseAsFileTime is only supported in Windows 8+
+        // and that's what Apollo_Time uses.
+        // TODO: remove when we drop support for Windows 7
+        ft_now: FILETIME;
+        GetSystemTimeAsFileTime(*ft_now);
+
+        apollo := filetime_to_apollo(ft_now);
+        return apollo;
+    } else {
+        return current_time_consensus();
+    }
+}
+
 calculate_hash: (bytes: [] u8) -> u64 = calculate_meow_hash;
 
 // Important directories
@@ -965,6 +982,8 @@ dont_ignore_next_window_resize := false;
 #load "langs/md.jai";
 #load "langs/glsl.jai";
 #load "langs/worklog.jai";
+#load "langs/python.jai";
+#load "langs/renpy.jai";
 
 #if OS == .WINDOWS {
     #load "platform/windows.jai";

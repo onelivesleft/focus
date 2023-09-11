@@ -683,7 +683,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if right < screen_pos.x  then offset.x = screen_pos.x - right;
                 if top   < screen_pos.y  then offset.y = screen_pos.y - top;
 
-                left_target := max(viewport.left + cast(s32) offset.x, 0);
+                left_target := max(viewport.left  + cast(s32) offset.x, 0);
                 top_target  := clamp(viewport.top - cast(s32) offset.y, 0, max_y_scroll);
 
                 if left_target != viewport.scroll_x.target then start_animation(*viewport.scroll_x, viewport.left, left_target);
@@ -695,14 +695,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             // Use the target editor width (not current width) when a new editor is appearing
             editor_width := ifx scroll_to_cursor == .yes_new_editor then total_editor_area.w / 2 else rect.w;
 
-            cursor_pos_from_left := cursor_coords[main_cursor].pos.col * char_x_advance + text_offset.x;
-            left_target := cast(s32)(cursor_pos_from_left - editor_width + char_x_advance * 3);
-            if left_target < 0 then left_target = 0;
+            cursor_pos_from_left := cursor_coords[main_cursor].pos.col  * char_x_advance + text_offset.x;
+            cursor_pos_from_top  := cursor_coords[main_cursor].pos.line * line_height;
+            left_target          := cast(s32) max(cursor_pos_from_left - editor_width + char_x_advance * 3, 0);
+            top_target           := cast(s32) max(cursor_pos_from_top  - rect.h / 2,  0);
             if left_target != scroll_x.target then start_animation(*viewport.scroll_x, viewport.left, left_target);
 
             cursor_pos_from_top := (cursor_coords[main_cursor].pos.line + config.settings.scroll_to_cursor_line_offset) * line_height;
-            top_target := cast(s32)(cursor_pos_from_top - rect.h / 2);
-            top_target = clamp(top_target, 0, max_y_scroll);
             if top_target != scroll_y.target then start_animation(*viewport.scroll_y, viewport.top, top_target);
 
 
@@ -2672,8 +2671,14 @@ draw_unsaved_buffers_dialog :: () {
 
     ui_id := Ui_Id.unsaved_buffers;
 
-    unsaved_buffers := get_unsaved_buffer_ids();
+    unsaved_buffers := unsaved_buffers_dialog.modified_buffers;
     if !unsaved_buffers then panic_messagebox("Unsaved buffers dialog is attempted to be drawn, but no unsaved buffers present. This is a bug. Closing...");
+
+    // Additional message is assumed to be 1 line only
+    additional_message := "";
+    if unsaved_buffers_dialog.mode == .reload_workspace {
+        additional_message = "Workspace needs to reload. Unsaved files will be lost.";
+    }
 
     margin  := floor(12 * dpi_scale);
     padding := floor( 4 * dpi_scale);
@@ -2685,6 +2690,7 @@ draw_unsaved_buffers_dialog :: () {
         w = floor(clamp(screen.w * 0.3, 600 * dpi_scale, 1500 * dpi_scale)),
         h = header_height + (entry_height + margin / 2) * unsaved_buffers.count + margin + padding + button_height + margin,
     };
+    if additional_message then box_rect.h += entry_height + margin;
     box_rect.x = floor((screen.w - box_rect.w) / 2);
     box_rect.y = screen.h - box_rect.h - floor(clamp(100 * dpi_scale, 0, (screen.h - box_rect.h) / 2));
 
@@ -2718,6 +2724,17 @@ draw_unsaved_buffers_dialog :: () {
         defer pop_scissor();
 
         entry_rect := cut_top(buffers_rect, entry_height);
+
+        if additional_message {
+            Simp.draw_text(
+                font_ui,
+                xx (entry_rect.x + margin),
+                xx (entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale),
+                additional_message,
+                Colors.UI_DEFAULT,
+            );
+            entry_rect.y -= entry_rect.h + margin;
+        }
 
         for unsaved_buffers {
             buffer := *open_buffers[it];
@@ -3261,7 +3278,7 @@ draw_text_input :: (using input: *Text_Input, rect_: Rect, ui_id: Ui_Id, active 
     if total_text_width - scroll_x_target < cast(s32) input_rect.w then {
         scroll_x_target = max(cast(s32) total_text_width - cast(s32) input_rect.w, 0);  // always show as much text as possible
     }
-    if scroll_x_target != scroll_anim.target then start_animation(*scroll_anim, scroll_x, scroll_x_target, snappy = true);
+    if scroll_x_target != scroll_anim.target then start_animation(*scroll_anim, scroll_x, scroll_x_target);
 
     if scroll_x != scroll_anim.target {
         redraw_requested = true;

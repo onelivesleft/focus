@@ -913,7 +913,7 @@ close_search_bar :: inline (editor: *Editor, jump_to_original_cursor := false, j
     if jump_to_selected_result && results {
         cursor := leave_only_original_cursor(editor);
         cursor.sel = xx results[selected_result].offset;
-        cursor.pos = xx (cursor.sel + input.text.count);
+        cursor.pos = xx (cursor.sel + results[selected_result].count);
         editor.scroll_to_cursor = .yes;
     }
 
@@ -924,11 +924,8 @@ close_search_bar :: inline (editor: *Editor, jump_to_original_cursor := false, j
 search_bar_toggle_expand :: (using editor: *Editor) {
     using search_bar;
 
-    if width_percentage != WIDTH_EXPANDED {
-        start_animation(*width_anim, width_percentage, WIDTH_EXPANDED, snappy = true);
-    } else {
-        start_animation(*width_anim, width_percentage, WIDTH_NORMAL, snappy = true);
-    }
+    target_width := ifx width_percentage != WIDTH_EXPANDED then WIDTH_EXPANDED else WIDTH_NORMAL;
+    start_animation(*width_anim, width_percentage, target_width);
 }
 
 search_bar_toggle_whole_word :: (using editor: *Editor, buffer: Buffer) {
@@ -990,8 +987,8 @@ search_bar_open_selected_result :: (editor: Editor, buffer: Buffer, placement: E
 
     // Select the search result
     active_editor, active_buffer := get_active_editor_and_buffer();
-    match_start := min(result.offset,                    xx active_buffer.bytes.count);  // buffer could've changed, so offset may not be valid any more
-    match_end   := min(result.offset + input.text.count, xx active_buffer.bytes.count);
+    match_start := min(result.offset,                xx active_buffer.bytes.count);  // buffer could've changed, so offset may not be valid any more
+    match_end   := min(result.offset + result.count, xx active_buffer.bytes.count);
     cursor := leave_only_original_cursor(active_editor);
     cursor.sel = xx match_start;
     cursor.pos = xx match_end;
@@ -1024,14 +1021,6 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
 
         regex, regex_is_valid = re.compile(re_text, flags);
         if !regex_is_valid return;
-
-        matched, captures := re.match("dummy string", regex);
-        if matched && !captures[0].count {
-            // disallow expressions that generate empty results (such as `\s*`)
-            regex_is_valid = false;
-            re.uninit(*regex);
-            return;
-        }
     }
 
     buffer_str := to_string(buffer.bytes);
@@ -1044,6 +1033,8 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
     buffer_advance := 0;
     captures: [] string;
     while true {
+        if !buffer_str break;
+
         if regex_search {
             // `re.match()` does not take a start index so we need to constantly advance
             // `buffer_str` and keep track of our 'real' position in the original buffer
@@ -1060,6 +1051,17 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
             buffer_advance = offset + count;
 
             advance(*buffer_str, local_offset + count);
+
+            empty_capture := (c.count == 0);
+            nl_next := starts_with(buffer_str, #char "\n");
+
+            if empty_capture || nl_next {
+                advance(*buffer_str, 1);
+                buffer_advance += 1;
+            }
+
+            valid_result := (!empty_capture || (empty_capture && nl_next));
+            if !valid_result continue;
         } else {
             if case_sensitive {
                 offset = inline bmh_find_index_from_left(buffer_str, needle, start_index = offset, skip_table, case_sensitive = true, ignore_whitespace = ignore_whitespace);
@@ -1079,6 +1081,7 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
             if selected_result < 0 && result.offset >= search_point_offset then selected_result = i;
             i += 1;
         }
+
         offset += needle.count;
     }
 
@@ -1161,7 +1164,7 @@ editors_snap_splitter :: (pos: float) {
 editors_start_moving_splitter :: (target: float, start := -1.0) {
     if start >= 0 then splitter_pos = start;
     if !config.settings.disable_file_open_close_animations {
-        start_animation(*splitter_anim, splitter_pos, target, snappy = true);
+        start_animation(*splitter_anim, splitter_pos, target);
     } else {
         splitter_anim.target = target;
         splitter_pos = target;
@@ -1186,12 +1189,14 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
             case "focus-config";   buffer.lang = .Focus_Config;
             case "cs";             buffer.lang = .CSharp;
             case "go";             buffer.lang = .Golang;
+            case "py";             buffer.lang = .Python;
+            case "rpy";            buffer.lang = .RenPy;
             case "md";             buffer.lang = .Markdown;
 
-            case "vert"; #through; // NOTE: Vertex shader extension
-            case "frag"; #through; // NOTE: Fragment shader extension
-            case "geom"; #through; // NOTE: Geometry shader extension
-            case "tess"; #through; // NOTE: Tesselation shader extension (TODO: differentiate between tess control and tess eval? Not sure that's valuable though...)
+            case "vert"; #through;
+            case "frag"; #through;
+            case "geom"; #through;
+            case "tess"; #through;
             case "glsl";
                 buffer.lang = .Glsl;
 
@@ -3310,6 +3315,8 @@ toggle_comment :: (editor: *Editor, buffer: *Buffer) {
         case .Glsl;         comment = "//";
         case .Jai;          comment = "//";
         case .Focus_Config; comment = "#";
+        case .Python;       comment = "#";
+        case .RenPy;        comment = "#";
         case;               return;
     }
 
