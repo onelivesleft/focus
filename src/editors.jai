@@ -605,14 +605,14 @@ move_viewport :: (editor: *Editor, dir: enum { left; up; right; down; }) {
             horiz_delta := cast(s32) (10 * char_size);
             new_target := ifx dir == .left then scroll_x.target - horiz_delta else scroll_x.target + horiz_delta;
             if new_target < 0 then new_target = 0;
-            start_animation(*scroll_x, left, new_target, snappy = true);
+            start_animation(*scroll_x, left, new_target);
 
         case .up; #through;
         case .down;
             vert_delta := cast(s32) (10 * line_height);
             new_target := ifx dir == .up then scroll_y.target - vert_delta else scroll_y.target + vert_delta;
             new_target = clamp(new_target, 0, get_max_y_scroll(editor, open_buffers[editor.buffer_id]));
-            start_animation(*scroll_y, top, new_target, snappy = true);
+            start_animation(*scroll_y, top, new_target);
     }
 }
 

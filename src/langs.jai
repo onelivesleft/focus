@@ -17,6 +17,8 @@ language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
         return .Focus_Config;
     else if matches("fig")
         return .Ficus;
+    else if matches("py") || matches("pyw")
+        return .Python;
 
     return .Plain_Text;
 }
@@ -35,6 +37,8 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buff
         case .Worklog;       highlight_proc = highlight_worklog;
         case .Focus_Config;  highlight_proc = highlight_focus_config_syntax;
         case .Ficus;         highlight_proc = highlight_ficus_syntax;
+        case .Python;        highlight_proc = highlight_python_syntax;
+        case .RenPy;         highlight_proc = highlight_renpy_syntax;
 
         case .Plain_Text;
         if use_jai_by_default
@@ -74,5 +78,7 @@ icon_for_lang :: (lang: type_of(Buffer.lang)) -> File_Icon {
         case .Focus_Config;  return .gear;
         case .Ficus;         return .fig;
         case .Plain_Text;    return .text;
+        case .Python;        return .unknown;
+        case .RenPy;         return .unknown;
     }
 }

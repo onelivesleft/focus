@@ -105,7 +105,7 @@ close_project :: () {
         return;
     }
 
-    success := load_global_config();
+    success := load_global_config(.refresh);
     if success {
         should_reload_workspace = true;
         if unsaved_buffers_exist() {

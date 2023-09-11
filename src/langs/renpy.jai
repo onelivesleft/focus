@@ -1,10 +1,18 @@
 // NOTE: lots of copypasta from Python
 
 highlight_renpy_syntax :: (using buffer: *Buffer) {
-    tokenizer := get_tokenizer(buffer);
+    tokenizer := get_tokenizer(buffer, 0, xx bytes.count);
+    highlight_renpy_syntax(buffer, *tokenizer, true);
+}
 
+highlight_renpy_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer := get_tokenizer(buffer, start_index, count);
+    highlight_renpy_syntax(buffer, *tokenizer, false);
+}
+
+highlight_renpy_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
         // if token.type == .invalid {
@@ -30,12 +38,12 @@ highlight_renpy_syntax :: (using buffer: *Buffer) {
 
 #scope_file
 
-get_tokenizer :: (using buffer: Buffer) -> Tokenizer {
+get_tokenizer :: (using buffer: Buffer, start_index: s32, count: s32) -> Tokenizer {
     tokenizer: Tokenizer;
 
     tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
+    tokenizer.max_t = bytes.data + start_index + count;
+    tokenizer.t     = bytes.data + start_index;
 
     return tokenizer;
 }
