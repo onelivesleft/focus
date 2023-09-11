@@ -698,9 +698,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             cursor_pos_from_left := cursor_coords[main_cursor].pos.col  * char_x_advance + text_offset.x;
             cursor_pos_from_top := (cursor_coords[main_cursor].pos.line + config.settings.scroll_to_cursor_line_offset) * line_height;
             left_target          := cast(s32) max(cursor_pos_from_left - editor_width + char_x_advance * 3, 0);
-            top_target           := cast(s32) max(cursor_pos_from_top  - rect.h / 2,  0);
+            top_target           := clamp(cast(s32) (cursor_pos_from_top  - rect.h / 2),  0, max_y_scroll);
             if left_target != scroll_x.target then start_animation(*viewport.scroll_x, viewport.left, left_target);
-
             if top_target != scroll_y.target then start_animation(*viewport.scroll_y, viewport.top, top_target);
 
 
