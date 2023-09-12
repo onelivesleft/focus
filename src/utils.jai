@@ -397,7 +397,7 @@ start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: Time
         anim.started_at = 0;
     }
     else {
-        anim.started_at = frame_time;
+        anim.started_at = frame_time - frame_dt;
     }
 }
 

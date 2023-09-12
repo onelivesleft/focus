@@ -1,37 +1,50 @@
 # Mine
 
-- [.] IProf
-    - [ ] Clickable to go to proc
+- [x] Go to added_string source
+    - [ ] Manual command to do it
 
-- [x] Fix buffer sections in lang syntax parsers
+- [x] Stop clicking floating window sending buffer to main editor panes
+    - [ ] Add command to load console buffer in editor pane
+
+- [x] IProf
+    - [x] Clickable to go to proc
 
 - [.] Ficus
-    - [x] event system
+    - [ ] build
+    - [ ] run
+    - [ ] keybinds
+
+    - [ ] view action history
     - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
-    - [x] allow project startup w/e and disallow nested open_project calls
-    - [x] execute_word / try_execute_word need to be top level
     - [ ] open_file take project relative path
     - [ ] open_files
     - [.] quote strings on output
         - [ ] (shrink large ones too)
+    - [x] loops
+    - [x] user stacks
+    - [ ] generate intrinsics via tagged procs
+    - [ ] debugging
+    - [x] event system
+    - [x] allow project startup w/e and disallow nested open_project calls
+    - [x] execute_word / try_execute_word need to be top level
     - [x] memory corruption in words
     - [x] section headers
-    - [ ] sequences
-    - [ ] references - '
-    - [ ] conditionals
-    - [ ] loops
+    - [x] sequences
+    - [x] references
+    - [x] conditionals
     - [x] all the actions
-    - [ ] .sentinel / .marker
-    - [ ] keybinds
+    - [x] separator (.)
+    - [x] true / false
     - [x] can't find help
     - [x] amalgamate ficus & ficus_syntax
-    - [ ] generate intrinsics via tagged procs
     - [x] Test project [[script]]
     - [x] herestrings in ficus
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
-    - [ ] clickable
+    - [ ] variable text size
+    - [x] variable shapes (wide / narrow)
+    - [x] clickable
     - [ ] input box
     - [x] threaded !!!FIX threading!!!
     - [ ] color errors
@@ -102,6 +115,7 @@
 
 - [ ] next/prev search result
 
+- [x] Fix buffer sections in lang syntax parsers
 - [x] spinner when running build task
 - [.] eye
     - [x] check for line length
@@ -131,7 +145,6 @@
 - [x] Quit!
 - [x] Fix vertical scrolling response when holding down up/down
 - [x] Key logger
-- [x] Go to added_string source
 - [x] Better error msg crop for toast
 - [x] Fancy minimal title bar
     - [x] Hide button

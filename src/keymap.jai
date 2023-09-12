@@ -432,7 +432,8 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "move_to_next_editor_history_big",
     "toggle_line_wrap",
     "toggle_line_numbers",
-    "fig_run_current",
+    "ficus_run_current",
+    "ficus_run_current_verbose",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

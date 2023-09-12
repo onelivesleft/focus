@@ -189,7 +189,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_to_next_editor_history_big;  move_to_next_editor_history         (big_steps = true);
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
         case .parse_file;                       parse_file                          (editor, buffer);
-        case .fig_run_current;                  execute_editor(editor, buffer);
+        case .ficus_run_current;                execute_editor(editor, buffer);
+        case .ficus_run_current_verbose;        execute_editor(editor, buffer, output=.verbose);
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -450,21 +451,29 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     return true;
 }
 
-jump_to_error :: () {
-    if !build_error_exists  return;
 
-    editors_open_file(last_build_error.path);
-    if editors.active <0  return;
+jump_to_file_coord :: (path: string, coords: Coords) -> *Editor, *Buffer {
+    editors_open_file(path);
+    if editors.active <0  return null, null;
+
     editor := *open_editors[editors.active];
     buffer := *open_buffers[editor.buffer_id];
 
     cursor := leave_only_original_cursor(editor);
-    position := coords_to_offset(editor, buffer, last_build_error.coords);
+    position := coords_to_offset(editor, buffer, coords);
     cursor.pos = position;
     cursor.sel = position;
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .jumped;
     editor.scroll_to_cursor = .yes;
+    return editor, buffer;
+}
+
+jump_to_error :: () {
+    if !build_error_exists  return;
+
+    editor, buffer := jump_to_file_coord(last_build_error.path, last_build_error.coords);
+    if !editor || !buffer return;
 
     if buffer.lang == {
         case .Jai;
@@ -1309,6 +1318,8 @@ make_editor_active :: (editor_id: s64) {
 
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
 
+    if editors.layout == .Single && editor_id != editors.floating
+        editors.left = editor_id;
     editors.active = editor_id;
     buffer_id := open_editors[editor_id].buffer_id;
     update_window_title(buffer_id);

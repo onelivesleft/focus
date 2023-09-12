@@ -1,14 +1,15 @@
 # test ficus file
 
-main:
-    "100" 100
+dec:
+    1 -
 
-words
-dump
-clear
-dump
+#10
+#jump_target
+#copy . swap "Counting down..." swap print
+#dec copy 0 > [jump] execute_if
+#pop
 
-main
+#10 [copy 0 >] [copy . swap "Counting down..." swap print dec] execute_while pop
 
-clear
-words
+10 while [copy 0 >] [copy . swap "Counting down..." swap print dec]
+

@@ -63,6 +63,13 @@ highlight_ficus_syntax :: (using buffer: *Buffer, using tokenizer: *Ficus_Tokeni
                 token.type = .error;
             else
                 token.type = .punctuation;
+            color = COLOR_MAP[token.type];
+            memset(colors.data + token.start, xx color, token.len);
+        }
+        else if token.type == .word_with_stack {
+            memset(colors.data + token.start, xx color, token.sublen);
+            memset(colors.data + token.start + token.sublen, xx COLOR_MAP[Ficus_Token.Type.punctuation], 1);
+            memset(colors.data + token.start + token.sublen + 1, xx COLOR_MAP[Ficus_Token.Type.word], token.len - token.sublen - 1);
         }
         else {
             memset(colors.data + token.start, xx color, token.len);
@@ -100,6 +107,7 @@ COLOR_MAP :: Code_Color.[
     .PUNCTUATION,   // begin_sequence
     .PUNCTUATION,   // end_sequence
     .DEFAULT,       // word
+    .TYPE,          // word_with_stack
     .VALUE,         // number_literal
     .STRING,        // string_literal
 ];

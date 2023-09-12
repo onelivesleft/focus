@@ -1,0 +1,23 @@
+# Ficus baked words
+# These words sit a level above intrinsics, below user space
+
+if:
+    [execute_if] 2 expect_then_execute
+
+echo:
+    copy . swap print
+
+execute_while:
+    code'push(body) copy(condition) code'push(condition)
+    execute(condition)
+    [
+        jump_target
+        code'swap code'peek execute
+        code'swap code'peek [jump] execute_if
+        code'pop code'pop
+    ] execute_if
+
+while:
+    [execute_while] 2 expect_then_execute
+
+

@@ -113,6 +113,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "background_highlight";            return *config.colors.BACKGROUND_HIGHLIGHT;
         case "background_light";                return *config.colors.BACKGROUND_LIGHT;
         case "background_bright";               return *config.colors.BACKGROUND_BRIGHT;
+        case "background_console";              return *config.colors.BACKGROUND_CONSOLE;
         case "background_region";               return *config.colors.BACKGROUND_REGION;
         case "background_region_public";        return *config.colors.BACKGROUND_REGION_PUBLIC;
         case "background_region_private";       return *config.colors.BACKGROUND_REGION_PRIVATE;

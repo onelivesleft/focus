@@ -5,20 +5,30 @@ language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
 
     if matches("jai")
         return .Jai;
+
     else if matches("cs") || matches("csharp") || matches("c#")
         return .CSharp;
+
     else if matches("cpp") || matches("c++") || matches("c") || matches("h") || matches("h++") || matches("hpp")
         return .C;
+
     else if matches("vert") || matches("frag") || matches("geom") || matches("tess") || matches("glsl")
         return .Glsl;
+
     else if matches("md") || matches("markdown")
         return .Markdown;
+
     else if matches("focus") || matches("focus_config")
         return .Focus_Config;
+
     else if matches("fig")
         return .Ficus;
+
     else if matches("py") || matches("pyw")
         return .Python;
+
+    else if matches("ren")
+        return .RenPy;
 
     return .Plain_Text;
 }

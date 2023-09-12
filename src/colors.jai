@@ -16,6 +16,7 @@ Color_Values :: struct {
     BACKGROUND_HIGHLIGHT      := Color.{ r = 0.097, g = 0.15, b = 0.185 };
     BACKGROUND_LIGHT          := Color.{ r = 0.102, g = 0.158, b = 0.195 };
     BACKGROUND_BRIGHT         := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    BACKGROUND_CONSOLE        := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     BACKGROUND_REGION         := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 0.02 };
     BACKGROUND_REGION_PRIVATE := Color.{ r = 0.165, g = 0.086, b = 0.133 };
     BACKGROUND_REGION_PUBLIC  := Color.{ r = 0.086, g = 0.165, b = 0.133 };
@@ -230,6 +231,7 @@ convert_active_buffer_to_colors :: () {
 
     do("background",                     "editor.background");
     do("background_dark",                "sideBar.background", bake=true);
+    do("background_console",             "sideBar.background", bake=true);
     do("background_highlight",           "statusBar.debuggingBackground", bake=true);
     do("background_light",               "titleBar.activeBackground", bake=true);
     do("background_bright",              "statusBar.background", op=.brighten, bake=true);

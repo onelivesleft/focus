@@ -8,10 +8,9 @@ EYE_TRACKING :: true;
 FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
 HIDE_SCROLLBARS :: true;
+SKIP_CUTSCENES :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
-
-SKIP_CUTSCENES :: true;
 
 show_keystrokes := false;
 show_filename := true;
@@ -552,6 +551,7 @@ init_fonts_and_dependent_things :: () {
 
     init_font_data(*primary_font_info, font);
     init_font_data(*console_font_info, font_console, 2.0);
+    console_font_info.line_height *= 0.75;
 }
 
 init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale := 1.0) {
@@ -645,6 +645,7 @@ reset_font_size_to_default :: () {
 cleanup_extraneous_windows :: () {
     clear_user_messages();
     hide_console();
+    #if IPROF iprof_active = false;
 }
 
 panic :: (format_string: string, args: .. Any, exit_code : s32 = 1) {
@@ -820,6 +821,44 @@ remove_delayed_action :: (action: #type ()) {
     }
 }
 
+#scope_file
+
+ficus_execute_main_thread_scripts :: () {
+    scripts_to_execute_this_frame := ficus_scripts_to_execute.count;
+    if scripts_to_execute_this_frame {
+        for 0 .. scripts_to_execute_this_frame - 1 {
+            exec := ficus_scripts_to_execute[it];
+            if #complete exec.output == {
+                case .silent;
+                    execute_string(exec.script, exec.space, .silent);
+                    if exec.event
+                        try_execute_word_in_space(exec.event, exec.space, .silent);
+                case .errors;
+                    execute_string(exec.script, exec.space, .errors);
+                    if exec.event
+                        try_execute_word_in_space(exec.event, exec.space, .errors);
+                case .default;
+                    execute_string(exec.script, exec.space, .default);
+                    if exec.event
+                        try_execute_word_in_space(exec.event, exec.space, .default);
+                case .verbose;
+                    execute_string(exec.script, exec.space, .verbose);
+                    if exec.event
+                        try_execute_word_in_space(exec.event, exec.space, .verbose);
+            }
+            free(exec.script);
+        }
+        if scripts_to_execute_this_frame == ficus_scripts_to_execute.count {
+            array_reset(*ficus_scripts_to_execute);
+        }
+        else {
+            for 1 .. scripts_to_execute_this_frame
+                array_ordered_remove_by_index(*ficus_scripts_to_execute, 0);
+        }
+    }
+}
+
+#scope_export
 
 WHEEL_SENSITIVITY :: 1.0;
 
@@ -894,8 +933,6 @@ primary_font_info : Font_Info;
 console_font_info : Font_Info;
 font_data := *primary_font_info;
 
-font_console_size := 8;
-
 
 dont_scroll_this_frame := false;  // because e.g. a mouse wheel event has been handled
 
@@ -947,6 +984,7 @@ dont_ignore_next_window_resize := false;
 #load "pointer_image.jai";
 #load "utils.jai";
 #load "ficus.jai";
+#load "ficus_parser.jai";
 #load "files.jai";
 #load "workspace.jai";
 #load "config.jai";
@@ -1073,10 +1111,12 @@ DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations a
 
 // Embed default fonts
 FONT         :: #run load_font("FiraCode-Retina.ttf");
-FONT_CONSOLE :: #run load_font("ponderosa.regular.ttf");
+FONT_CONSOLE :: #run load_font("TT2020Base-Regular.ttf");//ponderosa.regular.ttf");
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
+
+font_console_size := 15;
 
 MIN_FONT_SIZE :: 4;
 MAX_FONT_SIZE :: 30;  // setting a larger size has caused freetype to crash - not sure yet why.

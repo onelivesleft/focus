@@ -2,6 +2,7 @@ footer_height := 0.0;
 editor_top_margin := 0.0;
 simp_initialized := false;
 #if IPROF  iprof_active := false;
+floating_editor_on_left := false;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -21,7 +22,8 @@ draw_frame :: () {
     #if FOOTER_AT_TOP
         editor_top_margin = footer_height * 1.5;
 
-    active_pane_rect: Rect = ---;
+    active_pane_rect, left_rect, right_rect: Rect = ---;
+    Input.window_region_override = .NONE;
 
     // Draw editors
     if #complete editors.layout == {
@@ -34,11 +36,12 @@ draw_frame :: () {
             }
         case .Single;
             editors_snap_splitter(0.5);
-            draw_editor(editors.active, screen, footer_height, .editor_single);
+            editor_to_draw := editors.active;
+            draw_editor(editors.left, screen, footer_height, .editor_single);
             active_pane_rect = screen;
             if editors.floating >= 0 {
                 split_x := screen.w * 0.5;
-                left_rect, right_rect := cut_left(screen, split_x, margin = 2);
+                left_rect, right_rect = cut_left(screen, split_x, margin = 2);
                 draw_editor(editors.floating, get_floating_area(right_rect), 0, .editor_floating, screen);
                 if editors.active == editors.floating
                     active_pane_rect = floating_area;
@@ -61,7 +64,7 @@ draw_frame :: () {
             }
 
             split_x := screen.w * splitter_pos;
-            left_rect, right_rect := cut_left(screen, split_x, margin = 2);
+            left_rect, right_rect = cut_left(screen, split_x, margin = 2);
 
             if just_dropped_file {
                 if mouse_pointer_is_within(left_rect)  then editors_open_file(just_dropped_file, .left);
@@ -83,7 +86,11 @@ draw_frame :: () {
 
             active_pane_rect = ifx editors.active == editors.left then left_rect else right_rect;
             if editors.floating >= 0 {
-                rect := ifx editors.active == editors.left then right_rect else left_rect;
+                if floating_editor_on_left && editors.active == editors.left && editors.active != editors.floating
+                    floating_editor_on_left = false;
+                else if !floating_editor_on_left && editors.active == editors.right && editors.active != editors.floating
+                    floating_editor_on_left = true;
+                rect := ifx floating_editor_on_left then left_rect else right_rect;
                 draw_editor(editors.floating, get_floating_area(rect), 0, .editor_floating, screen);
                 if editors.active == editors.floating
                     active_pane_rect = floating_area;
@@ -112,7 +119,14 @@ draw_frame :: () {
         case .icon_search_dialog;      draw_icon_search_dialog();
     }
 
-    draw_user_messages(screen, #ifx FOOTER_AT_TOP then 0; else footer_height;);
+    user_message_rect := ifx console_is_at_bottom_right()
+                         then ifx editors.floating == editors.active
+                              then ifx floating_editor_on_left
+                                   then right_rect
+                                   else left_rect
+                              else active_pane_rect
+                         else screen;
+    draw_user_messages(user_message_rect, #ifx FOOTER_AT_TOP then 0; else footer_height;);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
         draw_buffer_switcher_dialog(active_pane_rect);
@@ -205,6 +219,9 @@ welcome_left_area : Rect;
 welcome_right_area : Rect;
 floating_area : Rect;
 
+console_is_at_bottom_right :: () -> bool {
+    return editors.floating >= 0 && ((floating_area_position & .tall) || !(floating_area_position & .top));
+}
 
 draw_welcome_screen :: (main_area: Rect) {
     using font_data;
@@ -263,7 +280,6 @@ draw_welcome_screen :: (main_area: Rect) {
         }
 
         {
-            Input.window_region_override = .NONE;
             ui_id := Ui_Id.splash_screen;
             maybe_set_hot_or_active(ui_id, welcome_left_area, .PRESSABLE);
 
@@ -389,7 +405,8 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
         message_rect := message_rect_src;
         message_rect.h = message_height;
         message_rect.w = max_seen_width + 2 * padding;
-        message_rect.x += message_rect_src.w - message_rect.w;
+        if !console_is_at_bottom_right()
+            message_rect.x += message_rect_src.w - message_rect.w;
 
         maybe_set_hot_or_active(ui_id, message_rect, .PRESSABLE);
 
@@ -405,7 +422,8 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
             case .warning;  color = Colors.UI_WARNING_DIM;
             case .success;  color = Colors.UI_SUCCESS;
         }
-        draw_rounded_rect_with_shadow(message_rect, color);
+        //draw_rounded_rect_with_shadow(message_rect, color);
+        draw_cool_rect(message_rect, color, 0.5);
 
         text_color := Colors.UI_DEFAULT;
         pen_x := cast(s64) (message_rect.x + padding);
@@ -426,8 +444,11 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui_Id, total_editor_area := Rect.{}) {
     assert(editor_id >= 0);
     defer font_data = *primary_font_info;
-    if editor_id == editors.floating
+    editor_font := font;
+    if editor_id == editors.floating {
         font_data = *console_font_info;
+        editor_font = font_console;
+    }
 
     using font_data;
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
@@ -468,7 +489,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     if !is_valid(rect) return;
 
     if ui_id == .editor_floating
-        draw_rounded_rect_with_shadow(rect, Colors.BACKGROUND_DARK);
+        //draw_cool_rect(rect, Colors.BACKGROUND_CONSOLE, shader_value);
+        draw_rect(rect, Colors.BACKGROUND_CONSOLE);
     else
         draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
 
@@ -752,7 +774,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Scrollbar
-        shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
+        if editors.floating == editor_id
+            shader_value = clamp((visible_lines_start % 100) / 100.0, 0.0, 1.0);
+        else
+            shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
         new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll - xx rect.h, scrollbar_id, draw=!HIDE_SCROLLBARS);
         if new_scroll_target != viewport.scroll_y.target {
             // Jump immediately to the scroll point when dragging or clicking scrollbar
@@ -1186,14 +1211,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             colors := ifx line then array_view(buffer.colors, line.data - buffer.bytes.data, line.count) else .[];
             code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors };
         }
-        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
+        Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
 
         // Draw continuation markers for wrapped lines
         if line_wrap_is_active(editor) && !config.settings.show_line_numbers {
             Simp.set_shader_for_rects();
 
             radius   := char_x_advance / 4;
-            y_offset := (font.character_height - char_x_advance / 2) / 2;
+            y_offset := (editor_font.character_height - char_x_advance / 2) / 2;
 
             for line_num : visible_lines_start .. visible_lines_end {
                 end_offset := get_line_end_offset(editor, buffer, line_num);
@@ -1229,7 +1254,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if config.settings.cursor_as_block {
                     letter := get_char_at_offset_as_string(buffer, cursor.pos);
                     if letter != "\n" {
-                        Simp.draw_text(font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
+                        Simp.draw_text(editor_font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
                     }
                 }
             }
@@ -1291,8 +1316,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 if real_line_num != last_line_num {
                     active := array_find(active_lines, real_line_num);
-                    width := Simp.prepare_text(font, tprint("%", real_line_num + 1));
-                    Simp.draw_prepared_text(font, xx (x - width), xx y, color = ifx active then Colors.UI_DEFAULT else Colors.UI_DIM);
+                    width := Simp.prepare_text(editor_font, tprint("%", real_line_num + 1));
+                    Simp.draw_prepared_text(editor_font, xx (x - width), xx y, color = ifx active then Colors.UI_DEFAULT else Colors.UI_DIM);
                     last_line_num = real_line_num;
                 }
 
@@ -1301,8 +1326,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         } else {
             for line_num : visible_lines_start .. visible_lines_end {
                 active := array_find(active_lines, line_num);
-                width := Simp.prepare_text(font, tprint("%", line_num + 1));
-                Simp.draw_prepared_text(font, xx (x - width), xx y, color = ifx active then Colors.UI_DEFAULT else Colors.UI_DIM);
+                width := Simp.prepare_text(editor_font, tprint("%", line_num + 1));
+                Simp.draw_prepared_text(editor_font, xx (x - width), xx y, color = ifx active then Colors.UI_DEFAULT else Colors.UI_DIM);
                 y -= line_height;
             }
         }
@@ -1337,9 +1362,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         bar_rect_height := top_rect_height + entry_height * num_search_results;
 
         bar_rect := cut_top(main_area, bar_rect_height);
-        bar_rect = cut_right(bar_rect, bar_rect.w * width_percentage);
-        bar_rect.x -= 2 * char_x_advance;
-        bar_rect.y -= editor_top_margin;
+        bar_rect = cut_left(bar_rect, bar_rect.w * width_percentage);
+        bar_rect.x += char_x_advance;
+        bar_rect.y -= char_x_advance;
 
         top_rect, results_rect := cut_top(bar_rect, top_rect_height);
 
@@ -1540,7 +1565,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     pen.x = text_x;
                     if char_offset > 0 {
                         // Line was cut on the left, draw an ellipsis
-                        Simp.draw_text(font, xx pen.x, xx pen.y, "…", color = Colors.UI_DIM);
+                        Simp.draw_text(editor_font, xx pen.x, xx pen.y, "…", color = Colors.UI_DIM);
                         pen.x += char_x_advance;
                     }
 
@@ -1560,7 +1585,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         colors   := array_view(buffer.colors, visible_offset_range.start, line_str.count);
                         code_lines: [1] Simp.Code_Line;
                         code_lines[0] = .{ line = line_str, tab_spaces = 0, colors = colors };
-                        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE);
+                        Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE);
                     }
                 }
             }
@@ -1652,7 +1677,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         #if MINIMAL_FOOTER {
-            Input.window_region_override = .NONE;
             footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
             maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
 
@@ -3106,9 +3130,9 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     height := font_ui_line_height + 2 * (margin + padding + 1);
 
     bar_rect := cut_top(active_editor_rect, height);
-    bar_rect = cut_right(bar_rect, width);
-    bar_rect.x -= 2 * char_x_advance;
-    bar_rect.y -= editor_top_margin;
+    bar_rect = cut_left(bar_rect, width);
+    bar_rect.x += char_x_advance;
+    bar_rect.y -= char_x_advance;
 
     maybe_set_hot_or_active(input_id, bar_rect, .NORMAL);
 
@@ -3606,6 +3630,13 @@ draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_colo
     return ui.active_last_frame == button_ui_id && mouse_pointer_is_within(button) && mouse.left.just_released, button.w;
 }
 
+floating_area_position : enum_flags {
+    top;
+    bottom;
+    narrow;
+    tall;
+}
+
 get_floating_area :: (rect: Rect) -> Rect {
     if #complete editors.layout == {
         case .None;
@@ -3615,10 +3646,23 @@ get_floating_area :: (rect: Rect) -> Rect {
 
         case .Single; #through;
         case .Double;
-        floating_area = shrink(rect, 20);
-        height :: 300;
-        floating_area.y += floating_area.h - height - editor_top_margin;
+        floating_area = shrink(rect, 10);
+        height := ifx floating_area_position & .tall then rect.h - editor_top_margin - 20 else rect.h / 3 - 20;
+        if floating_area_position & .tall {
+            floating_area.y += (floating_area.h - height) / 2 - 10;
+        }
+        else if floating_area_position & .top {
+            if floating_area_position & .bottom
+                floating_area.y += (floating_area.h - height) / 2;
+            else
+                floating_area.y += (floating_area.h - height) - editor_top_margin;
+        }
         floating_area.h = height;
+        if floating_area_position & .narrow {
+            width := floating_area.w * 0.666;
+            floating_area.x += floating_area.w - width;
+            floating_area.w = width;
+        }
     }
     return floating_area;
 }

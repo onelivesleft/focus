@@ -81,7 +81,14 @@ iprof_click :: (click: __Iprof.Click_Result) {
     if click.result == {
         case .HEADER;   iprof_frame_lock();
         case .MODE;     iprof_mode_cycle();
-        case .ROW;      __Iprof.set_cursor(click.row_index);
-                        iprof_select();
+
+        case .ROW;
+        if __Iprof.displayed_quantity >= .CALL_GRAPH && click.row_index == __Iprof.cursor {
+            jump_to_file_coord(__Iprof.expanded_zone.full_path, .{xx (__Iprof.expanded_zone.line - 1), 0});
+        }
+        else {
+            __Iprof.set_cursor(click.row_index);
+            iprof_select();
+        }
     }
 }
