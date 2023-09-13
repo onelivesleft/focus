@@ -492,9 +492,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     if ui_id == .editor_floating {
         if ui.hot == ui_id
-            draw_cool_rect(rect, with_alpha(Colors.BACKGROUND_CONSOLE, 1.0), shader_value);
+            draw_cool_rect(rect, with_alpha(Colors.CONSOLE_BACKGROUND, 1.0), shader_value);
         else
-            draw_cool_rect(rect, Colors.BACKGROUND_CONSOLE, shader_value);
+            draw_cool_rect(rect, Colors.CONSOLE_BACKGROUND, shader_value);
     }
     else {
         draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
@@ -991,6 +991,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
                 scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                 scope_background_ends_at = end;
+            }
+            else if region.type == .console_header {
+                draw_rect(shrink(region_rect, 1), Colors.CONSOLE_HEADER);
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);

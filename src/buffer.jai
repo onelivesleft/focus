@@ -416,6 +416,14 @@ rescan_for_wrapped_lines :: (editor: *Editor, buffer: Buffer) {
 }
 
 recalculate_colors :: (buffer: *Buffer) {
+    if buffer.flags & .manual_coloring {
+        buffer.flags &= ~.needs_coloring;
+        old_count := buffer.colors.count;
+        array_resize(*buffer.colors, buffer.bytes.count, false);
+        memset(buffer.colors.data + old_count, 0, buffer.colors.count - old_count);
+        return;
+    }
+
     lock(*buffer.content_lock);
     defer unlock(*buffer.content_lock);
 
@@ -1186,7 +1194,6 @@ Buffer :: struct {
     decorations : [..] Decoration;
     sections : [..] Section;
 
-    // TODO: put into enum_flags
     flags : enum_flags {
         has_file;  // a buffer might not have a corresponding file
         dirty;
@@ -1195,6 +1202,7 @@ Buffer :: struct {
         modified_on_disk;
         deleted;
         needs_coloring;
+        manual_coloring;
         readonly;
         ignore;
         binary;
@@ -1212,20 +1220,7 @@ Buffer :: struct {
     cursors: [..] Cursor.State;  // cursor state before any current edits were made
     edit_notifications: [..] Edit_Notification;
 
-    lang: enum u8 {
-        Plain_Text :: 0;
-        Jai;
-        C;
-        CSharp;
-        Golang;
-        Ficus;
-        Focus_Config;
-        Markdown;
-        Glsl;
-        Worklog;
-        Python;
-        RenPy;
-    } = .Plain_Text;
+    lang := Language.Plain_Text;
 
     Edit_Group :: struct {
         edits: [] Edit;
@@ -1382,6 +1377,7 @@ Region :: struct {
         compile_time;
         scope_file;
         scope_module;
+        console_header;
     }
 };
 

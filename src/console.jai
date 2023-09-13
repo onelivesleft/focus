@@ -16,21 +16,34 @@ init_console :: () {
 init_output_buffer :: () {
     output_buffer = find_or_create_an_empty_buffer();
     buffer := *open_buffers[output_buffer];
-    buffer.flags |= .readonly | .ignore;
+    buffer.flags |= .readonly | .ignore | .manual_coloring;
     insert_string_raw(buffer, buffer.bytes.count, tprint("Focus %\n", VERSION), false);
     rescan_for_lines(buffer);
 }
 
-print_to_console :: (output: string) {
-    print_to_console(output, false);
+print_to_console :: inline (output: string) {
+    print_to_console(output, false, Language.Plain_Text);
 }
 
-print_to_console :: (output: string, append_newline: bool) {
+print_to_console :: inline (output: string, lang: Language) {
+    print_to_console(output, false, lang);
+}
+
+print_to_console :: inline (output: string, append_newline: bool) {
+    print_to_console(output, true, Language.Plain_Text);
+}
+
+print_to_console :: (output: string, append_newline: bool, lang: Language) {
     assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
     buffer := *open_buffers[output_buffer];
+    start := cast(s32) buffer.bytes.count;
+
     s := ifx append_newline then tprint("%\n", output) else output;
     insert_string_raw(buffer, buffer.bytes.count, s, false);
     rescan_for_lines(buffer);
+    recalculate_colors(buffer); // resizes color array
+    highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang);
+
     editors_open_buffer(output_buffer, .floating);
     editor := *open_editors[editors.floating];
     cursor := leave_only_original_cursor(editor);
@@ -39,6 +52,16 @@ print_to_console :: (output: string, append_newline: bool) {
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .unimportant;
     editor.scroll_to_cursor = .yes;
+}
+
+print_console_header :: (s: string) {
+    assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
+    buffer := *open_buffers[output_buffer];
+    print_to_console("\n");
+    start := cast(s32) buffer.bytes.count;
+    print_to_console(s, true);
+    end := cast(s32) buffer.bytes.count - 1;
+    add_buffer_region(buffer, start, end, true, 1, .console_header);
 }
 
 clear_console :: (header := "") {
@@ -102,15 +125,12 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             last_build_error.decorated_buffer.flags |= .needs_coloring;
         build_error_exists = false;
     }
-    store_next_build_error = true;
+    store_next_build_error = task.title;
     build_task_running = true;
     defer build_task_running = false;
     remove_delayed_action(hide_console);
 
-    //clear_console(task.title);
-    print_to_console("\n\n");
-    print_to_console(task.title);
-    print_to_console(" ----------------------------------------\n\n");
+    print_console_header(task.title);
 
     successful := true;
     output: string;
@@ -143,7 +163,8 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
     else {
         if build_error_exists {
-            add_user_error(tprint("%\n% %,%\n%", task.title, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
+            //add_user_error(tprint("%\n% %,%\n%", task.title, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
+            //#if AUTO_JUMP_TO_ERROR  jump_to_error();
         }
         else if contains(output, "LNK1104") {
             _, message := split_into_two(output, "LNK1104: ");
@@ -157,15 +178,17 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 }
 
 on_error :: (s: string) {
-    print_to_console(s);
+    print_to_console(s, .Jai);
     if store_next_build_error {
         build_error, ok := make_build_error(s);
         if ok {
             free_build_error_members(*last_build_error);
             last_build_error = build_error;
-            store_next_build_error = false;
             build_error_exists = true;
             decorate_last_build_error();
+            add_user_error(tprint("%\n% %,%\n%", store_next_build_error, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
+            store_next_build_error = "";
+            #if AUTO_JUMP_TO_ERROR  jump_to_error();
         }
     }
 }
@@ -235,11 +258,12 @@ decorate_last_build_error :: (buffer: *Buffer = null) {
     last_build_error.decorated_buffer = buffer;
 
     add_build_error_decoration(buffer, real_coords_to_offset(buffer, last_build_error.coords));
+    buffer.flags |= .needs_coloring;
 }
 
 
 last_build_error : Build_Error;
-store_next_build_error := false;
+store_next_build_error := "";
 build_error_exists := false;
 
 Build_Error :: struct {
@@ -321,4 +345,88 @@ Console_Task :: struct {
 }
 
 output_buffer : s64 = -1;
+
+Color :: enum {
+    plain;
+    location;
+    error;
+}
+
+// Must match the order of the types in the enum
+COLOR_MAP :: Code_Color.[
+    .CONSOLE_TEXT,  // plain
+    .STRING,        // location
+    .ERROR,         // error
+];
+
+highlight_console_output :: (buffer: *Buffer, start_index: s32, count: s32, lang: Language) {
+    if lang == {
+        case .Jai;
+        highlight_console_jai_output(buffer, start_index, count);
+    }
+}
+
+set_color :: (s: string, color: Color) #expand {
+    offset := s.data - `first_u8_byte;
+    memset(`first_color_byte + offset, xx COLOR_MAP[color], s.count);
+}
+
+highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) {
+    code_start: *u8;
+    in_code_block := false;
+
+    first_u8_byte := buffer.bytes.data + start_index;
+    first_color_byte := buffer.colors.data + start_index;
+
+    s : string = ---;
+    s.data = first_u8_byte;
+    s.count = count;
+
+    for line: line_split(s) {
+        if !line {
+            if !code_start
+                code_start = line.data;
+            continue;
+        }
+
+        if line[0] <= #char " " {
+            in_code_block = true;
+            continue;
+        }
+
+        if in_code_block {
+            in_code_block = false;
+            start := cast(s32)(code_start - buffer.bytes.data);
+            end := cast(s32)(line.data - buffer.bytes.data - 1);
+            highlight_jai_syntax(buffer, start, end - start);
+            add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
+            code_start = null;
+        }
+
+        sentinel :: ": Error: ";
+        sentinel_colors :: Code_Color.[COLOR_MAP[Color.plain], COLOR_MAP[Color.plain], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.plain], COLOR_MAP[Color.plain]];
+        #assert sentinel.count == sentinel_colors.count;
+
+        if contains(line, sentinel) {
+            location, message := split_into_two(line, sentinel);
+            set_color(location, .location);
+            sentinel_start := location.data + location.count - first_u8_byte;
+            memcpy(first_color_byte + sentinel_start, sentinel_colors.data, sentinel_colors.count);
+            set_color(message, .plain);
+
+            //coord_start := last_index(location, #char ":");
+            //coords := slice(location, coord_start + 1);
+        }
+        else {
+            set_color(line, .plain);
+        }
+    }
+
+    if in_code_block {
+        start := cast(s32)(code_start - buffer.bytes.data);
+        end := cast(s32)(start_index + count - 1);
+        highlight_jai_syntax(buffer, start, end - start);
+        add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
+    }
+}
 

@@ -42,9 +42,10 @@
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
-    - [ ] Auto goto error
+    - [ ] Fix scroll limit (not going to bottom)
+    - [x] Auto goto error
     - [x] fade background alpha to 1.0 when hovering
-    - [ ] color results
+    - [x] color results
     - [ ] variable text size
     - [x] variable shapes (wide / narrow)
     - [x] clickable

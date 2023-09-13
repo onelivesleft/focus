@@ -155,13 +155,13 @@ console_log :: (s: string, word := "") {
     using *context.ficus;
     leader := "";
     if !(flags & .displayed_header) {
-        leader = "\n";
+        print_console_header(tprint("[FICUS] %", frame_time));
         flags |= .displayed_header;
     }
     if word
-        print_to_console(tprint("%[Ficus (%) %] %\n", leader, main_stack.count, word, s));
+        print_to_console(tprint("[Ficus (%) %] %\n", main_stack.count, word, s));
     else
-        print_to_console(tprint("%[Ficus (%)] %\n", leader, main_stack.count, s));
+        print_to_console(tprint("[Ficus (%)] %\n", main_stack.count, s));
 }
 
 _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, space := Space.user, output := Volume.default) -> error: string {

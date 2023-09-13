@@ -1,3 +1,18 @@
+Language :: enum u8 {
+    Plain_Text :: 0;
+    Jai;
+    C;
+    CSharp;
+    Golang;
+    Ficus;
+    Focus_Config;
+    Markdown;
+    Glsl;
+    Worklog;
+    Python;
+    RenPy;
+}
+
 language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
     matches :: (postfix: string) -> bool #expand {
         return ends_with(identifier, postfix, ignore_case);

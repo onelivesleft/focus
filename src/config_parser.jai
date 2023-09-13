@@ -113,7 +113,6 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "background_highlight";            return *config.colors.BACKGROUND_HIGHLIGHT;
         case "background_light";                return *config.colors.BACKGROUND_LIGHT;
         case "background_bright";               return *config.colors.BACKGROUND_BRIGHT;
-        case "background_console";              return *config.colors.BACKGROUND_CONSOLE;
         case "background_region";               return *config.colors.BACKGROUND_REGION;
         case "background_region_public";        return *config.colors.BACKGROUND_REGION_PUBLIC;
         case "background_region_private";       return *config.colors.BACKGROUND_REGION_PRIVATE;
@@ -139,6 +138,10 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "text_input_label";                return *config.colors.TEXT_INPUT_LABEL;
         case "motif";                           return *config.colors.MOTIF;
         case "collapsed_area_marker";           return *config.colors.COLLAPSED_AREA_MARKER;
+
+        case "console_background";              return *config.colors.CONSOLE_BACKGROUND;
+        case "console_text";                    return *config.colors.CONSOLE_TEXT;
+        case "console_header";                  return *config.colors.CONSOLE_HEADER;
 
         case "ui_default";                      return *config.colors.UI_DEFAULT;
         case "ui_dim";                          return *config.colors.UI_DIM;

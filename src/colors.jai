@@ -16,7 +16,6 @@ Color_Values :: struct {
     BACKGROUND_HIGHLIGHT      := Color.{ r = 0.097, g = 0.15, b = 0.185 };
     BACKGROUND_LIGHT          := Color.{ r = 0.102, g = 0.158, b = 0.195 };
     BACKGROUND_BRIGHT         := Color.{ r = 0.131, g = 0.202, b = 0.25 };
-    BACKGROUND_CONSOLE        := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     BACKGROUND_REGION         := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 0.02 };
     BACKGROUND_REGION_PRIVATE := Color.{ r = 0.165, g = 0.086, b = 0.133 };
     BACKGROUND_REGION_PUBLIC  := Color.{ r = 0.086, g = 0.165, b = 0.133 };
@@ -43,6 +42,10 @@ Color_Values :: struct {
     TEXT_INPUT_LABEL        := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
     MOTIF                   := Color.{ r = 0.459, g = 0.369, b = 0.184 };
     COLLAPSED_AREA_MARKER   := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 0.8 };
+
+    CONSOLE_BACKGROUND      := Color.{ r = 0.065, g = 0.101, b = 0.125 };
+    CONSOLE_TEXT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
+    CONSOLE_HEADER          := Color.{ r = 0.131, g = 0.202, b = 0.25 };
 
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
@@ -92,6 +95,8 @@ Code_Color :: enum u8 {
     FORMAT_ITEM;
     HIGHLIGHT;
 
+    CONSOLE_TEXT;
+
     NUM_COLORS;
 }
 
@@ -117,6 +122,8 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
     result[OPERATION]       = Colors.CODE_OPERATION;
     result[FORMAT_ITEM]     = Colors.CODE_FORMAT_ITEM;
     result[HIGHLIGHT]       = Colors.CODE_HIGHLIGHT;
+
+    result[CONSOLE_TEXT]    = Colors.CONSOLE_TEXT;
 
     return result;
 }
@@ -231,7 +238,6 @@ convert_active_buffer_to_colors :: () {
 
     do("background",                     "editor.background");
     do("background_dark",                "sideBar.background", bake=true);
-    do("background_console",             "sideBar.background", bake=true);
     do("background_highlight",           "statusBar.debuggingBackground", bake=true);
     do("background_light",               "titleBar.activeBackground", bake=true);
     do("background_bright",              "statusBar.background", op=.brighten, bake=true);
@@ -259,6 +265,10 @@ convert_active_buffer_to_colors :: () {
     do("shadow_dark",                    "panel.background", op=.darken);
     do("shadow_transparent",             "panel.background", op=.darken);
     do("text_input_label",               "editor.foreground");
+    append(*builder, "\n");
+    do("console_background",             "sideBar.background", bake=true);
+    do("console_text",                   "source", "variable.other", "editor.foreground", foreground=true);
+    do("console_header",                 "statusBar.background", op=.brighten, bake=true);
     append(*builder, "\n");
     do("ui_default",                     "button.foreground", "menu.foreground");
     do("ui_dim",                         "inputValidation.infoBackground", op=.darken);

@@ -9,6 +9,7 @@ FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
 HIDE_SCROLLBARS :: true;
 SKIP_CUTSCENES :: true;
+AUTO_JUMP_TO_ERROR :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
 
@@ -1116,7 +1117,7 @@ FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
 
-font_console_size := 15;
+font_console_size := 12;
 
 MIN_FONT_SIZE :: 4;
 MAX_FONT_SIZE :: 30;  // setting a larger size has caused freetype to crash - not sure yet why.
