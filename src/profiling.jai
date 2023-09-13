@@ -7,7 +7,7 @@ iprof_config := __Iprof.Config.{
     graph_begin = iprof_graph_bookend,
     graph_end = iprof_graph_bookend,
     draw_line = iprof_draw_line,
-    text_y_offset = -2,
+    text_y_offset = -4,
     selected_bar_whiten_amount = 0.1,
 };
 

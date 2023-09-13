@@ -168,7 +168,7 @@ backend_init_shaders :: () {
     shader_color_with_blend.alpha_blend = true;
 
     shader_cool.gl_handle = get_shader_program(SHADER_COOL);
-    shader_color.alpha_blend = true;
+    shader_cool.alpha_blend = true;
 
     shader_text.gl_handle   = get_shader_program(SHADER_TEXT);
     shader_text.alpha_blend = true;
@@ -253,9 +253,6 @@ void main () {
 glsl
 
 
-
-
-
 SHADER_COOL :: #string glsl
 OUT_IN vec4 iterated_color;
 
@@ -281,6 +278,7 @@ void main () {
     vec2 st = gl_FragCoord.xy / u_resolution;
     vec4 perm = vec4(st.x, st.x * st.y, st.x * (1.0-u_time), 0.0);
     color = mix(iterated_color, perm, 0.05);
+    color.a = iterated_color.a;
 }
 #endif // FRAGMENT_SHADER
 glsl

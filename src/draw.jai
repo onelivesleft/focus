@@ -7,10 +7,8 @@ floating_editor_on_left := false;
 draw_frame :: () {
     if !simp_initialized  return;
 
-    {
-        using Colors.BACKGROUND_DARK;
-        Simp.clear_render_target(r, g, b, a);
-    }
+    Simp.clear_render_target(Colors.BACKGROUND_DARK.r, Colors.BACKGROUND_DARK.g, Colors.BACKGROUND_DARK.b, Colors.BACKGROUND_DARK.a);
+
     if !is_valid(screen) || screen.w < MIN_WINDOW_WIDTH || screen.h < MIN_WINDOW_HEIGHT return;
 
     maybe_set_hot_or_active(.none, screen, .NORMAL);
@@ -165,13 +163,13 @@ draw_frame :: () {
                 play_icon :: "";
                 lock_icon :: "🔒";
                 icon := ifx iprof_pause_recording then lock_icon else play_icon;
-                position := Vector2.{iprof_rect.x + iprof_rect.w - 160,
-                                     iprof_rect.y + iprof_rect.h - (font_icons_small_size * dpi_scale + iprof_config.line_spacing) / 2};
+                position := Vector2.{iprof_rect.x + iprof_rect.w - 116,
+                                     iprof_rect.y + iprof_rect.h + 1 - (font_icons_tiny_size * dpi_scale + iprof_config.line_spacing) / 2};
                 count := ifx iprof_pause_recording then 0 else cast(s32)floor(frame_time * 2) % 3;
-                position.x -= font_icons_small_size * dpi_scale * 0.25 * count;
+                position.x -= font_icons_tiny_size * dpi_scale * 0.25 * count;
                 for 0 .. count {
-                    draw_icon(icon, position, size = .small);
-                    position.x += font_icons_small_size * dpi_scale * 0.5;
+                    draw_icon(icon, position, size = .tiny);
+                    position.x += font_icons_tiny_size * dpi_scale * 0.5;
                 }
             }
 
@@ -422,7 +420,8 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
             case .warning;  color = Colors.UI_WARNING_DIM;
             case .success;  color = Colors.UI_SUCCESS;
         }
-        //draw_rounded_rect_with_shadow(message_rect, color);
+
+        if !is_hovering  color = with_alpha(color, 0.9);
         draw_cool_rect(message_rect, color, 0.5);
 
         text_color := Colors.UI_DEFAULT;
@@ -488,14 +487,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     rect = align_to_grid(rect);
     if !is_valid(rect) return;
 
-    if ui_id == .editor_floating
-        //draw_cool_rect(rect, Colors.BACKGROUND_CONSOLE, shader_value);
-        draw_rect(rect, Colors.BACKGROUND_CONSOLE);
-    else
-        draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
-
     became_active := maybe_set_hot_or_active(ui_id, rect, .TEXT_SELECT);
     if became_active then activate_editors();
+
+    if ui_id == .editor_floating {
+        if ui.hot == ui_id
+            draw_cool_rect(rect, with_alpha(Colors.BACKGROUND_CONSOLE, 1.0), shader_value);
+        else
+            draw_cool_rect(rect, Colors.BACKGROUND_CONSOLE, shader_value);
+    }
+    else {
+        draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
+    }
 
     editor_is_active := editor_id == editors.active && Input.input_application_has_focus;
 
@@ -773,11 +776,15 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             array_reset_keeping_memory(*editor.highlights);
         }
 
-        // Scrollbar
-        if editors.floating == editor_id
-            shader_value = clamp((visible_lines_start % 100) / 100.0, 0.0, 1.0);
-        else
+        if editors.floating == editor_id {
+            shader_value = (visible_lines_start % 200) / 100.0;
+            if shader_value > 1.0  shader_value = 2.0 - shader_value;
+        }
+        else {
             shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
+        }
+
+        // Scrollbar
         new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll - xx rect.h, scrollbar_id, draw=!HIDE_SCROLLBARS);
         if new_scroll_target != viewport.scroll_y.target {
             // Jump immediately to the scroll point when dragging or clicking scrollbar

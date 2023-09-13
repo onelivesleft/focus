@@ -42,12 +42,13 @@
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
+    - [x] fade background alpha to 1.0 when hovering
+    - [ ] color results
     - [ ] variable text size
     - [x] variable shapes (wide / narrow)
     - [x] clickable
     - [ ] input box
     - [x] threaded !!!FIX threading!!!
-    - [ ] color errors
     - [x] don't save
     - [x] don't show in open dialogs
 
