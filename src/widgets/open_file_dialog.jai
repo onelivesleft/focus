@@ -61,7 +61,7 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, from_root := false) {
     if !from_root {
         // Derive the path chunks from the current open file
         editor, buffer := get_active_editor_and_buffer();
-        if active_global_widget == .editors && buffer && buffer.has_file then set_path_chunks_from_file(buffer.file.full_path);
+        if active_global_widget == .editors && buffer && buffer.flags & .has_file then set_path_chunks_from_file(buffer.file.full_path);
     }
     else {
         clear_path_chunks();
@@ -327,12 +327,13 @@ refresh_entries :: (clear_input := true) {
             top_priority_bit: u64 = 1 << 62;  // NOT the topmost bit because we'll be converting to s64 later
 
             for buffer, buffer_id : open_buffers {
-                if buffer.ignore  continue;
-                if buffer.deleted && !buffer.modified continue;  // NOTE: we might still want to see externally deleted buffers.
-                                                                 // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
-                                                                 // we haven't deleted ourselves?
-                                                                 // Alternatively, if there's an editor for a deleted buffer we probably
-                                                                 // still want to see it here
+                if buffer.flags & .ignore  continue;
+                if buffer.flags & .deleted && !(buffer.flags & .modified)
+                     continue;  // NOTE: we might still want to see externally deleted buffers.
+                                // Maybe use 'deleted' and 'modified_on_disk' to distingiush the buffers
+                                // we haven't deleted ourselves?
+                                // Alternatively, if there's an editor for a deleted buffer we probably
+                                // still want to see it here
 
                 buffer_name := get_buffer_name(buffer);
                 name_score, name_highlights := fuzzy_match(buffer_name, filter_chars, input_string);
@@ -344,7 +345,7 @@ refresh_entries :: (clear_input := true) {
                 entry.buffer_id = buffer_id;
                 entry.file = buffer.file;
                 entry.entry_name = buffer_name;
-                if !buffer.has_file {
+                if !(buffer.flags & .has_file) {
                     entry.entry_name = copy_string(buffer_name);
                     entry.icon = File_Icon.text;
                 }
@@ -356,8 +357,8 @@ refresh_entries :: (clear_input := true) {
                 times_open_part: u64 = (cast,trunc(u64) buffer.num_times_opened)            <<  0;
                 entry.sort_key = dir_id_part | score_part | times_open_part;
 
-                if buffer.modified         then { entry.flags |= .MODIFIED;         entry.sort_key |= top_priority_bit; }
-                if buffer.modified_on_disk then { entry.flags |= .MODIFIED_ON_DISK; entry.sort_key |= top_priority_bit; }
+                if buffer.flags & .modified         then { entry.flags |= .MODIFIED;         entry.sort_key |= top_priority_bit; }
+                if buffer.flags & .modified_on_disk then { entry.flags |= .MODIFIED_ON_DISK; entry.sort_key |= top_priority_bit; }
 
                 num_entries += 1;
                 if num_entries >= config.settings.max_entries_in_open_file_dialog break;

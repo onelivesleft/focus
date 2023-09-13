@@ -229,7 +229,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case;                                   handled = false;
     }
 
-    if !handled && !buffer.readonly {
+    if !handled && !(buffer.flags & .readonly) {
         if action == {
             case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
             case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -292,7 +292,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
     // NOTE: even though we also do it in refresh_open_buffers, we do it here
     // so that if more than one event is processed in the same frame, the next one
     // sees the cursors in valid places and up to date
-    if buffer.dirty {
+    if buffer.flags & .dirty {
         rescan_for_lines(buffer);
         if line_wrap_is_active(editor) then rescan_for_wrapped_lines(editor, buffer);
     }
@@ -317,7 +317,7 @@ active_editor_type_char :: (char: u32) {
         return;
     }
 
-    if buffer.readonly return;
+    if buffer.flags & .readonly return;
 
     utf8_char := convert_utf32_to_utf8(char);
 
@@ -509,7 +509,7 @@ editors_show_default_config :: (placement: Editor_Placement) {
         buffer := *open_buffers[global_config_buffer_id];
         replace_range_raw(buffer, 0, xx buffer.bytes.count, DEFAULT_CONFIG_FILE_DATA);
         buffer.meow_hash = calculate_hash(buffer.bytes);
-        buffer.readonly = true;
+        buffer.flags |= .readonly;
         buffer.lang = .Focus_Config;
         buffer.file.name = "Default Focus Config";
         buffer.file.icon = .gear;
@@ -742,7 +742,7 @@ organise_cursors :: (using editor: *Editor, selection_mode: *Selection_Mode = xx
 }
 
 get_max_line_num :: (editor: Editor, buffer: Buffer) -> s32 {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
     return cast(s32) get_line_starts(editor, buffer).count - 2;
 }
 
@@ -751,7 +751,7 @@ get_max_real_line_num :: inline (buffer: Buffer) -> s32 {
 }
 
 get_max_y_scroll :: (editor: Editor, buffer: Buffer) -> s32 {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
     using font_data;
     return max(cast(s32) (get_max_line_num(editor, buffer)  * line_height), 0);
 }
@@ -1349,7 +1349,7 @@ update_window_title :: (buffer_id: s64 = -1) {
         }
         else {
             buffer := open_buffers[buffer_id];
-            if buffer.has_file {
+            if buffer.flags & .has_file {
                 title = tprint("% • % • % | %", current_project_name, buffer.file.name, buffer.file.path, title);
             } else {
                 title = tprint("% • % | %", current_project_name, get_buffer_name(buffer), title);
@@ -1358,7 +1358,7 @@ update_window_title :: (buffer_id: s64 = -1) {
     }
     else {
         buffer := open_buffers[buffer_id];
-        if buffer.has_file {
+        if buffer.flags & .has_file {
             title = tprint("% • % | %", buffer.file.name, buffer.file.path, title);
         } else {
             title = tprint("% | %", get_buffer_name(buffer), title);
@@ -1681,7 +1681,7 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
 save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
     new_edit_group(buffer, editor);
 
-    if buffer.has_file {
+    if buffer.flags & .has_file {
         maybe_mark_buffer_as_deleted(editor.buffer_id);   // check in case we missed that it's deleted
         session_notify_modified_buffer(editor.buffer_id);
     }
@@ -1727,8 +1727,8 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
 
 save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true) {
     for * b, b_id : open_buffers {
-        if !b.modified continue;
-        if !include_fileless_buffers && !b.has_file  continue;
+        if !b.flags & .modified continue;
+        if !include_fileless_buffers && !(b.flags & .has_file)  continue;
 
         if b.num_editors_open {
             for * e: open_editors {

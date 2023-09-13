@@ -895,7 +895,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             redraw_requested = true;
         }
 
-        if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing (@TODO move this back to just before text?)
+        if buffer.flags & .needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing (@TODO move this back to just before text?)
 
         // Draw regions
         scope_background := Colors.BACKGROUND;
@@ -1695,7 +1695,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false, calculate_only := false) -> new_width: float, new_pen: Vector2 {
     file_name_color := Colors.UI_DEFAULT;
-    if buffer.modified then file_name_color = Colors.UI_WARNING;
+    if buffer.flags & .modified then file_name_color = Colors.UI_WARNING;
 
     pen := _pen;
     draw := !calculate_only;
@@ -1713,7 +1713,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     width = xx Simp.prepare_text(file_name_font, get_buffer_name(buffer));
     if draw  Simp.draw_prepared_text(file_name_font, xx pen.x, xx pen.y, color = file_name_color);
 
-    if buffer.modified {
+    if buffer.flags & .modified {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_icons_tiny, PEN_ICON);
         y_padding := (font_icons.character_height - font_icons_tiny.character_height) / 4.0;
@@ -1721,33 +1721,33 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     }
 
     // Maybe warnings
-    if buffer.deleted {
+    if buffer.flags & .deleted {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui_bold, "[deleted on disk]");
         if draw  Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_ERROR_BRIGHT);
-    } else if buffer.modified_on_disk {
+    } else if buffer.flags & .modified_on_disk {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui_bold, "[modified on disk]");
         if draw  Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_ERROR_BRIGHT);
     }
-    if buffer.readonly {
+    if buffer.flags & .readonly {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui_bold, "[readonly]");
         if draw  Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_ERROR_BRIGHT);
     }
-    if buffer.error_when_saving {
+    if buffer.flags & .error_when_saving {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui_bold, "[couldn't save file]");
         if draw  Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_ERROR_BRIGHT);
     }
 
-    if buffer.crlf && draw_crlf_warning {
+    if buffer.flags & .crlf && draw_crlf_warning {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui, "[CRLF will be replaced with LF on save]");
         if draw  Simp.draw_prepared_text(font_ui, xx pen.x, xx pen.y, color = Colors.UI_WARNING);
     }
 
-    if draw_config_warning && buffer.has_file {
+    if draw_config_warning && buffer.flags & .has_file {
         label: string;
         if platform_path_equals(buffer.file.full_path, global_config_path) {
             label = "[current global config]";
@@ -1761,7 +1761,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
         }
     }
 
-    if buffer.has_file {
+    if buffer.flags & .has_file {
         // Draw separator
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_ui_small, BULLET_ICON);
@@ -3063,7 +3063,7 @@ draw_finder :: () {
                     Simp.draw_text(font, xx pen.x, xx pen.y, "…", color = Colors.UI_DIM);
                     pen.x += char_x_advance;
                 }
-                if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
+                if buffer.flags & .needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
 
                 // Draw highlight
                 highlight_rect := entry_rect;

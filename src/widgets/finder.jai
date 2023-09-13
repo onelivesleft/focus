@@ -305,8 +305,8 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
     for buffer_id : buffer_start_index .. buffer_end_index {
         // Search in buffer
         buffer := *open_buffers[buffer_id];
-        if buffer.ignore  continue;
-        if (buffer.deleted && !buffer.modified) || buffer.binary continue;  // do not search
+        if buffer.flags & .ignore  continue;
+        if (buffer.flags & .deleted && !(buffer.flags & .modified)) || buffer.flags & .binary continue;  // do not search
 
         // Make sure the buffer contents doesn't change while we're scanning it
         lock(*buffer.content_lock);
@@ -317,7 +317,7 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
         // Sort key parts
         dir_id_part:    u64 = (cast,trunc(u64) (buffer.file.project_dir_id + 1)) << 56;
         buffer_id_part: u64 = (cast,trunc(u64) buffer_id)                        << 32;
-        if buffer.modified || buffer.modified_on_disk then dir_id_part = 0;  // make sure modified buffers are on top
+        if buffer.flags & .modified || buffer.flags & .modified_on_disk then dir_id_part = 0;  // make sure modified buffers are on top
 
         offset := 0;
         count := 0;

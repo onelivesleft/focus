@@ -34,11 +34,10 @@ save_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
                 } else {
                     using buffer;
 
-                    if !has_file {
-                        has_file = true;
+                    if !(flags & .has_file) {
+                        flags |= .has_file | .needs_coloring;
                         file = get_file_info_from_full_path(file_path);
                         set_lang_from_path(buffer, file_path);
-                        needs_coloring = true;
                         redraw_requested = true;
 
                         lock(*open_buffers_lock);
@@ -51,9 +50,8 @@ save_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
                                     removed := table_remove(*buffers_table, file_path);
                                     assert(removed, "For some reason table_remove failed. This is a very unexpected bug.");
                                     existing_buffer := *open_buffers[existing_buffer_id];
-                                    existing_buffer.deleted  = true;
-                                    existing_buffer.modified = false;
-                                    existing_buffer.modified_on_disk = false;
+                                    existing_buffer.flags |= .deleted;
+                                    existing_buffer.flags &= ~(.modified | .modified_on_disk);
 
                                     // Reroute all editors which use it to the new buffer id
                                     for * editor : open_editors {
@@ -80,22 +78,19 @@ save_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
 
                     success := write_entire_file(file.full_path, to_string(bytes));
                     if success {
-                        modified = false;
-                        modified_on_disk = false;
-                        deleted = false;
+                        flags &= ~(.modified | .modified_on_disk | .deleted);
 
                         meow_hash = calculate_hash(bytes);
 
-                        error_when_saving = false;
-                        crlf = false;
+                        flags &= ~(.error_when_saving | .crlf);
                     } else {
-                        error_when_saving = true;
+                        flags |= .error_when_saving;
                     }
                     remember_last_modtime_and_size(buffer);
                     update_window_title(open_editors[editors.active].buffer_id);
 
                     hide_save_file_dialog();
-                    return !error_when_saving;
+                    return !(flags & .error_when_saving);
                 }
             }
         }

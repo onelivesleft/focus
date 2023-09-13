@@ -42,6 +42,7 @@
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
+    - [ ] Auto goto error
     - [x] fade background alpha to 1.0 when hovering
     - [ ] color results
     - [ ] variable text size

@@ -345,8 +345,8 @@ dump_buffer_state :: (buffer_id: s64) -> [] u8 #must {
 
     state.buffer_id = buffer_id;
     state.file      = buffer.file;
-    state.has_file  = buffer.has_file;
-    state.unsaved   = buffer.modified;
+    state.has_file  = (buffer.flags & .has_file) != 0;
+    state.unsaved   = (buffer.flags & .modified) != 0;
 
     state.last_modtime = buffer.last_modtime;
     state.last_size    = buffer.last_size;
@@ -373,7 +373,7 @@ dump_buffer_state :: (buffer_id: s64) -> [] u8 #must {
     if num_editors > 1 then state.editor2 = editor_states[1];
     state.editor2_exists = num_editors > 1;
 
-    state.bytes_size = ifx buffer.modified then buffer.bytes.count else 0;  // no need to save an unmodified buffer
+    state.bytes_size = ifx buffer.flags & .modified then buffer.bytes.count else 0;  // no need to save an unmodified buffer
 
     // Prepare a string with everything
     builder: String_Builder;
@@ -382,7 +382,7 @@ dump_buffer_state :: (buffer_id: s64) -> [] u8 #must {
     append(*builder, cast(*u8) *state, size_of(Buffer_State));
 
     // @Speed: this is done every frame for every buffer modified that frame, so it may be a lot of copying if the buffer is large
-    if buffer.modified append(*builder, buffer.bytes.data, buffer.bytes.count);
+    if buffer.flags & .modified append(*builder, buffer.bytes.data, buffer.bytes.count);
 
     // Calculate and append a hash for verification
     hashable_str := builder_to_string(*builder, allocator = temp, do_reset = false);

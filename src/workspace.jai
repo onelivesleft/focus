@@ -228,7 +228,7 @@ remember_visible_editors_and_buffers :: () -> Visible_Editor_State {
         case .Single;
             editor := *open_editors[editors.active];
             buffer := *open_buffers[editor.buffer_id];
-            if buffer.has_file && !buffer.modified {
+            if buffer.flags & .has_file && !(buffer.flags & .modified) {
                 save_editor_state(*left, editor, buffer);
             } else {
                 layout = .None;  // we don't reopen unmodified buffers, at least for now
@@ -240,13 +240,13 @@ remember_visible_editors_and_buffers :: () -> Visible_Editor_State {
             right_editor := *open_editors[editors.right];
             right_buffer := *open_buffers[right_editor.buffer_id];
 
-            if left_buffer.has_file && !left_buffer.modified && right_buffer.has_file && !right_buffer.modified {
+            if left_buffer.flags & .has_file && !(left_buffer.flags & .modified) && right_buffer.flags & .has_file && !(right_buffer.flags & .modified) {
                 save_editor_state(*left,  left_editor, left_buffer);
                 save_editor_state(*right, right_editor, right_buffer);
-            } else if left_buffer.has_file && !left_buffer.modified {
+            } else if left_buffer.flags & .has_file && !(left_buffer.flags & .modified) {
                 save_editor_state(*left, left_editor, left_buffer);
                 layout = .Single;
-            } else if right_buffer.has_file && !right_buffer.modified {
+            } else if right_buffer.flags & .has_file && !(right_buffer.flags & .modified) {
                 save_editor_state(*left, right_editor, right_buffer);
                 layout = .Single;
             } else {

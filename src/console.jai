@@ -16,8 +16,7 @@ init_console :: () {
 init_output_buffer :: () {
     output_buffer = find_or_create_an_empty_buffer();
     buffer := *open_buffers[output_buffer];
-    buffer.readonly = true;
-    buffer.ignore = true;
+    buffer.flags |= .readonly | .ignore;
     insert_string_raw(buffer, buffer.bytes.count, tprint("Focus %\n", VERSION), false);
     rescan_for_lines(buffer);
 }
@@ -100,7 +99,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 
     if build_error_exists {
         if last_build_error.decorated_buffer
-            last_build_error.decorated_buffer.needs_coloring = true;
+            last_build_error.decorated_buffer.flags |= .needs_coloring;
         build_error_exists = false;
     }
     store_next_build_error = true;

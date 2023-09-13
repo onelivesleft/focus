@@ -7,12 +7,12 @@ refresh_open_buffers :: () {
             case .to_enable;    rescan_for_wrapped_lines(editor, buffer);                editor.line_wrap = .on;
         }
 
-        if !buffer.dirty && !buffer.was_dirty_during_frame continue;
+        if !(buffer.flags & .dirty) && !(buffer.flags & .was_dirty_during_frame) continue;
 
-        if buffer.dirty rescan_for_lines(buffer);
+        if buffer.flags & .dirty rescan_for_lines(buffer);
 
-        buffer.was_dirty_during_frame = false;
-        buffer.needs_coloring = true;
+        buffer.flags &= ~.was_dirty_during_frame;
+        buffer.flags |= .needs_coloring;
         buffer.last_edit_time = frame_time;
 
         refresh_all_editors_for_buffer(editor.buffer_id);
@@ -20,8 +20,12 @@ refresh_open_buffers :: () {
         session_notify_modified_buffer(editor.buffer_id);
 
         // Maybe mark buffer as not modified if we've made it match the contents on disk
-        buffer.modified = buffer.meow_hash != calculate_hash(buffer.bytes);
-        if !buffer.modified then buffer.modified_on_disk = false;  // we've verified that the contents matches that on disk
+
+        if buffer.meow_hash != calculate_hash(buffer.bytes)
+            buffer.flags |= .modified;
+        else
+            buffer.flags &= ~.modified;
+        if !(buffer.flags & .modified) then buffer.flags &= ~.modified_on_disk;  // we've verified that the contents matches that on disk
 
         finder.need_to_refresh_results = true;
     }
@@ -69,7 +73,7 @@ delete_range_raw :: (using buffer: *Buffer, start: s64, end: s64, $notify := tru
 
     #if notify add_edit_notification(buffer, start, end - start, 0);
 
-    buffer.dirty = true;
+    buffer.flags |= .dirty;
 }
 
 insert_string_raw :: (buffer: *Buffer, offset: s64, str: string, $notify := true) {
@@ -83,7 +87,7 @@ insert_string_raw :: (buffer: *Buffer, offset: s64, str: string, $notify := true
 
     #if notify add_edit_notification(buffer, offset, 0, str.count);
 
-    buffer.dirty = true;
+    buffer.flags |= .dirty;
 }
 
 replace_range_raw :: (buffer: *Buffer, start: s32, end: s32, str: string) {
@@ -161,7 +165,7 @@ get_real_cursor_coords :: (buffer: Buffer, using cursor: Cursor) -> Cursor_Coord
 }
 
 offset_to_line :: (editor: Editor, buffer: Buffer, offset: s64) -> line_num: s32 {
-    assert(!buffer.dirty, "buffer is dirty, can't calculate line from offset");
+    assert(!buffer.flags & .dirty, "buffer is dirty, can't calculate line from offset");
     assert(offset <= buffer.bytes.count, "offset exceeds buffer size, can't calculate line");
 
     if line_wrap_is_active(editor) {
@@ -172,7 +176,7 @@ offset_to_line :: (editor: Editor, buffer: Buffer, offset: s64) -> line_num: s32
 }
 
 offset_to_real_line :: (using buffer: Buffer, offset: s64) -> line_num: s32 {
-    assert(!dirty, "buffer is dirty, can't calculate line from offset");
+    assert(!(flags & .dirty), "buffer is dirty, can't calculate line from offset");
     assert(offset <= bytes.count, "offset exceeds buffer size, can't calculate line");
 
     return search_line_num_by_offset(line_starts, offset);
@@ -204,13 +208,13 @@ search_line_num_by_offset :: (line_starts: [] s32, offset: s64) -> line_num: s32
 }
 
 coords_to_offset :: (editor: Editor, buffer: Buffer, coords: Coords) -> s32 {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
 
     return _get_offset_by_coords(buffer, get_line_starts(editor, buffer), coords);
 }
 
 real_coords_to_offset :: (using buffer: Buffer, coords: Coords) -> s32 {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
 
     return _get_offset_by_coords(buffer, buffer.line_starts, coords);
 }
@@ -313,9 +317,9 @@ rescan_for_lines :: (using buffer: *Buffer) {
     lock(*buffer.content_lock);
     defer unlock(*buffer.content_lock);
 
-    if dirty {
-        was_dirty_during_frame = true;
-        dirty = false;
+    if flags & .dirty {
+        flags |= .was_dirty_during_frame;
+        flags &= ~.dirty;
     }
 
     array_reset_keeping_memory(*line_starts);
@@ -415,8 +419,8 @@ recalculate_colors :: (buffer: *Buffer) {
     lock(*buffer.content_lock);
     defer unlock(*buffer.content_lock);
 
-    assert(!buffer.dirty);
-    buffer.needs_coloring = false;
+    assert(!buffer.flags & .dirty);
+    buffer.flags &= ~.needs_coloring;
     array_resize(*buffer.colors, buffer.bytes.count);  // this will reset colors to 0
 
     if #complete buffer.lang == {
@@ -550,7 +554,7 @@ offset_is_within_multiline_token :: (tokens: [] Indentation_Token, offset: s32) 
 }
 
 save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
-    if buffer.readonly return false;
+    if buffer.flags & .readonly return false;
 
     file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
     if !(success && file_path) {
@@ -583,19 +587,19 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
 }
 
 save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
-    if readonly return false;
+    if flags & .readonly return false;
 
-    if !has_file {
+    if !(flags & .has_file) {
         // Save new file buffer
         file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
         if !(success && file_path) {
             return false;
         }
 
-        has_file = true;
+        flags |= .has_file;
         file = get_file_info_from_full_path(file_path);
         set_lang_from_path(buffer, file_path);
-        needs_coloring = true;
+        flags |= .needs_coloring;
         redraw_requested = true;
 
         lock(*open_buffers_lock);
@@ -608,9 +612,8 @@ save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
                     removed := table_remove(*buffers_table, file_path);
                     assert(removed, "For some reason table_remove failed. This is a very unexpected bug.");
                     existing_buffer := *open_buffers[existing_buffer_id];
-                    existing_buffer.deleted  = true;
-                    existing_buffer.modified = false;
-                    existing_buffer.modified_on_disk = false;
+                    existing_buffer.flags |= .deleted;
+                    existing_buffer.flags &= ~(.modified |.modified_on_disk);
 
                     // Reroute all editors which use it to the new buffer id
                     for * editor : open_editors {
@@ -637,36 +640,29 @@ save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
 
     success := write_entire_file(file.full_path, to_string(bytes));
     if success {
-        modified = false;
-        modified_on_disk = false;
-        deleted = false;
+        flags &= ~(.modified | .modified_on_disk | .deleted | .error_when_saving | .crlf);
 
         meow_hash = calculate_hash(bytes);
-
-        error_when_saving = false;
-        crlf = false;
     } else {
-        error_when_saving = true;
+        flags |= .error_when_saving;
     }
     remember_last_modtime_and_size(buffer);
     update_window_title(open_editors[editors.active].buffer_id);
 
-    return !error_when_saving;
+    return !(flags & .error_when_saving);
 }
 
 delete_buffer_from_disk :: (using buffer: *Buffer) -> deleted: bool {
-    if readonly  return false;
-    if !has_file return false;
+    if flags & .readonly  return false;
+    if !(flags & .has_file) return false;
 
     file_path := buffer.file.full_path;
 
     success := file_delete(file_path);
     if !success then return false;
 
-    deleted          = true;
-    has_file         = false;
-    modified         = false;
-    modified_on_disk = false;
+    flags |= .deleted;
+    flags &= ~(.has_file | .modified | .modified_on_disk);
 
     lock(*open_buffers_lock);
     {
@@ -742,7 +738,7 @@ strip_trailing_whitespace :: (using buffer: *Buffer, buffer_id: s64) {
 }
 
 remember_last_modtime_and_size :: (using buffer: *Buffer) {
-    assert(has_file, "Trying to remember last modtime and size of a buffer with no file. This is a bug");
+    assert(flags & .has_file != 0, "Trying to remember last modtime and size of a buffer with no file. This is a bug");
 
     modtime, size, success := file_modtime_and_size(file.full_path);
     if success {
@@ -754,7 +750,7 @@ remember_last_modtime_and_size :: (using buffer: *Buffer) {
 }
 
 buffer_file_has_changed_on_disk :: (using buffer: *Buffer) -> changed: bool {
-    assert(has_file);
+    assert(flags & .has_file != 0);
     modtime, size, success := file_modtime_and_size(file.full_path);
     if !success {
         log_error("Couldn't get modtime and size of %\n", file.full_path);
@@ -769,12 +765,12 @@ is_empty :: (using buffer: Buffer, line_num: s32) -> bool {
 }
 
 get_real_line_as_string :: (using buffer: Buffer, line_num: s32) -> string {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
     return _get_line_as_string(buffer, buffer.line_starts, line_num);
 }
 
 get_line_as_string :: (editor: Editor, buffer: Buffer, line_num: s32) -> string {
-    assert(!buffer.dirty);
+    assert(!buffer.flags & .dirty);
     return _get_line_as_string(buffer, get_line_starts(editor, buffer), line_num);
 }
 
@@ -797,7 +793,7 @@ find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
         // We have to only do this if the workspace scan is complete, otherwise we'll be in for
         // many surprising thread-related bugs
         for * buffer, buffer_id : open_buffers {
-            if !buffer.has_file && !trim(to_string(buffer.bytes)) return buffer_id, false;
+            if !(buffer.flags & .has_file) && !trim(to_string(buffer.bytes)) return buffer_id, false;
         }
     }
 
@@ -808,7 +804,7 @@ find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
     buffer_id := open_buffers.count;
     buffer := bucket_array_add(*open_buffers);
     init_buffer(buffer);
-    buffer.has_file = false;
+    buffer.flags &= ~.has_file;
 
     rescan_for_lines(buffer);
     recalculate_colors(buffer);
@@ -866,13 +862,12 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     if is_file_binary(file_data) {
         free(file_data);
         file_data = sprint("Couldn't display file '%' because it's either binary or non-UTF8.", path);
-        buffer.readonly = true;
-        buffer.binary   = true;
+        buffer.flags |= .readonly | .binary;
     }
 
     // Fill in buffer data
     buffer.file = get_file_info_from_full_path(path);
-    buffer.has_file = true;
+    buffer.flags |= .has_file;
     remember_last_modtime_and_size(buffer);
 
     lock(*buffer.content_lock);
@@ -881,7 +876,10 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     remove_crlf_in_place(*buffer.bytes);
     unlock(*buffer.content_lock);
 
-    buffer.crlf = buffer.bytes.count != old_size;
+    if buffer.bytes.count != old_size
+        buffer.flags |= .crlf;
+    else
+        buffer.flags &= ~.crlf;
 
     buffer.meow_hash = calculate_hash(buffer.bytes);
 
@@ -896,7 +894,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
 get_buffer_name :: (buffer: Buffer) -> string {
     // NOTE: After deleting using "Delete Current File", `has_file` could be false while buffer.file still exists (because we don't override it).
     //       So if we fail the `has_file` check, check the `file.full_path` as well to see if there is still a valid name that the buffer can draw.
-    if buffer.has_file || buffer.file.full_path || buffer.readonly return buffer.file.name;
+    if buffer.flags & .has_file || buffer.file.full_path || buffer.flags & .readonly return buffer.file.name;
 
     for 0..buffer.line_starts.count-2 {
         line := jai_string.trim(get_real_line_as_string(buffer, xx it), "\t \r\n");
@@ -920,7 +918,7 @@ refresh_buffer_from_disk :: (path: string) {
     buffer := *open_buffers[buffer_id];
 
     if !file_exists(path) {
-        buffer.deleted = true;
+        buffer.flags |= .deleted;
         finder.need_to_refresh_results = true;
         #if DEBUG_FILE_REFRESH log("File % doesn't exist", path);
         return;
@@ -941,7 +939,7 @@ refresh_buffer_from_disk :: (path: string) {
     if is_file_binary(file_contents_str) {
         free(file_contents_str);
         file_contents_str = sprint("Couldn't display file '%' because it's either binary or non-UTF8.", path);
-        buffer.readonly = true;
+        buffer.flags |= .readonly;
     }
 
     if !success { log_error("Couldn't read file '%'\n", path); #if DEBUG_FILE_REFRESH log("Couldn't read file"); return; }
@@ -960,12 +958,12 @@ refresh_buffer_from_disk :: (path: string) {
     }
 
     buffer.meow_hash = file_hash;
-    buffer.deleted = false;
+    buffer.flags &= ~.deleted;
 
-    if buffer.modified {
+    if buffer.flags & .modified {
         // Mark conflict
         // TODO: display a dialog prompting to reload
-        buffer.modified_on_disk = true;
+        buffer.flags |= .modified_on_disk;
     } else {
         remember_last_modtime_and_size(buffer);
 
@@ -1008,10 +1006,10 @@ maybe_mark_buffer_as_deleted :: (path: string) {
 
 maybe_mark_buffer_as_deleted :: (buffer_id: s64) {
     buffer := *open_buffers[buffer_id];
-    if !buffer.has_file return;
+    if !buffer.flags & .has_file return;
     if file_exists(buffer.file.full_path) return;  // no need to mark as deleted
 
-    buffer.deleted = true;
+    buffer.flags |= .deleted;
     finder.need_to_refresh_results = true;
 }
 
@@ -1030,7 +1028,7 @@ free_buffer :: (using buffer: *Buffer) {
 
     array_free(cursors);
 
-    if has_file && file.full_path then free(file.full_path);
+    if flags & .has_file && file.full_path then free(file.full_path);
 }
 
 // NOTE: this works with absolute columns only, with no regard to line wrapping!
@@ -1067,7 +1065,7 @@ unsaved_buffers_exist :: () -> bool {
     // Perhaps I should write an unsaved buffers http service,
     // which would tell me if they exist in a O(1) time?
     for open_buffers {
-        if it.modified && !it.readonly && !it.ignore  return true;
+        if it.flags & .modified && !(it.flags & .readonly) && !(it.flags & .ignore)  return true;
     }
     return false;
 }
@@ -1189,18 +1187,20 @@ Buffer :: struct {
     sections : [..] Section;
 
     // TODO: put into enum_flags
-    has_file               := false;  // a buffer might not have a corresponding file
-    dirty                  := false;
-    was_dirty_during_frame := false;
-    modified               := false;
-    modified_on_disk       := false;
-    deleted                := false;
-    needs_coloring         := false;
-    readonly               := false;
-    ignore                 := false;
-    binary                 := false;
-    error_when_saving      := false;
-    crlf                   := false;
+    flags : enum_flags {
+        has_file;  // a buffer might not have a corresponding file
+        dirty;
+        was_dirty_during_frame;
+        modified;
+        modified_on_disk;
+        deleted;
+        needs_coloring;
+        readonly;
+        ignore;
+        binary;
+        error_when_saving;
+        crlf;
+    }
 
     content_lock: Mutex;  // must hold while modifying content (or reading in an off thread)
 

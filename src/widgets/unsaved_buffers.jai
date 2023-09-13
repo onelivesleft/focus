@@ -20,7 +20,7 @@ show_unsaved_buffers_dialog :: (requested_mode: Mode = .exit_program) {
     array_reset_keeping_memory(*modified_buffers);
 
     for buffer, buffer_id : open_buffers {
-        if buffer.modified && !buffer.readonly && !buffer.ignore
+        if buffer.flags & .modified && !(buffer.flags & .readonly) && !(buffer.flags & .ignore)
             array_add(*modified_buffers, buffer_id);
     }
 }
@@ -35,9 +35,9 @@ unsaved_buffers_save_all :: () {
     errors_when_saving := false;
     for buffer_id : unsaved_buffers_dialog.modified_buffers {
         buffer := *open_buffers[buffer_id];
-        if buffer.ignore  continue;
+        if buffer.flags & .ignore  continue;
         saved := save_buffer_to_disk(buffer, buffer_id);
-        if buffer.error_when_saving || !saved then errors_when_saving = true;
+        if buffer.flags & .error_when_saving || !saved then errors_when_saving = true;
     }
     if !errors_when_saving unsaved_buffers_dialog_proceed();
 }
