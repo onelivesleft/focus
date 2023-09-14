@@ -136,12 +136,7 @@ try_parsing_header :: (using tokenizer: *Tokenizer, token: *Token) {
         case "[editors]";                   token.type = .header;
         case "[open file dialog]";          token.type = .header;
         case "[search dialog]";             token.type = .header;
-        case "[build debug]";               token.type = .header;
-        case "[build debug and run]";       token.type = .header;
-        case "[build release]";             token.type = .header;
-        case "[build release and run]";     token.type = .header;
-        case "[build run debug]";           token.type = .header;
-        case "[build run release]";         token.type = .header;
+        case "[script]";                    token.type = .header;
 
         case "[user interface]";            token.type = .header; section = .ui;
         case "[colors]";                    token.type = .header; section = .colors;
@@ -189,6 +184,8 @@ parse_keymap_line :: (using tokenizer: *Tokenizer, token: *Token) {
     } else {
         _, found_action := table_find(*Keymap_Action_Strings, str);
         if found_action {
+            token.type = .action;
+        } else if str.count > 1 && script_keymap_action_id(str) >= 0 {
             token.type = .action;
         } else if keymap_map_key_string(str) {
             token.type = .key_string;

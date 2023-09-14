@@ -266,6 +266,7 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
     merge_keymaps(*dst.keymap.editors,          *parsed.keymap_editors);
     merge_keymaps(*dst.keymap.open_file_dialog, *parsed.keymap_open_file_dialog);
     merge_keymaps(*dst.keymap.search_dialog,    *parsed.keymap_search_dialog);
+    merge_keymaps(*dst.keymap.script,           *parsed.keymap_script);
 
     // Settings
     #insert -> string {
@@ -399,6 +400,7 @@ Keymap :: struct {
     editors:          [] Key_Mapping;
     open_file_dialog: [] Key_Mapping;
     search_dialog:    [] Key_Mapping;
+    script:           [] Key_Mapping;
 }
 
 Style :: struct {

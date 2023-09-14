@@ -1,6 +1,8 @@
 parse_config :: (name: string, filename: string, file_data: string, space: Space, $is_initial_load: bool) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
     using parser: Config_Parser;
 
+    reset_space(space);
+
     // NOTE: we don't free on purpose, because some of the parsed data will point into the file data
     trimmed_data := trim_left(file_data, " \t\n\r");  // skip empty lines, otherwise the handler will crash!
     start_from_memory(*handler, name, filename, trimmed_data);
@@ -43,7 +45,20 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
             case .style;        success, error_msg = parse_style_line(*parser, line);
             case .platform;     success, error_msg = platform_parse_config_line(*parser, line);
 
-            case .script;       success = true;
+            case .script;
+            if line[0] == #char "!" {
+                for i: 1 .. line.count - 1 {
+                    if line[i] <= #char " "  break;
+                    if line[i] == #char ":" {
+                        word_name := unique_string(slice(line, 0, i));
+                        action_name := unsafe_slice(word_name, 1);
+                        array_add(*ACTIONS_SCRIPT, action_name);
+                        if space == .global  actions_script_global_cutoff = ACTIONS_SCRIPT.count;
+                    }
+                }
+            }
+
+            success = true;
 
             case .none;
                 error_msg := log_parser_error(handler, "Expected a top-level section definition, got '%'", line);
@@ -559,8 +574,13 @@ parse_keymap_line :: (using parser: *Config_Parser, line: string) -> success: bo
             }
         }
         if !found {
-            error_msg := log_parser_error(handler, "Invalid action '%'.\nPossible reasons:\n* It's misspelled\n* It's in the wrong section\nPlease check the default config file for a reference.", name);
-            `return false, error_msg;
+            if keymap_subsection == .script {
+                `return true, "";
+            }
+            else {
+                error_msg := log_parser_error(handler, "Invalid action '%'.\nPossible reasons:\n* It's misspelled\n* It's in the wrong section\nPlease check the default config file for a reference.", name);
+                `return false, error_msg;
+            }
         }
     }
 
@@ -569,6 +589,7 @@ parse_keymap_line :: (using parser: *Config_Parser, line: string) -> success: bo
         case .editors;          map_action(action_name, key_sequence, ACTIONS_EDITORS,          *parsed_config.keymap_editors,          "[editors]");
         case .open_file_dialog; map_action(action_name, key_sequence, ACTIONS_OPEN_FILE_DIALOG, *parsed_config.keymap_open_file_dialog, "[open file dialog]");
         case .search_dialog;    map_action(action_name, key_sequence, ACTIONS_SEARCH_DIALOG,    *parsed_config.keymap_search_dialog,    "[search dialog]");
+        case .script;           map_action(action_name, key_sequence, ACTIONS_SCRIPT,           *parsed_config.keymap_script,           "[script]");
     }
 
     return true, "";
@@ -672,6 +693,7 @@ Parsed_Config :: struct {
     keymap_editors:          [..] Key_Mapping;
     keymap_open_file_dialog: [..] Key_Mapping;
     keymap_search_dialog:    [..] Key_Mapping;
+    keymap_script:           [..] Key_Mapping;
 
     // Settings
     settings: Settings;
@@ -746,6 +768,7 @@ Config_Parser :: struct {
         editors;
         open_file_dialog;
         search_dialog;
+        script;
     };
     KEYMAP_SUBSECTIONS :: string.[
         // Must match the order of the enum above
@@ -753,6 +776,7 @@ Config_Parser :: struct {
         "[editors]",
         "[open file dialog]",
         "[search dialog]",
+        "[script]",
     ];
 
     platform_subsection: PLATFORM_SUBSECTION_ENUM;

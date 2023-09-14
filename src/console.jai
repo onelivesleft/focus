@@ -124,6 +124,7 @@ add_build_task_command :: (s: string) -> success: bool {
 build_task_running := false;
 build_task_header: Offset_Range;
 build_task_region_id: int;
+silence_stdout := false;
 
 build :: () {
     if build_task_running  return;
@@ -162,6 +163,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
     store_next_build_error = task.title;
     build_task_running = true;
+    silence_stdout = false;
     defer {
         build_task_running = false;
         reset_build();
@@ -189,7 +191,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
                 .. break_command_into_strings(command),
                 working_directory = working_directory,
                 capture_and_return_output = true,
-                output_callback = print_to_console,
+                output_callback = on_output,
                 error_callback = on_error
             );
 
@@ -225,8 +227,14 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     return .CONTINUE;
 }
 
+on_output :: (s: string) {
+    if !silence_stdout
+        print_to_console(s, .Jai);
+}
+
 on_error :: (s: string) {
     print_to_console(s, .Jai);
+    #if BUILD_SILENCE_STDOUT_AFTER_ERROR  silence_stdout = true;
     if store_next_build_error {
         build_error, ok := make_build_error(s);
         if ok {
@@ -435,7 +443,8 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
         }
 
         if line[0] <= #char " " {
-            in_code_block = true;
+            if code_start
+                in_code_block = true;
             continue;
         }
 

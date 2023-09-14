@@ -3073,7 +3073,10 @@ draw_finder :: () {
                     Simp.draw_text(font, xx pen.x, xx pen.y, "…", color = Colors.UI_DIM);
                     pen.x += char_x_advance;
                 }
-                if buffer.flags & .needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
+
+                // Presumably we might need to recalc colors, but with this line active it lags the crap out of the finder.
+                // Seems to work without it (the only downside will be a graphical color error, so no biggy), so it's commented out:
+                //if buffer.flags & .needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
 
                 // Draw highlight
                 highlight_rect := entry_rect;

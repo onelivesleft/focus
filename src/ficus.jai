@@ -70,9 +70,6 @@ ficus_allocator: Allocator;
 ficus_string_lookup: Table(string, *u8);
 
 init_ficus :: () {
-    ficus_allocator.proc = flat_pool_allocator_proc;
-    ficus_allocator.data = *ficus_pool;
-
     #insert -> string {
         b: String_Builder;
         baked_words, ok := read_entire_file("src/baked_words.fig");
@@ -84,6 +81,18 @@ init_ficus :: () {
         jai, baked_words);
         for name, index: ACTIONS_EDITORS  print_to_builder(*b, "table_set(*action_words, \"!%\", %);\n", name, index);
         return builder_to_string(*b);
+    }
+}
+
+reset_space :: (space: Space) {
+    if space == {
+        case .global;
+        table_reset(*context.ficus.global_words);
+        array_reset(*ACTIONS_SCRIPT);
+
+        case .project;
+        table_reset(*context.ficus.project_words);
+        ACTIONS_SCRIPT.count = actions_script_global_cutoff;
     }
 }
 
@@ -140,6 +149,22 @@ focus_config, word_name, current_project_name, mode), .Focus_Config);
 execute_on_main_thread :: (script: string, $event := "", space := Space.user, output := Volume.default) {
     #assert event == "" || array_find(ficus_events, event);
     array_add(*ficus_scripts_to_execute, .{script, event, space, output});
+}
+
+unique_string :: (s: string) -> string {
+    result : string = ---;
+    result.count = s.count;
+    buffer_location_lookup := table_find_pointer(*ficus_string_lookup, s);
+    if buffer_location_lookup {
+        result.data = buffer_location_lookup.*;
+    }
+    else {
+        result.data = alloc(s.count, ficus_allocator);
+        memcpy(result.data, s.data, s.count);
+        table_add(*ficus_string_lookup, result, result.data);
+    }
+    assert(xx ficus_allocator.proc(.IS_THIS_YOURS, 0, 0, result.data, ficus_allocator.data));
+    return result;
 }
 
 #scope_file
@@ -218,8 +243,6 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
         token_string = token_as_string();
         assert(xx trim(token_string));
 
-
-        //if move_tokens_to_stack_count  debug_break();
         if sequence_depth || (token.type != .begin_sequence && move_tokens_to_stack_count) {
             added_token_to_stack := false;
             if !sequence_depth && move_tokens_to_stack_count {
@@ -297,8 +320,10 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
                     definition.data = definition_start;
                     definition.count = definition_end - definition_start;
                     word.* = unique_string(definition);
-                    token.type = .eol;
+
                     if VERBOSE  console_log(tprint("Added word [%] with text: [%]", word_name, trim(word.*)), word_name);
+
+                    token.type = .eol;
                 }
 
             case .word; #through;
@@ -886,19 +911,4 @@ clear_all_stacks :: () {
         clear_stack(it);
 }
 
-unique_string :: (s: string) -> string {
-    result : string = ---;
-    result.count = s.count;
-    buffer_location_lookup := table_find_pointer(*ficus_string_lookup, s);
-    if buffer_location_lookup {
-        result.data = buffer_location_lookup.*;
-    }
-    else {
-        result.data = alloc(s.count, ficus_allocator);
-        memcpy(result.data, s.data, s.count);
-        table_add(*ficus_string_lookup, result, result.data);
-    }
-    assert(xx ficus_allocator.proc(.IS_THIS_YOURS, 0, 0, result.data, ficus_allocator.data));
-    return result;
-}
 

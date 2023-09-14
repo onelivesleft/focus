@@ -12,6 +12,7 @@ SKIP_CUTSCENES :: true;
 AUTO_JUMP_TO_ERROR :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
+BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
 
 show_keystrokes := false;
 show_filename := true;
@@ -27,6 +28,8 @@ main :: () {
     }
 
     console_allocator = create_heap(context.default_allocator);
+    ficus_allocator.proc = flat_pool_allocator_proc;
+    ficus_allocator.data = *ficus_pool;
 
     cpu_info = get_cpu_info();
 
@@ -344,6 +347,11 @@ main :: () {
                 }
             }
 
+            if !handled {
+                action := map_event_to_action(event, Action_Script);
+                handled = handle_script_action(action);
+            }
+
             if handled && event.type == .KEYBOARD then num_text_input_events_to_ignore = event.text_input_count;
         }
 
@@ -465,6 +473,14 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .search_in_project;
             if active_global_widget == .editors then finder_open_from_editor(); else finder_open();
             return true;
+    }
+    return false;
+}
+
+handle_script_action :: (action: Action_Script) -> handled: bool {
+    if action < cast(Action_Script)ACTIONS_SCRIPT.count {
+        execute_word(tprint("!%", ACTIONS_SCRIPT[action]));
+        return true;
     }
     return false;
 }
@@ -852,28 +868,17 @@ remove_delayed_action :: (action: #type ()) {
 
 ficus_execute_main_thread_scripts :: () {
     scripts_to_execute_this_frame := ficus_scripts_to_execute.count;
+    refresh_global_buffer := false;
+    refresh_project_buffer := false;
     if scripts_to_execute_this_frame {
         for 0 .. scripts_to_execute_this_frame - 1 {
             exec := ficus_scripts_to_execute[it];
-            if #complete exec.output == {
-                case .silent;
-                    execute_string(exec.script, exec.space, .silent);
-                    if exec.event
-                        try_execute_word_in_space(exec.event, exec.space, .silent);
-                case .errors;
-                    execute_string(exec.script, exec.space, .errors);
-                    if exec.event
-                        try_execute_word_in_space(exec.event, exec.space, .errors);
-                case .default;
-                    execute_string(exec.script, exec.space, .default);
-                    if exec.event
-                        try_execute_word_in_space(exec.event, exec.space, .default);
-                case .verbose;
-                    execute_string(exec.script, exec.space, .verbose);
-                    if exec.event
-                        try_execute_word_in_space(exec.event, exec.space, .verbose);
-            }
+            execute_string(exec.script, exec.space, exec.output);
+            if exec.event
+                try_execute_word_in_space(exec.event, exec.space, exec.output);
             free(exec.script);
+            if exec.space == .global  refresh_global_buffer = true;
+            if exec.space == .project  refresh_project_buffer = true;
         }
         if scripts_to_execute_this_frame == ficus_scripts_to_execute.count {
             array_reset(*ficus_scripts_to_execute);
@@ -881,6 +886,16 @@ ficus_execute_main_thread_scripts :: () {
         else {
             for 1 .. scripts_to_execute_this_frame
                 array_ordered_remove_by_index(*ficus_scripts_to_execute, 0);
+        }
+    }
+    if refresh_global_buffer || refresh_project_buffer {
+        for editor: open_editors {
+            if editor.buffer_id < 0  continue;
+            buffer := *open_buffers[editor.buffer_id];
+            if refresh_global_buffer && platform_path_equals(buffer.file.full_path, global_config_path)
+                buffer.flags |= .needs_coloring;
+            if refresh_project_buffer && platform_path_equals(buffer.file.full_path, project_config_path)
+                buffer.flags |= .needs_coloring;
         }
     }
 }

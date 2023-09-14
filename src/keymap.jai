@@ -57,6 +57,7 @@ dump_key_mappings :: () {
     dump_keys("Search", config.keymap.search_dialog, Action_Search_Dialog);
     dump_keys("Editor", config.keymap.editors, Action_Editors);
     dump_keys("Common", config.keymap.common, Action_Common);
+    dump_keys("Script", config.keymap.script, Action_Script);
 }
 
 
@@ -171,6 +172,8 @@ get_keymap_for_action_type :: ($Action: Type) -> [] Key_Mapping #expand {
         return config.keymap.open_file_dialog;
     } else #if Action == Action_Search_Dialog {
         return config.keymap.search_dialog;
+    } else #if Action == Action_Script {
+        return config.keymap.script;
     } else {
         #assert(false, "In map_event_to_action, the passed action type is not supported.");
     }
@@ -260,6 +263,14 @@ Key_Combo :: struct {
     define_enum(*b, "Action_Search_Dialog",    ACTIONS_SEARCH_DIALOG);
 
     return builder_to_string(*b);
+}
+
+ACTIONS_SCRIPT : [..] string;
+actions_script_global_cutoff := 0;
+Action_Script :: #type,distinct u32;
+script_keymap_action_id :: (s: string) -> int {
+    for ACTIONS_SCRIPT  if it == s  return it_index;
+    return -1;
 }
 
 ACTIONS_COMMON :: string.[

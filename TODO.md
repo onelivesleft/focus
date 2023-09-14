@@ -1,19 +1,11 @@
 # Mine
 
-- [x] Go to added_string source
-    - [x] Manual command to do it
-
-- [x] Stop clicking floating window sending buffer to main editor panes
-    - [x] Add command to load console buffer in editor pane
-
-- [x] IProf
-    - [x] Clickable to go to proc
 
 - [.] Ficus
     - [x] build
-    - [ ] keybinds
-    - [ ] run
+    - [x] keybinds
 
+    - [ ] run
     - [ ] view action history
     - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
     - [ ] open_file take project relative path
@@ -42,9 +34,14 @@
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
-    - [ ] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
-    - [x] Recolor header based on success
+    - [ ] Fix build animation
     - [ ] Decorations: ^, Error?, link button?
+    - [ ] Fade out instead of sudden hide when autohiding
+    - [ ] UI / settings for position
+
+    - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
+        - [ ] Have silenced stdout after error received, but the order should be fixed!
+    - [x] Recolor header based on success
     - [ ] Clickable locations
     - [ ] input box
     - [x] Auto goto error
@@ -121,6 +118,12 @@
 
 - [ ] next/prev search result
 
+- [x] Go to added_string source
+    - [x] Manual command to do it
+- [x] Stop clicking floating window sending buffer to main editor panes
+    - [x] Add command to load console buffer in editor pane
+- [x] IProf
+    - [x] Clickable to go to proc
 - [x] Fix buffer sections in lang syntax parsers
 - [x] spinner when running build task
 - [.] eye
