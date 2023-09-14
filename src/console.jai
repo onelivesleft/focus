@@ -1,4 +1,5 @@
 console_initialized := false;
+console_manually_opened := false;
 console_mutex : Mutex;
 
 init_console :: () {
@@ -53,7 +54,7 @@ print_to_console :: (output: string, append_newline: bool, lang: Language, $do_l
     recalculate_colors(buffer); // resizes color array
     highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang);
 
-    editors_open_buffer(console_buffer_id, .floating);
+    show_console(false);
     editor := *open_editors[editors.floating];
     cursor := leave_only_original_cursor(editor);
     cursor.pos = xx buffer.bytes.count;
@@ -79,26 +80,19 @@ print_console_header :: (s: string, leading_newline := true, is_error := false) 
     return .{start, end}, id;
 }
 
-clear_console :: (header := "") {
-    assert(console_buffer_id >= 0 && open_buffers.count > console_buffer_id, "console_buffer_id: %  buffer count: %", console_buffer_id, open_buffers.count);
-    buffer := *open_buffers[console_buffer_id];
-    clear_buffer(buffer);
-    if header  insert_string_raw(buffer, buffer.bytes.count, header, false);
-    rescan_for_lines(buffer);
-    editors_open_buffer(console_buffer_id, .floating);
-}
-
-show_console :: () {
+show_console :: (manually_opened: bool) {
+    if manually_opened  console_manually_opened = true;
     editors_open_buffer(console_buffer_id, .floating);
 }
 
 hide_console :: () {
+    console_manually_opened = false;
     editors.floating = -1;
 }
 
 toggle_console :: () {
     if editors.floating >= 0  hide_console();
-    else                      show_console();
+    else                      show_console(true);
 }
 
 set_build_task_name :: (s: string) -> success: bool {
@@ -153,7 +147,7 @@ build :: () {
 console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
     using task := cast(*Console_Task) work;
 
-    console_was_open := editors.floating >= 0;
+    console_was_open := editors.floating >= 0 && console_manually_opened;
     start_time := frame_time;
 
     if build_error_exists {

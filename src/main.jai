@@ -436,7 +436,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_open_file_dialog_in_navigate_mode_from_root; show_open_file_dialog(.navigate, from_root = true); return true;
 
         case .show_commands;                                    show_commands_dialog();                             return true;
-        case .show_console;                                     show_console();                                     return true;
+        case .show_console;                                     show_console(true);                                 return true;
         case .hide_console;                                     hide_console();                                     return true;
         case .toggle_console;                                   toggle_console();                                   return true;
         case .toggle_fullscreen;                                editor_toggle_fullscreen();                         return true;
