@@ -178,6 +178,7 @@ main :: () {
         current_time := cast(Time) get_time();
         frame_dt   = min(current_time - frame_time, MAX_FRAME_DT);
         frame_time = current_time;
+        frame_count += 1;
 
         for delayed_action: delayed_actions {
             if delayed_action.at <= frame_time {
@@ -402,6 +403,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .increase_font_size;                               increase_font_size();                               return true;
         case .decrease_font_size;                               decrease_font_size();                               return true;
+        case .increase_console_font_size;                       increase_console_font_size();                       return true;
+        case .decrease_console_font_size;                       decrease_console_font_size();                       return true;
         case .reset_font_size_to_default;                       reset_font_size_to_default();                       return true;
 
         case .build_debug;                                      build(.DEBUG);                                      return true;
@@ -470,8 +473,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 }
 
 init_fonts_and_dependent_things :: () {
-    using font_data;
-
     delta := font_size - default_font_size;
     font_size               = clamp(font_size,                               MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_size            = clamp(DEFAULT_FONT_UI_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -496,15 +497,15 @@ init_fonts_and_dependent_things :: () {
 
     font_ui = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui != null, "Couldn't init main ui font\n");
-    font_ui_line_height = cast(float) font_ui.default_line_spacing;
+    primary_font_info.font_ui_line_height = cast(float) font_ui.default_line_spacing;
 
     font_ui_big = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_big_size * dpi_scale));
     assert(font_ui_big != null, "Couldn't init big ui font\n");
-    font_ui_big_line_height = cast(float) font_ui_big.default_line_spacing;
+    primary_font_info.font_ui_big_line_height = cast(float) font_ui_big.default_line_spacing;
 
     font_ui_medium = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_medium_size * dpi_scale));
     assert(font_ui_medium != null, "Couldn't init medium ui font\n");
-    font_ui_medium_line_height = cast(float) font_ui_medium.default_line_spacing;
+    primary_font_info.font_ui_medium_line_height = cast(float) font_ui_medium.default_line_spacing;
 
     font_ui_bold = Simp.get_font_at_size(FONT_UI_BOLD.name, FONT_UI_BOLD.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui_bold != null, "Couldn't init bold ui font\n");
@@ -528,7 +529,6 @@ init_fonts_and_dependent_things :: () {
     // Make a dummy call with most common chars for each font so that
     // we have all the font atlases loaded in the GPU memory once
     // (TODO: maybe there's an easy way for Simp to only update textures on flush?)
-    COMMON_CHARS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789… ~!@#$%^&*()-|\"':;_+={}[]\\/`,.<>?АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчщъыьэюя¶•";
     Simp.prepare_text(font,             COMMON_CHARS);
     Simp.prepare_text(font_console,     COMMON_CHARS);
     Simp.prepare_text(font_ui,          COMMON_CHARS);
@@ -551,8 +551,19 @@ init_fonts_and_dependent_things :: () {
     Simp.prepare_text(font_icons_tiny, icons_string);
 
     init_font_data(*primary_font_info, font);
-    init_font_data(*console_font_info, font_console, 2.0);
-    console_font_info.line_height *= 0.75;
+    init_font_data(*console_font_info, font_console, font_console_line_size);
+}
+
+COMMON_CHARS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789… ~!@#$%^&*()-|\"':;_+={}[]\\/`,.<>?АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчщъыьэюя¶•";
+font_console_size := 12;
+font_console_line_size := 1.25;
+
+set_console_font_size :: (new_size: int) {
+    font_console_size = new_size;
+    font_console = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (font_console_size * dpi_scale));
+    assert(font_console != null, "Couldn't init console font\n");
+    Simp.prepare_text(font_console, COMMON_CHARS);
+    init_font_data(*console_font_info, font_console, font_console_line_size);
 }
 
 init_font_data :: (data: *Font_Info, font: *Simp.Dynamic_Font, line_height_scale := 1.0) {
@@ -628,6 +639,7 @@ increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
         init_fonts_and_dependent_things();
+        add_success_message(tprint("Font size: %", font_size), dismiss_in_seconds = 2);
     }
 }
 
@@ -635,11 +647,27 @@ decrease_font_size :: () {
     if (font_size - 1) >= MIN_FONT_SIZE {
         font_size -= 1;
         init_fonts_and_dependent_things();
+        add_success_message(tprint("Font size: %", font_size), dismiss_in_seconds = 2);
+    }
+}
+
+increase_console_font_size :: () {
+    if (font_console_size + 1) <= MAX_FONT_SIZE {
+        set_console_font_size(font_console_size + 1);
+        add_success_message(tprint("Console font size: %", font_console_size), dismiss_in_seconds = 2);
+    }
+}
+
+decrease_console_font_size :: () {
+    if (font_console_size - 1) >= MIN_FONT_SIZE {
+        set_console_font_size(font_console_size - 1);
+        add_success_message(tprint("Console font size: %", font_console_size), dismiss_in_seconds = 2);
     }
 }
 
 reset_font_size_to_default :: () {
     font_size = default_font_size;
+    font_console_size = default_font_console_size;
     init_fonts_and_dependent_things();
 }
 
@@ -764,6 +792,7 @@ should_quit             := false;
 force_quit              := false;
 should_reload_workspace := false;
 
+frame_count: s64;                 // ever-increasing frame counter
 frame_time: Time;                 // ever-increasing time since start in seconds
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
@@ -888,6 +917,7 @@ font_icons_tiny:    *Simp.Dynamic_Font;
 }
 
 DEFAULT_FONT_SIZE               :: 14;
+DEFAULT_FONT_CONSOLE_SIZE       :: 12;
 DEFAULT_FONT_UI_SIZE            :: 15;
 DEFAULT_FONT_UI_BIG_SIZE        :: 28;
 DEFAULT_FONT_UI_MEDIUM_SIZE     :: 18;
@@ -900,10 +930,11 @@ DEFAULT_FONT_ICONS_TINY_SIZE    :: 8;
 main_font_name := "default";
 main_font_data := #run FONT.data;
 
-console_font_name := "default";
+console_font_name := "console_font!!!";
 console_font_data := #run FONT_CONSOLE.data;
 
 default_font_size       := DEFAULT_FONT_SIZE;  // can be changed in the config
+default_font_console_size := DEFAULT_FONT_CONSOLE_SIZE;
 
 font_size               := DEFAULT_FONT_SIZE;  // when changing font size, we change just this one and then derive the other ones from it
 font_ui_size            := DEFAULT_FONT_UI_SIZE;
@@ -1116,8 +1147,6 @@ FONT_CONSOLE :: #run load_font("TT2020Base-Regular.ttf");//ponderosa.regular.ttf
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
-
-font_console_size := 12;
 
 MIN_FONT_SIZE :: 4;
 MAX_FONT_SIZE :: 30;  // setting a larger size has caused freetype to crash - not sure yet why.

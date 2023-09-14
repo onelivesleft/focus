@@ -101,6 +101,9 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
             }
     }
 
+    if token.type == .error && t == start_t
+        t += 1;
+
     if t >= max_t then t = max_t;
     token.len = cast(s32) (t - start_t);
 

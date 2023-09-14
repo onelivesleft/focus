@@ -91,12 +91,6 @@ create_process :: (process: *Process, args: .. string, working_directory := "", 
         // startup_info.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
         // startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
         // startup_info.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
-
-        mode_flags : u32 = 0;
-		GetConsoleMode(child_output_write, *mode_flags);
-		mode_flags |= 0x0004;
-		SetConsoleMode(child_output_write, mode_flags);
-		GetConsoleMode(child_output_write, *mode_flags);
     }
 
     defer {

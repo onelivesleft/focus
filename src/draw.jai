@@ -489,9 +489,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     became_active := maybe_set_hot_or_active(ui_id, rect, .TEXT_SELECT);
     if became_active then activate_editors();
+    editor_is_active := editor_id == editors.active && Input.input_application_has_focus;
 
     if ui_id == .editor_floating {
-        if ui.hot == ui_id
+        if ui.hot == ui_id || editor_is_active
             draw_cool_rect(rect, with_alpha(Colors.CONSOLE_BACKGROUND, 1.0), shader_value);
         else
             draw_cool_rect(rect, Colors.CONSOLE_BACKGROUND, shader_value);
@@ -500,7 +501,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
     }
 
-    editor_is_active := editor_id == editors.active && Input.input_application_has_focus;
 
     // Calculate text origin in screen coordinates
     text_offset := make_vector2(char_x_advance, -char_x_advance);
@@ -917,6 +917,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             start = max(start, visible_lines_start);
             end_is_visible := end <= visible_lines_end;
             end   = min(end,   visible_lines_end);
+            if region.inclusive && start == end
+                start = end - 1;
 
             region_rect := make_rect(
                 rect.x, text_origin.y - end * line_height,
@@ -993,7 +995,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 scope_background_ends_at = end;
             }
             else if region.type == .console_header {
-                draw_rect(shrink(region_rect, 1), Colors.CONSOLE_HEADER);
+                draw_rect(shrink_x(region_rect, 1), Colors.CONSOLE_HEADER_BACKGROUND);
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);

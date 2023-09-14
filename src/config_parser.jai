@@ -141,7 +141,9 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
 
         case "console_background";              return *config.colors.CONSOLE_BACKGROUND;
         case "console_text";                    return *config.colors.CONSOLE_TEXT;
-        case "console_header";                  return *config.colors.CONSOLE_HEADER;
+        case "console_header_background";       return *config.colors.CONSOLE_HEADER_BACKGROUND;
+        case "console_header_text";             return *config.colors.CONSOLE_HEADER_TEXT;
+        case "console_error";                   return *config.colors.CONSOLE_ERROR;
 
         case "ui_default";                      return *config.colors.UI_DEFAULT;
         case "ui_dim";                          return *config.colors.UI_DIM;
@@ -419,6 +421,15 @@ parse_style_line :: (using parser: *Config_Parser, line: string) -> success: boo
                     int_val, success := parse_int(*value_copy);
                     if success {
                         parsed_config.font_size = int_val;
+                    } else {
+                        error_msg := log_parser_error(handler, "Couldn't parse '%' - expected a valid integer, got '%'", setting, value);
+                        return false, error_msg;
+                    }
+                case "console_font_size";
+                    value_copy := value;
+                    int_val, success := parse_int(*value_copy);
+                    if success {
+                        parsed_config.font_console_size = int_val;
                     } else {
                         error_msg := log_parser_error(handler, "Couldn't parse '%' - expected a valid integer, got '%'", setting, value);
                         return false, error_msg;
@@ -716,6 +727,7 @@ Parsed_Config :: struct {
     // Style
     font:      string;
     font_size: int;
+    font_console_size: int;
     colors:    [..] Parsed_Color;
 
     platform: Platform_Config;

@@ -45,7 +45,9 @@ Color_Values :: struct {
 
     CONSOLE_BACKGROUND      := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     CONSOLE_TEXT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
-    CONSOLE_HEADER          := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    CONSOLE_HEADER_BACKGROUND := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    CONSOLE_HEADER_TEXT     := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
+    CONSOLE_ERROR           := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
 
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
@@ -96,6 +98,8 @@ Code_Color :: enum u8 {
     HIGHLIGHT;
 
     CONSOLE_TEXT;
+    CONSOLE_HEADER_TEXT;
+    CONSOLE_ERROR;
 
     NUM_COLORS;
 }
@@ -124,6 +128,8 @@ refresh_code_color_map :: () -> [Code_Color.NUM_COLORS] Vector4 {
     result[HIGHLIGHT]       = Colors.CODE_HIGHLIGHT;
 
     result[CONSOLE_TEXT]    = Colors.CONSOLE_TEXT;
+    result[CONSOLE_HEADER_TEXT] = Colors.CONSOLE_HEADER_TEXT;
+    result[CONSOLE_ERROR]   = Colors.CONSOLE_ERROR;
 
     return result;
 }
@@ -268,7 +274,9 @@ convert_active_buffer_to_colors :: () {
     append(*builder, "\n");
     do("console_background",             "sideBar.background", bake=true);
     do("console_text",                   "source", "variable.other", "editor.foreground", foreground=true);
-    do("console_header",                 "statusBar.background", op=.brighten, bake=true);
+    do("console_header_text",            "source", "variable.other", "editor.foreground", foreground=true);
+    do("console_header_background",      "statusBar.background", op=.brighten, bake=true);
+    do("console_error",                  "inputValidation.errorBackground");
     append(*builder, "\n");
     do("ui_default",                     "button.foreground", "menu.foreground");
     do("ui_dim",                         "inputValidation.infoBackground", op=.darken);

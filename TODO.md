@@ -42,14 +42,17 @@
     - [x] ficus herestrings (in config for instance)
 
 - [.] output window
-    - [ ] Fix scroll limit (not going to bottom)
+    - [ ] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
+    - [ ] Recolor header based on success
+    - [ ] Decorations: ^, Error?, link button?
+    - [ ] Clickable locations
+    - [ ] input box
     - [x] Auto goto error
     - [x] fade background alpha to 1.0 when hovering
     - [x] color results
-    - [ ] variable text size
+    - [x] variable text size
     - [x] variable shapes (wide / narrow)
     - [x] clickable
-    - [ ] input box
     - [x] threaded !!!FIX threading!!!
     - [x] don't save
     - [x] don't show in open dialogs

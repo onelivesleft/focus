@@ -294,6 +294,11 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
         font_size = parsed.font_size;
         default_font_size = font_size;
     }
+    if parsed.font_console_size > 0 {
+        dst.style.font_console_size = parsed.font_console_size;
+        font_console_size = parsed.font_console_size;
+        default_font_console_size = font_console_size;
+    }
 
     // Colors
     for parsed.colors {
@@ -399,6 +404,7 @@ Keymap :: struct {
 Style :: struct {
     font      := "";
     font_size := -1;
+    font_console_size := -1;
 }
 
 style: Style;

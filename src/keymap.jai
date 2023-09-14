@@ -340,6 +340,8 @@ ACTIONS_COMMON :: string.[
     "delete_to_end_of_line",
     "increase_font_size",
     "decrease_font_size",
+    "increase_console_font_size",
+    "decrease_console_font_size",
     "reset_font_size_to_default",
     "close_current_editor",
     "hide_current_buffer",

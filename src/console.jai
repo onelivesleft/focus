@@ -17,8 +17,8 @@ init_output_buffer :: () {
     output_buffer = find_or_create_an_empty_buffer();
     buffer := *open_buffers[output_buffer];
     buffer.flags |= .readonly | .ignore | .manual_coloring;
-    insert_string_raw(buffer, buffer.bytes.count, tprint("Focus %\n", VERSION), false);
-    rescan_for_lines(buffer);
+    print_console_header(tprint("Focus % built on %", VERSION, RELEASE_DATE), false);
+    editors.floating = -1;
 }
 
 print_to_console :: inline (output: string) {
@@ -54,13 +54,14 @@ print_to_console :: (output: string, append_newline: bool, lang: Language) {
     editor.scroll_to_cursor = .yes;
 }
 
-print_console_header :: (s: string) {
+print_console_header :: (s: string, leading_newline := true) {
     assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
     buffer := *open_buffers[output_buffer];
-    print_to_console("\n");
+    if leading_newline  print_to_console("\n");
     start := cast(s32) buffer.bytes.count;
     print_to_console(s, true);
     end := cast(s32) buffer.bytes.count - 1;
+    memset(buffer.colors.data + start, xx Code_Color.CONSOLE_HEADER_TEXT, end - start);
     add_buffer_region(buffer, start, end, true, 1, .console_header);
 }
 
@@ -139,6 +140,8 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     for command: task.build_config.commands {
         if output  free(output);
         if error  free(error);
+
+        print("\n\n\n\n\n");
 
         result, output=, error=, timed_out := run_command(
             .. break_command_into_strings(command),
@@ -356,7 +359,7 @@ Color :: enum {
 COLOR_MAP :: Code_Color.[
     .CONSOLE_TEXT,  // plain
     .STRING,        // location
-    .ERROR,         // error
+    .CONSOLE_ERROR,  // error
 ];
 
 highlight_console_output :: (buffer: *Buffer, start_index: s32, count: s32, lang: Language) {
@@ -382,6 +385,14 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
     s.data = first_u8_byte;
     s.count = count;
 
+    highlight_last_caret :: (start: s32, end: s32) #expand {
+        s : string = ---;
+        s.data = `buffer.bytes.data + start;
+        s.count = end - start;
+        i, found := last_index(s, #char "^");
+        if found  `buffer.colors[start + i] = xx COLOR_MAP[Color.error];
+    }
+
     for line: line_split(s) {
         if !line {
             if !code_start
@@ -400,6 +411,7 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
             end := cast(s32)(line.data - buffer.bytes.data - 1);
             highlight_jai_syntax(buffer, start, end - start);
             add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
+            highlight_last_caret(start, end);
             code_start = null;
         }
 
@@ -427,6 +439,6 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
         end := cast(s32)(start_index + count - 1);
         highlight_jai_syntax(buffer, start, end - start);
         add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
+        highlight_last_caret(start, end);
     }
 }
-
