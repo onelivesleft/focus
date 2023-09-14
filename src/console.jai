@@ -216,6 +216,12 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             path, _ = split_into_two(path, "'");
             add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
         }
+
+        lock(*console_mutex);
+        buffer := *open_buffers[console_buffer_id];
+        while buffer.bytes[buffer.bytes.count - 1] == #char "\n" && buffer.bytes[buffer.bytes.count - 2] == #char "\n"
+            buffer.bytes.count -= 1;
+        unlock(*console_mutex);
     }
 
     return .CONTINUE;

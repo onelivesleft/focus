@@ -1001,6 +1001,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                               then Colors.CONSOLE_HEADER_SUCCESS
                               else Colors.CONSOLE_HEADER_ERROR;
                 draw_rect(shrink_x(region_rect, 1), color);
+                if build_task_running && build_task_region_id == region.id {
+                    animation_rate :: 0.44;
+                    icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
+                    position := cut_right(region_rect, region_rect.h).xy;
+                    position.x -= 2;
+                    position.y += (region_rect.h - font_icons_size) * 0.5 + 2;
+                    draw_icon(build_icons[icon_index], position, Colors.CONSOLE_HEADER_TEXT);
+                }
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
@@ -3551,6 +3559,16 @@ draw_rect_raw :: inline (using rect: Rect, color: Color) {
 
 draw_rect_raw :: inline (using rect: Rect, bottom_left: Color, top_left: Color, bottom_right: Color, top_right: Color) {
     Simp.immediate_quad(x, y, x + w, y + h, bottom_left, top_left, bottom_right, top_right);
+}
+
+draw_icon :: inline (icon: All_Icons, position: Vector2, size : enum {default; small; tiny;} = .default) {
+    icon_string := to_string(*convert_utf32_to_utf8(xx icon));
+    draw_icon(icon_string, position, Colors.UI_DEFAULT, xx size);
+}
+
+draw_icon :: (icon: All_Icons, position: Vector2, color: Color, size : enum {default; small; tiny;} = .default) {
+    icon_string := to_string(*convert_utf32_to_utf8(xx icon));
+    draw_icon(icon_string, position, color, xx size);
 }
 
 draw_icon :: inline (icon: string, position: Vector2, size : enum {default; small; tiny;} = .default) {

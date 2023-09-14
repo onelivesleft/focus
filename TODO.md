@@ -1,9 +1,31 @@
 # Mine
 
 
+- [.] output window
+    - [x] Fix build animation
+    - [ ] Decorations: ^, Error?, link button?
+    - [ ] Fade out instead of sudden hide when autohiding
+    - [ ] UI / settings for position
+
+    - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
+        - [ ] Have silenced stdout after error received, but the order should be fixed!
+    - [x] Recolor header based on success
+    - [ ] Clickable locations
+    - [ ] input box
+    - [x] Auto goto error
+    - [x] fade background alpha to 1.0 when hovering
+    - [x] color results
+    - [x] variable text size
+    - [x] variable shapes (wide / narrow)
+    - [x] clickable
+    - [x] threaded !!!FIX threading!!!
+    - [x] don't save
+    - [x] don't show in open dialogs
+
 - [.] Ficus
     - [x] build
     - [x] keybinds
+    - [ ] all the words
 
     - [ ] run
     - [ ] view action history
@@ -33,30 +55,9 @@
     - [x] herestrings in ficus
     - [x] ficus herestrings (in config for instance)
 
-- [.] output window
-    - [ ] Fix build animation
-    - [ ] Decorations: ^, Error?, link button?
-    - [ ] Fade out instead of sudden hide when autohiding
-    - [ ] UI / settings for position
-
-    - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
-        - [ ] Have silenced stdout after error received, but the order should be fixed!
-    - [x] Recolor header based on success
-    - [ ] Clickable locations
-    - [ ] input box
-    - [x] Auto goto error
-    - [x] fade background alpha to 1.0 when hovering
-    - [x] color results
-    - [x] variable text size
-    - [x] variable shapes (wide / narrow)
-    - [x] clickable
-    - [x] threaded !!!FIX threading!!!
-    - [x] don't save
-    - [x] don't show in open dialogs
-
 - [.] Custom title bar
     - [x] Move by dragging
-        - [ ] Fix left one not working when there are two
+        - [x] Fix left one not working when there are two
     - [x] Resize by right-click menu
     - [ ] Drag borders on edges to resize window
 - [ ] RemedyBG
