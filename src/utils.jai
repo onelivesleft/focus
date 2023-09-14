@@ -201,6 +201,7 @@ fuzzy_match :: (str: string, needle_chars: [] string, needle: string) -> score: 
         if index < 0 { score = -1; break; }
         highlights[index] = true;
         score += cast(s32) (MAX_CHARS - index);  // the closer to the beginning, the better
+        if index == pos  score += 100;           // bonus for contiguous matches
         pos = index + char.count;
     }
 
@@ -208,11 +209,11 @@ fuzzy_match :: (str: string, needle_chars: [] string, needle: string) -> score: 
         memset(highlights.data, 0, highlights.count);  // no match -> no highlighting
     }
     else if starts_with(str, needle) {
-        score += 1_000_000;
+        score += 1_000_000;                     // bonus for starting with needle
         if str.count == needle.count
-            score += 5_000_000;
+            score += 5_000_000;                 // bonus for exactly matching needle
         else if !is_alpha(str[needle.count])
-            score += 1_000_000;
+            score += 1_000_000;                 // bonus for word not continuing past needle
     }
 
     return score, highlights;

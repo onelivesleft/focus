@@ -6,6 +6,7 @@ RELEASE_DATE :: #run -> string {
 
 include_profiling := true;
 include_profiling_modules := true;
+no_output := false;
 
 #run build();
 
@@ -42,6 +43,8 @@ build :: () {
             options.arithmetic_overflow_check = .OFF;
             include_profiling = false;
           case "debug";
+          case "no_output";
+            no_output = true;
           case "windows7";
             windows7 = true;
             options.output_executable_name = "focus_windows7";
@@ -49,6 +52,7 @@ build :: () {
             compiler_report(tprint("Command-line argument #%, '%', is invalid. Valid options are: 'debug', 'release'.\n", it_index+1, arg));
         }
     }
+
 
     if !optimized then options.output_executable_name = sprint("%_debug", options.output_executable_name);
 
@@ -65,6 +69,7 @@ build :: () {
             set_build_options_dc(.{append_linker_arguments=.["ws2_32.lib", "msvcprtd.lib"]}, w);
         }
     }
+    if no_output  set_build_options_dc(.{do_output = false}, w);
 
     plugins: [..] *Metaprogram_Plugin;
     intercept_flags: Intercept_Flags;
@@ -105,6 +110,7 @@ build :: () {
 
     config_refresh_procs : [..] string;
     inserted_config_refresh_procs := false;
+    successful := true;
 
     while true {
         message := compiler_wait_for_message();
@@ -138,9 +144,15 @@ build :: () {
                 append(*builder, "}\n");
                 add_build_string(builder_to_string(*builder), message.workspace);
             }
-
+            else if no_output && phase.phase == .ALL_TARGET_CODE_BUILT {
+                exit(0);
+            }
 
             case .COMPLETE;
+                break;
+
+            case .ERROR;
+                successful = false;
                 break;
         }
     }
@@ -149,6 +161,8 @@ build :: () {
 
     if iprof.finish    iprof.finish(iprof);
     if iprof.shutdown  iprof.shutdown(iprof);
+
+    if !successful  return;
 
     #if OS == .WINDOWS {
         exe_name := tprint("%.exe", options.output_executable_name);

@@ -221,6 +221,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_file_end;                 move_to_file_end                    (editor, buffer);
         case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
         case .open_floating;                    open_floating                       (editor, buffer);
+        case .open_console_buffer;              editors_open_buffer(console_buffer_id);
         case .jump_to_commented_source_location; jump_to_commented_source_location  (editor, buffer);
 
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
@@ -451,7 +452,6 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     return true;
 }
 
-
 jump_to_file_coord :: (path: string, coords: Coords) -> *Editor, *Buffer {
     editors_open_file(path);
     if editors.active <0  return null, null;
@@ -481,9 +481,6 @@ jump_to_error :: () {
             jai_jump_to_added_string_source(editor, buffer, .on_the_side);
     }
 }
-
-//delayed_jump_to_commented_source_location_editor_id : int = 0;
-
 
 jump_to_commented_source_location :: (editor: *Editor, buffer: Buffer, placement: Editor_Placement = .in_place) {
     if buffer.lang == {

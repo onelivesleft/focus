@@ -994,8 +994,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                 scope_background_ends_at = end;
             }
-            else if region.type == .console_header {
-                draw_rect(shrink_x(region_rect, 1), Colors.CONSOLE_HEADER_BACKGROUND);
+            else if region.type >= .console_header && region.type <= .console_header_error {
+                color := ifx region.type == .console_header
+                         then Colors.CONSOLE_HEADER_BACKGROUND
+                         else ifx region.type == .console_header_success
+                              then Colors.CONSOLE_HEADER_SUCCESS
+                              else Colors.CONSOLE_HEADER_ERROR;
+                draw_rect(shrink_x(region_rect, 1), color);
             }
             else {
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
@@ -1700,7 +1705,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false, calculate_only := false) -> new_width: float, new_pen: Vector2 {
     file_name_color := Colors.UI_DEFAULT;
-    if buffer.flags & .modified then file_name_color = Colors.UI_WARNING;
+    if buffer.flags & .modified && !(buffer.flags & .readonly) then file_name_color = Colors.UI_WARNING;
 
     pen := _pen;
     draw := !calculate_only;
@@ -1708,7 +1713,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     // Icon
     icon_char := convert_utf32_to_utf8(xx buffer.file.icon);
     icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
-    icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
+    icon_x := pen.x - ifx buffer.file.icon != File_Icon.console then (icon_width - font_icons.em_width) / 2.0;
     if draw  Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = file_name_color);
     width += font_icons.em_width * 1.2;
 
@@ -1718,7 +1723,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     width = xx Simp.prepare_text(file_name_font, get_buffer_name(buffer));
     if draw  Simp.draw_prepared_text(file_name_font, xx pen.x, xx pen.y, color = file_name_color);
 
-    if buffer.flags & .modified {
+    if buffer.flags & .modified && !(buffer.flags & .readonly) {
         pen.x += width + padding;
         width = xx Simp.prepare_text(font_icons_tiny, PEN_ICON);
         y_padding := (font_icons.character_height - font_icons_tiny.character_height) / 4.0;

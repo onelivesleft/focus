@@ -306,7 +306,7 @@ COLOR_MAP :: Code_Color.[
     .DEFAULT,       // default
     .COMMENT,       // comment
     .OPERATION,     // header
-    .KEYWORD,       // header_top_level
+    .DIRECTIVE,     // header_top_level
     .PUNCTUATION,   // punctuation
 
     .FUNCTION,      // modifier_key

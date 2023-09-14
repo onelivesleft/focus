@@ -1,7 +1,9 @@
 console_initialized := false;
+console_mutex : Mutex;
 
 init_console :: () {
-    init_output_buffer();
+    init(*console_mutex);
+    init_console_buffer();
 
     console_thread_group = .{};
     init(*console_thread_group, 1, group_proc = console_threadproc);
@@ -13,10 +15,12 @@ init_console :: () {
     console_initialized = true;
 }
 
-init_output_buffer :: () {
-    output_buffer = find_or_create_an_empty_buffer();
-    buffer := *open_buffers[output_buffer];
+init_console_buffer :: () {
+    console_buffer_id = find_or_create_an_empty_buffer();
+    buffer := *open_buffers[console_buffer_id];
     buffer.flags |= .readonly | .ignore | .manual_coloring;
+    buffer.file.name = "<console>";
+    buffer.file.icon = .console;
     print_console_header(tprint("Focus % built on %", VERSION, RELEASE_DATE), false);
     editors.floating = -1;
 }
@@ -33,9 +37,14 @@ print_to_console :: inline (output: string, append_newline: bool) {
     print_to_console(output, true, Language.Plain_Text);
 }
 
-print_to_console :: (output: string, append_newline: bool, lang: Language) {
-    assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
-    buffer := *open_buffers[output_buffer];
+print_to_console :: (output: string, append_newline: bool, lang: Language, $do_lock := true) {
+    #if do_lock {
+        lock(*console_mutex);
+        defer unlock(*console_mutex);
+    }
+
+    assert(console_buffer_id >= 0 && open_buffers.count > console_buffer_id, "console_buffer_id: %  buffer count: %", console_buffer_id, open_buffers.count);
+    buffer := *open_buffers[console_buffer_id];
     start := cast(s32) buffer.bytes.count;
 
     s := ifx append_newline then tprint("%\n", output) else output;
@@ -44,7 +53,7 @@ print_to_console :: (output: string, append_newline: bool, lang: Language) {
     recalculate_colors(buffer); // resizes color array
     highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang);
 
-    editors_open_buffer(output_buffer, .floating);
+    editors_open_buffer(console_buffer_id, .floating);
     editor := *open_editors[editors.floating];
     cursor := leave_only_original_cursor(editor);
     cursor.pos = xx buffer.bytes.count;
@@ -54,28 +63,33 @@ print_to_console :: (output: string, append_newline: bool, lang: Language) {
     editor.scroll_to_cursor = .yes;
 }
 
-print_console_header :: (s: string, leading_newline := true) {
-    assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
-    buffer := *open_buffers[output_buffer];
+print_console_header :: (s: string, leading_newline := true, is_error := false) -> Offset_Range, region_id: int {
+    lock(*console_mutex);
+    defer unlock(*console_mutex);
+
+    assert(console_buffer_id >= 0 && open_buffers.count > console_buffer_id, "console_buffer_id: %  buffer count: %", console_buffer_id, open_buffers.count);
+    buffer := *open_buffers[console_buffer_id];
+
     if leading_newline  print_to_console("\n");
     start := cast(s32) buffer.bytes.count;
-    print_to_console(s, true);
+    print_to_console(s, true, .Plain_Text, false);
     end := cast(s32) buffer.bytes.count - 1;
     memset(buffer.colors.data + start, xx Code_Color.CONSOLE_HEADER_TEXT, end - start);
-    add_buffer_region(buffer, start, end, true, 1, .console_header);
+    id := add_buffer_region(buffer, start, end, true, 1, ifx is_error then .console_header_error else .console_header);
+    return .{start, end}, id;
 }
 
 clear_console :: (header := "") {
-    assert(output_buffer >= 0 && open_buffers.count > output_buffer, "output_buffer: %  buffer count: %", output_buffer, open_buffers.count);
-    buffer := *open_buffers[output_buffer];
+    assert(console_buffer_id >= 0 && open_buffers.count > console_buffer_id, "console_buffer_id: %  buffer count: %", console_buffer_id, open_buffers.count);
+    buffer := *open_buffers[console_buffer_id];
     clear_buffer(buffer);
     if header  insert_string_raw(buffer, buffer.bytes.count, header, false);
     rescan_for_lines(buffer);
-    editors_open_buffer(output_buffer, .floating);
+    editors_open_buffer(console_buffer_id, .floating);
 }
 
 show_console :: () {
-    editors_open_buffer(output_buffer, .floating);
+    editors_open_buffer(console_buffer_id, .floating);
 }
 
 hide_console :: () {
@@ -87,10 +101,32 @@ toggle_console :: () {
     else                      show_console();
 }
 
-build :: (mode : Build_Mode) {
-    if build_task_running  return;
+set_build_task_name :: (s: string) -> success: bool {
+    if build_task_running  return false;
+    if next_build_task_name  free(next_build_task_name.data, console_allocator);
+    next_build_task_name = copy_string(s, console_allocator);
+    return true;
+}
 
-    using config := *build_configs[mode];
+set_build_task_dir :: (s: string) -> success: bool {
+    if build_task_running  return false;
+    if next_build_task_dir  free(next_build_task_dir.data, console_allocator);
+    next_build_task_dir = copy_string(s, console_allocator);
+    return true;
+}
+
+add_build_task_command :: (s: string) -> success: bool {
+    if build_task_running  return false;
+    array_add(*next_build_task_commands, copy_string(s, console_allocator));
+    return true;
+}
+
+build_task_running := false;
+build_task_header: Offset_Range;
+build_task_region_id: int;
+
+build :: () {
+    if build_task_running  return;
 
     if random_build_icon_set  build_icon_set = xx random_int(xx #run enum_highest_value(type_of(build_icon_set)) + 1);
     if #complete build_icon_set == {
@@ -102,24 +138,22 @@ build :: (mode : Build_Mode) {
 
     clear_user_messages(.build);
 
-    if !enabled {
-        add_user_error(tprint("You must supply a % section in your project config.", workspace_subsection_from_build_mode(mode)), origin=.build);
-        return;
-    }
-
     save_all(null, null, false);
 
     task := New(Console_Task, allocator=console_allocator);
-    task.title = copy_string(tprint(build_mode_labels[mode], name), console_allocator);
-    task.build_config = build_configs[mode];
+    if next_build_task_name
+        task.title = next_build_task_name;
+    else
+        task.title = copy_string(current_project_name, console_allocator);
 
     add_work(*console_thread_group, task, task.title);
 }
 
-build_task_running := false;
-
 console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
     using task := cast(*Console_Task) work;
+
+    console_was_open := editors.floating >= 0;
+    start_time := frame_time;
 
     if build_error_exists {
         if last_build_error.decorated_buffer
@@ -128,32 +162,41 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
     store_next_build_error = task.title;
     build_task_running = true;
-    defer build_task_running = false;
+    defer {
+        build_task_running = false;
+        reset_build();
+    }
     remove_delayed_action(hide_console);
 
-    print_console_header(task.title);
+    build_task_header, build_task_region_id = print_console_header(tprint("[BUILD] %", task.title));
 
     successful := true;
     output: string;
     error: string;
 
-    for command: task.build_config.commands {
-        if output  free(output);
-        if error  free(error);
+    working_directory := ifx next_build_task_dir
+                         then next_build_task_dir
+                         else ifx project_dirs.count
+                              then project_dirs[0].path
+                              else "";
 
-        print("\n\n\n\n\n");
+    if working_directory {
+        for command: next_build_task_commands {
+            if output  free(output);
+            if error  free(error);
 
-        result, output=, error=, timed_out := run_command(
-            .. break_command_into_strings(command),
-            working_directory = task.build_config.working_directory,
-            capture_and_return_output = true,
-            output_callback = print_to_console,
-            error_callback = on_error
-        );
+            result, output=, error=, timed_out := run_command(
+                .. break_command_into_strings(command),
+                working_directory = working_directory,
+                capture_and_return_output = true,
+                output_callback = print_to_console,
+                error_callback = on_error
+            );
 
-        if result.exit_code {
-            successful = false;
-            break;
+            if result.exit_code {
+                successful = false;
+                break;
+            }
         }
     }
 
@@ -162,7 +205,9 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     if successful {
         duration : float64 : 5;
         add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
-        if HIDE_CONSOLE_ON_SUCCESS  add_delayed_action(hide_console, duration);
+        #if HIDE_CONSOLE_ON_SUCCESS  if !console_was_open add_delayed_action(hide_console, duration);
+        set_build_header(success=true);
+        print_to_console(tprint("Success: % seconds\n", frame_time - start_time));
     }
     else {
         if build_error_exists {
@@ -190,9 +235,19 @@ on_error :: (s: string) {
             build_error_exists = true;
             decorate_last_build_error();
             add_user_error(tprint("%\n% %,%\n%", store_next_build_error, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
+            set_build_header(success=false);
             store_next_build_error = "";
             #if AUTO_JUMP_TO_ERROR  jump_to_error();
         }
+    }
+}
+
+set_build_header :: (success: bool) {
+    buffer := *open_buffers[console_buffer_id];
+    region := get_buffer_region(buffer, build_task_region_id);
+    if region {
+        region.type = ifx success then .console_header_success
+                                  else .console_header_error;
     }
 }
 
@@ -276,49 +331,13 @@ Build_Error :: struct {
     decorated_buffer : *Buffer;
 }
 
-Build_Config :: struct {
-    name : string;
-    working_directory : string;
-    commands : [..] string;
-    enabled : bool;
-}
-
-Build_Mode :: enum {
-    DEBUG;
-    RELEASE;
-    DEBUG_AND_RUN;
-    RELEASE_AND_RUN;
-    RUN_DEBUG;
-    RUN_RELEASE;
-}
-
-build_configs : [6] Build_Config;
-build_mode_labels :: string.["% [Build: Debug]", "[%] Build: Release", "[%] Build: Debug and Run", "[%] Build: Release and Run", "[%] Run Debug", "[%] Run Release"];
-
-reset_build_configs :: () {
-    for * config: build_configs {
-        if config.name  free(config.name.data, console_allocator);
-        config.name = "";
-
-        if config.working_directory  free(config.working_directory.data, console_allocator);
-        config.working_directory = "";
-
-        for * command: config.commands
-            free(command.data, console_allocator);
-        array_reset(*config.commands);
-
-        config.enabled = false;
-    }
-}
-
-validate_build_configs :: () -> error: string {
-    for config: build_configs {
-        if !config.enabled  continue;
-        if !config.name  return "Must provide  name:";
-        if !config.working_directory  return "Must provide  dir:";
-        if config.commands.count == 0  return "Must provide one or more  command:";
-    }
-    return "";
+reset_build :: () {
+    if next_build_task_name  free(next_build_task_name.data, console_allocator);
+    next_build_task_name = "";
+    if next_build_task_dir  free(next_build_task_dir.data, console_allocator);
+    next_build_task_dir = "";
+    for next_build_task_commands  free(it.data, console_allocator);
+    array_reset(*next_build_task_commands);
 }
 
 console_allocator : Allocator;
@@ -339,15 +358,17 @@ scales_icons    :: All_Icons.[ .scale_balanced, .scale_unbalanced, .scale_balanc
 
 build_icons : [] All_Icons;
 
+console_buffer_id : s64 = -1;
 
 #scope_file
 
+next_build_task_name := "";
+next_build_task_dir := "";
+next_build_task_commands : [..] string;
+
 Console_Task :: struct {
     title : string;
-    build_config : Build_Config;
 }
-
-output_buffer : s64 = -1;
 
 Color :: enum {
     plain;
@@ -366,12 +387,20 @@ highlight_console_output :: (buffer: *Buffer, start_index: s32, count: s32, lang
     if lang == {
         case .Jai;
         highlight_console_jai_output(buffer, start_index, count);
+
+        case .Focus_Config;
+        highlight_console_focus_config(buffer, start_index, count);
     }
 }
 
 set_color :: (s: string, color: Color) #expand {
     offset := s.data - `first_u8_byte;
     memset(`first_color_byte + offset, xx COLOR_MAP[color], s.count);
+}
+
+highlight_console_focus_config :: (buffer: *Buffer, start_index: s32, count: s32) {
+    highlight_focus_config_syntax(buffer, start_index, count);
+    add_buffer_region(buffer, start_index, start_index + count, false, 1, .todo_definitely_todo_this);
 }
 
 highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) {
@@ -386,11 +415,16 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
     s.count = count;
 
     highlight_last_caret :: (start: s32, end: s32) #expand {
+        assert(end > start);
         s : string = ---;
         s.data = `buffer.bytes.data + start;
         s.count = end - start;
         i, found := last_index(s, #char "^");
-        if found  `buffer.colors[start + i] = xx COLOR_MAP[Color.error];
+        while found {
+            `buffer.colors[start + i] = xx COLOR_MAP[Color.error];
+            i -= 1;
+            found = i >= 0 && `buffer.bytes[start + i] == #char "^";
+        }
     }
 
     for line: line_split(s) {
@@ -442,3 +476,4 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
         highlight_last_caret(start, end);
     }
 }
+

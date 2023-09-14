@@ -137,13 +137,6 @@ commands := #run Command.[
     .{ .show_open_file_dialog_in_navigate_mode,             "Navigate To File",                   0, .None },
     .{ .show_open_file_dialog_in_navigate_mode_from_root,   "Navigate To File From Root",         0, .None },
 
-    .{ .build_debug,                                        "Build: Debug",                       0, .None },
-    .{ .build_debug_and_run,                                "Build: Debug and Run",               0, .None },
-    .{ .build_release,                                      "Build: Release ",                    0, .None },
-    .{ .build_release_and_run,                              "Build: Release and Run",             0, .None },
-    .{ .build_run_debug,                                    "Build: Run Debug",                   0, .None },
-    .{ .build_run_release,                                  "Build: Run Release",                 0, .None },
-
     .{ .show_console,                                       "Show Console",                       0, .None },
     .{ .hide_console,                                       "Hide Console",                       0, .None },
 
@@ -204,7 +197,7 @@ commands := #run Command.[
     .{ .move_to_next_editor_history,                        "Move To Next Cursor Position",       0, .None },
     .{ .move_to_previous_buffer,                            "Move To Previous Buffer",            0, .Single },
     .{ .move_to_next_buffer,                                "Move To Next Buffer",                0, .Single },
-
+    .{ .jump_to_commented_source_location,                  "Jump To Commented SourceLocation",   0, .Single },
     .{ .new_line_below_without_breaking,                    "New Line Below Without Breaking",    0, .Single },
     .{ .new_line_above_without_breaking,                    "New Line Above Without Breaking",    0, .Single },
 
@@ -229,8 +222,12 @@ commands := #run Command.[
     .{ .toggle_collapse_leading_whitespace,                 "Toggle Collapse Leading Whitespace", 0, .None },
     .{ .toggle_profiling,                                   "Toggle Profiling",                   0, .None },
 
+    .{ .open_console_buffer,                                "Open Console Buffer",                0, .Single },
+
     .{ .ficus_run_current,                                  "Ficus Run Current",                  0, .Single },
     .{ .ficus_run_current_verbose,                          "Ficus Run Current (Verbose)",        0, .Single },
+    .{ .build_debug,                                        "Build Release",                      0, .None },
+    .{ .build_release,                                      "Build Debug",                        0, .None },
 
     .{ .quit,                                               "Quit Focus",                         0, .None },
 ];

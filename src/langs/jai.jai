@@ -323,7 +323,7 @@ jai_jump_to_commented_source_location :: (using editor: *Editor, buffer: Buffer,
             buffer := *open_buffers[editor.buffer_id];
 
             cursor := leave_only_original_cursor(editor);
-            position := coords_to_offset(editor, buffer, .{ line, 0 });
+            position := coords_to_offset(editor, buffer, .{ line - 1, 0 });
             cursor.pos = position;
             cursor.sel = position;
             add_paste_animation(editor, get_selection(cursor));

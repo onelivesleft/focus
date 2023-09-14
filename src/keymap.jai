@@ -276,13 +276,6 @@ ACTIONS_COMMON :: string.[
     // "open_error_log",  // todo
     "toggle_fullscreen",
 
-    "build_debug",
-    "build_debug_and_run",
-    "build_release",
-    "build_release_and_run",
-    "build_run_debug",
-    "build_run_release",
-
     "show_commands",
     "show_console",
     "hide_console",
@@ -350,6 +343,10 @@ ACTIONS_COMMON :: string.[
     "close_left_editor",
     "close_right_editor",
 
+    "compile",
+    "build_debug",
+    "build_release",
+
     "profiler_mode_cycle",
     "profiler_up",
     "profiler_down",
@@ -395,6 +392,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "change_case_cycle",
     "toggle_block_comment",
     "open_floating",
+    "open_console_buffer",
     "select_line",
     "scroll_viewport_up",
     "scroll_viewport_up_fast",

@@ -45,9 +45,11 @@ Color_Values :: struct {
 
     CONSOLE_BACKGROUND      := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     CONSOLE_TEXT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
-    CONSOLE_HEADER_BACKGROUND := Color.{ r = 0.131, g = 0.202, b = 0.25 };
-    CONSOLE_HEADER_TEXT     := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     CONSOLE_ERROR           := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
+    CONSOLE_HEADER_BACKGROUND := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    CONSOLE_HEADER_SUCCESS  := Color.{ r = 0.10, g = 0.50, b = 0.10, a = 1.0 };
+    CONSOLE_HEADER_ERROR    := Color.{ r = 0.50, g = 0.00, b = 0.00, a = 1.0 };
+    CONSOLE_HEADER_TEXT     := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
 
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };

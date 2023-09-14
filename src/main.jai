@@ -407,13 +407,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .decrease_console_font_size;                       decrease_console_font_size();                       return true;
         case .reset_font_size_to_default;                       reset_font_size_to_default();                       return true;
 
-        case .build_debug;                                      build(.DEBUG);                                      return true;
-        case .build_debug_and_run;                              build(.DEBUG_AND_RUN);                              return true;
-        case .build_release;                                    build(.RELEASE);                                    return true;
-        case .build_release_and_run;                            build(.RELEASE_AND_RUN);                            return true;
-        case .build_run_debug;                                  build(.RUN_DEBUG);                                  return true;
-        case .build_run_release;                                build(.RUN_RELEASE);                                return true;
-
         case .switch_to_project;                                show_open_project_dialog();                         return true;
         case .close_project;                                    close_project();                                    return true;
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
@@ -454,6 +447,10 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .toggle_show_filename;                             toggle_show_filename();                             return true;
         case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
+
+        case .compile;                                          run_build_script(.Compile);                         return true;
+        case .build_debug;                                      run_build_script(.Debug);                           return true;
+        case .build_release;                                    run_build_script(.Release);                         return true;
 
         case .profiler_mode_cycle;                              #if IPROF { iprof_mode_cycle(); return true; } else return false;
         case .profiler_up;                                      #if IPROF { iprof_up();         return true; } else return false;

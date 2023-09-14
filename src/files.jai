@@ -216,4 +216,5 @@ File_Icon :: enum u16 {
     fig     :: 0xf06c;
 
     dots    :: 0xf141;
+    console :: 0xe163;
 }

@@ -1,29 +1,29 @@
 # Mine
 
 - [x] Go to added_string source
-    - [ ] Manual command to do it
+    - [x] Manual command to do it
 
 - [x] Stop clicking floating window sending buffer to main editor panes
-    - [ ] Add command to load console buffer in editor pane
+    - [x] Add command to load console buffer in editor pane
 
 - [x] IProf
     - [x] Clickable to go to proc
 
 - [.] Ficus
-    - [ ] build
-    - [ ] run
+    - [x] build
     - [ ] keybinds
+    - [ ] run
 
     - [ ] view action history
     - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
     - [ ] open_file take project relative path
     - [ ] open_files
+    - [ ] debugging
     - [.] quote strings on output
         - [ ] (shrink large ones too)
     - [x] loops
     - [x] user stacks
-    - [ ] generate intrinsics via tagged procs
-    - [ ] debugging
+    - [x] generate intrinsic_commands
     - [x] event system
     - [x] allow project startup w/e and disallow nested open_project calls
     - [x] execute_word / try_execute_word need to be top level
@@ -43,7 +43,7 @@
 
 - [.] output window
     - [ ] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
-    - [ ] Recolor header based on success
+    - [x] Recolor header based on success
     - [ ] Decorations: ^, Error?, link button?
     - [ ] Clickable locations
     - [ ] input box

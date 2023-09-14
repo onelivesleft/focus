@@ -1,5 +1,3 @@
-FIG__ERROR :: 1;
-
 max_stack_size :: 4096;
 max_user_stacks :: 64;
 max_instructions_per_frame :: 1024;
@@ -24,7 +22,6 @@ max_instructions_per_frame :: 1024;
 
     flags : enum_flags {
         already_opened_project;
-        keep_stack;
         displayed_header;
     }
 
@@ -115,24 +112,29 @@ try_execute_word_in_space :: inline (word_name: string, space: Space, output := 
     else     return false, "";
 }
 
-xxxtry_execute_word :: (word_name: string, space := Space.user, output := Volume.default, $loc := #caller_location) -> found: bool, error: string {
-    #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
+run_build_script :: (mode: enum { Compile; Debug; Release; }) {
+    word_name := ifx mode == .Compile
+                 then "compile"
+                 else ifx mode == .Release
+                      then "build_release"
+                      else "build_debug";
     word, found := get_word(word_name);
-    if found
-        return true, _execute_string(word, *context.ficus.main_stack, true, space, output);
+    if !found {
+        print_console_header("[BUILD] Missing script", is_error = true);
+        print_to_console(tprint("You must define a '%' script in your project's [[script]] section.  For example:\n", word_name));
+        print_to_console(tprint(#string focus_config
 
-    handled, found = try_handle_action_word(word_name);
-    if found {
-        if handled
-            return "", true;
-        else
-            return true, tprint("Error: Tried to perform action [%] but we failed to handle it.", action);
+[[script]]
+
+%:
+    "% - %" build_name
+    "c:\jai\jai.exe first.jai" build
+focus_config, word_name, current_project_name, mode), .Focus_Config);
+        return;
     }
 
-    if array_find(intrinsic_words, word_name)
-        return true, _execute_word(word_name, *context.ficus.main_stack, true, space, output, true);
-
-    return false, "";
+    result := _execute_string(word, *context.ficus.main_stack, true, .user, .default);
+    if result  print_to_console(result, append_newline = true);
 }
 
 execute_on_main_thread :: (script: string, $event := "", space := Space.user, output := Volume.default) {
@@ -375,8 +377,7 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
     if ERRORS  if error  console_log(error, token_string);
 
     if finalize {
-        if !(flags & .keep_stack)
-            clear_all_stacks();
+        clear_all_stacks();
     }
 
     return error;
@@ -450,214 +451,248 @@ _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool,
         return 0, false;
     }
 
-    if word_name == {
-        case "true";
-            push(true, stack);
-
-        case "false";
-            push(false, stack);
-
-        case "+";   handle_basic_operator((x, y) => x+y,  float_operator = (x, y) => x+y);
-        case "-";   handle_basic_operator((x, y) => x-y,  float_operator = (x, y) => x-y);
-        case "*";   handle_basic_operator((x, y) => x*y,  float_operator = (x, y) => x*y);
-        case "/";   handle_basic_operator((x, y) => x/y,  float_operator = (x, y) => x/y);
-        case "=";   handle_basic_operator((x, y) => x==y, bool, float_operator = (x, y) => x==y);
-        case "<";   handle_basic_operator((x, y) => x<y,  bool, float_operator = (x, y) => x<y);
-        case ">";   handle_basic_operator((x, y) => x>y,  bool, float_operator = (x, y) => x>y);
-        case "<=";  handle_basic_operator((x, y) => x<=y, bool, float_operator = (x, y) => x<=y);
-        case ">=";  handle_basic_operator((x, y) => x>=y, bool, float_operator = (x, y) => x>=y);
-        case "&";   handle_basic_operator((x, y) => x&y);
-        case "^";   handle_basic_operator((x, y) => x^y);
-        case "|";   handle_basic_operator((x, y) => x|y);
-
-        case "and"; handle_basic_operator((x, y) => x&&y, bool, float_operator = (x, y) => x&&y);
-        case "or";  handle_basic_operator((x, y) => x||y, bool, float_operator = (x, y) => x||y);
-        case "not";
-            truth := to_bool(pop());
-            push(!truth, stack);
-
-        case "0-";
-            value := pop();
-            if value.type == .int_number
-                push(0 - value.int_value, stack);
-            else if value.type == .number
-                push(0 - value.value, stack);
-            else
-                return tprint("% can only be used on numbers", word_name);
-
-        case ".";
-            push_separator(stack);
-
-        case "pop";
-            if stack == *main_stack {
-                pop();
-            }
-            else {
-                item := pop();
-                push(item, *main_stack);
-            }
-
-        case "peek";
-            if stack == *main_stack
-                return "Cannot peek main stack (it would just be be a nop)";
-            item := peek();
-            push(item, *main_stack);
-
-        case "push";
-            if stack == *main_stack
-                return "Cannot push onto main stack (which stack would the item come from?)";
-            if !main_stack.count
-                return tprint("% expected a value but stack was empty", word_name);
-            item := pop(*main_stack);
-            push(item, stack);
-
-        case "copy";
-            item := peek();
-            push(item, stack);
-
-        case "swap";
-            a := pop();
-            b := pop();
-            push(a, stack);
-            push(b, stack);
-
-        case "jump_target";
-            record_jump_target = true;
-
-        case "jump";
-            if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
-            jump_to_jump_target = true;
-
-        case "pop_jump_target";
-            if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
-            pop(*jump_stack);
-
-        case "expect_then_execute";
-            if stack.count < 2
-                return tprint("% needs (word, count) but the stack only has % items", word_name, stack.count);
-            count := pop(.int_number).int_value;
-            if count < 0 || count >= max_stack_size
-                return tprint("Illegal value for %: %", word_name, count);
-            move_tokens_to_stack_count = count;
-
-        case "execute";
-            item := pop();
-            if item.type == .sequence || item.type == .word
-                return _execute_string(item.string_value, stack, false, space, output);
-            else
-                push(item, stack);
-
-        case "execute_if";
-            sequence := pop(.sequence);
-            error := _execute_word("execute", stack, space, output, true); // execute condition
-            if error  return error;
-            value := pop();
-            if to_bool(value) && sequence.string_value
-                return _execute_string(sequence.string_value, stack, false, space, output);
-
-        case "execute_if_else";
-            sequence_if_false := pop(.sequence);
-            sequence_if_true := pop(.sequence);
-            error := _execute_word("execute", stack, space, output, true); // execute condition
-            if error  return error;
-            value := pop();
-            if to_bool(value) {
-                if sequence_if_true.string_value
-                    return _execute_string(sequence_if_true.string_value, stack, false, space, output);
-            }
-            else {
-                if sequence_if_false.string_value
-                    return _execute_string(sequence_if_false.string_value, stack, false, space, output);
-            }
-
-        case "keep";
-            flags |= .keep_stack;
-
-        case "console_position";
-            floating_area_position = xx pop(.int_number).int_value & 0xF;
-
-        case "words";
-            table_reset(*word_cache);
-            for intrinsic_words  table_set(*word_cache, it, true);
-            for baked_words    table_set(*word_cache, it_index, true);
-            for global_words     table_set(*word_cache, it_index, true);
-            for project_words    table_set(*word_cache, it_index, true);
-            for user_words       table_set(*word_cache, it_index, true);
-            for action_words     table_set(*word_cache, it_index, true);
-            for word_cache       push_word(it_index, stack);
-
-        case "print";
-            index, found := last_separator();
-            start_index := ifx found then index + 1 else index;
-            builder : String_Builder;
-            for i: start_index .. stack.count - 1 {
-                if DEFAULT {
-                    append(*builder, to_display_string(stack.*[i]));
-                    append(*builder, " ");
-                }
-            }
-            stack.count = index;
-
-            if DEFAULT  console_log(builder_to_string(*builder), word_name);
-            else        reset(*builder);
-
-        case "debug_print_stack";
-            if DEFAULT {
-                builder : String_Builder;
-                for stack.* {
-                    append(*builder, to_display_string(it));
-                    append(*builder, " ");
-                }
-                console_log(builder_to_string(*builder), word_name);
-            }
-
-        case "clear";
-            clear_stack(stack);
-
-        case "open_project";
-            item := pop(.text);
-            success: bool;
-            if flags & .already_opened_project
-                success = false;
-            else
-                success = open_project(to_string(item));
-            push(success, stack);
-
-        case "projects";
-            names := get_project_names();
-            for names  push(it, stack);
-
-        case "open_file";
-            item := pop(.text);
-            success := editors_open_file(to_string(item));
-            push(success, stack);
-
-        case "open_files";
-            opened := 0;
-            while stack.count {
-                if peek(.separator, stack) {
-                    pop();
-                    break;
-                }
-                item := pop(.text);
-                success := editors_open_file(to_string(item));
-                if success  opened += 1;
-            }
-            push(opened, stack);
-
-        case;
-            return tprint("Could not find word [%]", word_name);
-    }
+    #insert,scope() intrinsics;
 
     return "";
 }
 
-intrinsic_words :: string.[ // @TODO generate this from above proc
-    "true", "false", "+", "-", "*", "/", "&", "^", "|", "=", "<", ">", "0-", "and", "or", "not",
-    "pop", "push", "peek", ".", "copy", "swap", "expect_then_execute", "execute", "execute_if", "execute_if_else",
-    "jump_target", "jump", "pop_jump_target", "keep",
-    "debug_stack", "clear", "words", "open_project", "projects", "open_file",
-];
+intrinsics :: #code if word_name == {
+    case "true";
+        push(true, stack);
+
+    case "false";
+        push(false, stack);
+
+    case "+";   handle_basic_operator((x, y) => x+y,  float_operator = (x, y) => x+y);
+    case "-";   handle_basic_operator((x, y) => x-y,  float_operator = (x, y) => x-y);
+    case "*";   handle_basic_operator((x, y) => x*y,  float_operator = (x, y) => x*y);
+    case "/";   handle_basic_operator((x, y) => x/y,  float_operator = (x, y) => x/y);
+    case "=";   handle_basic_operator((x, y) => x==y, bool, float_operator = (x, y) => x==y);
+    case "<";   handle_basic_operator((x, y) => x<y,  bool, float_operator = (x, y) => x<y);
+    case ">";   handle_basic_operator((x, y) => x>y,  bool, float_operator = (x, y) => x>y);
+    case "<=";  handle_basic_operator((x, y) => x<=y, bool, float_operator = (x, y) => x<=y);
+    case ">=";  handle_basic_operator((x, y) => x>=y, bool, float_operator = (x, y) => x>=y);
+    case "&";   handle_basic_operator((x, y) => x&y);
+    case "^";   handle_basic_operator((x, y) => x^y);
+    case "|";   handle_basic_operator((x, y) => x|y);
+
+    case "and"; handle_basic_operator((x, y) => x&&y, bool, float_operator = (x, y) => x&&y);
+    case "or";  handle_basic_operator((x, y) => x||y, bool, float_operator = (x, y) => x||y);
+    case "not";
+        truth := to_bool(pop());
+        push(!truth, stack);
+
+    case "0-";
+        value := pop();
+        if value.type == .int_number
+            push(0 - value.int_value, stack);
+        else if value.type == .number
+            push(0 - value.value, stack);
+        else
+            return tprint("% can only be used on numbers", word_name);
+
+    case ".";
+        push_separator(stack);
+
+    case "pop";
+        if stack == *main_stack {
+            pop();
+        }
+        else {
+            item := pop();
+            push(item, *main_stack);
+        }
+
+    case "peek";
+        if stack == *main_stack
+            return "Cannot peek main stack (it would just be be a nop)";
+        item := peek();
+        push(item, *main_stack);
+
+    case "push";
+        if stack == *main_stack
+            return "Cannot push onto main stack (which stack would the item come from?)";
+        if !main_stack.count
+            return tprint("% expected a value but stack was empty", word_name);
+        item := pop(*main_stack);
+        push(item, stack);
+
+    case "copy";
+        item := peek();
+        push(item, stack);
+
+    case "swap";
+        a := pop();
+        b := pop();
+        push(a, stack);
+        push(b, stack);
+
+    case "jump_target";
+        record_jump_target = true;
+
+    case "jump";
+        if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
+        jump_to_jump_target = true;
+
+    case "pop_jump_target";
+        if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
+        pop(*jump_stack);
+
+    case "expect_then_execute";
+        if stack.count < 2
+            return tprint("% needs (word, count) but the stack only has % items", word_name, stack.count);
+        count := pop(.int_number).int_value;
+        if count < 0 || count >= max_stack_size
+            return tprint("Illegal value for %: %", word_name, count);
+        move_tokens_to_stack_count = count;
+
+    case "execute";
+        item := pop();
+        if item.type == .sequence || item.type == .word
+            return _execute_string(item.string_value, stack, false, space, output);
+        else
+            push(item, stack);
+
+    case "execute_if";
+        sequence := pop(.sequence);
+        error := _execute_word("execute", stack, space, output, true); // execute condition
+        if error  return error;
+        value := pop();
+        if to_bool(value) && sequence.string_value
+            return _execute_string(sequence.string_value, stack, false, space, output);
+
+    case "execute_if_else";
+        sequence_if_false := pop(.sequence);
+        sequence_if_true := pop(.sequence);
+        error := _execute_word("execute", stack, space, output, true); // execute condition
+        if error  return error;
+        value := pop();
+        if to_bool(value) {
+            if sequence_if_true.string_value
+                return _execute_string(sequence_if_true.string_value, stack, false, space, output);
+        }
+        else {
+            if sequence_if_false.string_value
+                return _execute_string(sequence_if_false.string_value, stack, false, space, output);
+        }
+
+    case "console_position";
+        floating_area_position = xx pop(.int_number).int_value & 0xF;
+
+    case "words";
+        table_reset(*word_cache);
+        for intrinsic_words  table_set(*word_cache, it, true);
+        for baked_words    table_set(*word_cache, it_index, true);
+        for global_words     table_set(*word_cache, it_index, true);
+        for project_words    table_set(*word_cache, it_index, true);
+        for user_words       table_set(*word_cache, it_index, true);
+        for action_words     table_set(*word_cache, it_index, true);
+        for word_cache       push_word(it_index, stack);
+
+    case "print";
+        index, found := last_separator();
+        start_index := ifx found then index + 1 else index;
+        builder : String_Builder;
+        for i: start_index .. stack.count - 1 {
+            if DEFAULT {
+                append(*builder, to_display_string(stack.*[i]));
+                append(*builder, " ");
+            }
+        }
+        stack.count = index;
+
+        if DEFAULT  console_log(builder_to_string(*builder), word_name);
+        else        reset(*builder);
+
+    case "debug_print_stack";
+        if DEFAULT {
+            builder : String_Builder;
+            for stack.* {
+                append(*builder, to_display_string(it));
+                append(*builder, " ");
+            }
+            console_log(builder_to_string(*builder), word_name);
+        }
+
+    case "clear";
+        clear_stack(stack);
+
+    case "open_project";
+        item := pop(.text);
+        success: bool;
+        if flags & .already_opened_project
+            success = false;
+        else
+            success = open_project(to_string(item));
+        push(success, stack);
+
+    case "projects";
+        names := get_project_names();
+        for names  push(it, stack);
+
+    case "open_file";
+        item := pop(.text);
+        success := editors_open_file(to_string(item));
+        push(success, stack);
+
+    case "open_files";
+        opened := 0;
+        while stack.count {
+            if peek(.separator, stack) {
+                pop();
+                break;
+            }
+            item := pop(.text);
+            success := editors_open_file(to_string(item));
+            if success  opened += 1;
+        }
+        push(opened, stack);
+
+    case "build_name";
+        name := pop(.text);
+        ok := set_build_task_name(name.string_value);
+        if !ok  return tprint("Cannot % while a build is already running", word_name);
+
+    case "build_dir";
+        dir := pop(.text);
+        ok := set_build_task_dir(dir.string_value);
+        if !ok  return tprint("Cannot % while a build is already running", word_name);
+
+    case "build";
+        index, found := last_separator();
+        start_index := ifx found then index + 1 else index;
+        has_commands := false;
+        for i: start_index .. stack.count - 1 {
+            command := stack.*[i];
+            if command.type != .text
+                return tprint("% expected a command but got a %", word_name, command.type);
+            ok := add_build_task_command(command.string_value);
+            if !ok  return tprint("Cannot % while a build is already running", word_name);
+            has_commands = true;
+        }
+        stack.count = index;
+        if has_commands  build();
+
+    case;
+        return tprint("Could not find word [%]", word_name);
+}
+
+intrinsic_words :: #insert -> string { // is: string.[]
+    builder: String_Builder;
+    append(*builder, "string. [\n");
+    _if := cast(*Code_If) compiler_get_nodes(intrinsics);
+    assert(_if.kind == .IF);
+    for _if.then_block.statements {
+        _case := cast(*Code_Case) it;
+        if _case.kind != .CASE || !_case.condition
+            continue;
+        literal := cast(*Code_Literal) _case.condition;
+        assert(literal.kind == .LITERAL && literal.value_type == .STRING);
+        print_to_builder(*builder, "    \"%\",\n", literal._string);
+    }
+    append(*builder, "];");
+    return builder_to_string(*builder);
+}
 
 get_word :: (word_name: string) -> string, found: bool {
     using *context.ficus;

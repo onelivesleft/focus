@@ -44,31 +44,6 @@ hide_icon_search_dialog :: () {
     activate_editors();
 }
 
-/*
-open_selected_project :: () {
-    hide_icon_search_dialog();
-
-    using icon_search_dialog;
-    if selected >= filtered.count return;
-
-    entry := filtered[selected];
-
-    success := load_project_config(entry.name);
-    if success {
-        should_reload_workspace = true;
-        if unsaved_buffers_exist() {
-            show_unsaved_buffers_dialog(.reload_workspace);
-            should_reload_workspace = false;
-        }
-        //if editors.layout == .None
-        //    show_open_file_dialog(.navigate);
-    } else {
-        add_user_error(tprint("Couldn't load project config for %", entry.name), dismiss_in_seconds = 10);
-        editors_open_file(get_project_config_path(entry.name));
-    }
-}
-*/
-
 #scope_file
 
 refresh_entries :: () {

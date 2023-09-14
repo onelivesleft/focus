@@ -562,12 +562,13 @@ offset_is_within_multiline_token :: (tokens: [] Indentation_Token, offset: s32) 
 }
 
 save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
-    if buffer.flags & .readonly return false;
 
     file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
-    if !(success && file_path) {
+    if !(success && file_path)
         return false;
-    }
+
+    if buffer.flags & .readonly && platform_path_equals(file_path, buffer.file.full_path)
+        return false;
 
     // Save the file BEFORE making a new buffer so find_or_create_buffer can find it
     if config.settings.strip_trailing_whitespace_on_save then strip_trailing_whitespace(buffer, buffer_id);
@@ -1361,10 +1362,12 @@ add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
 }
 
+region_id_count := 0;
 
 Region :: struct {
     start_offset: s32;
     end_offset: s32;
+    id : int;
     inclusive := false;
     depth: s8;
     type: Type;
@@ -1378,6 +1381,8 @@ Region :: struct {
         scope_file;
         scope_module;
         console_header;
+        console_header_success;
+        console_header_error;
     }
 };
 
@@ -1385,8 +1390,15 @@ reset_buffer_regions :: (using buffer: *Buffer) {
     array_reset(*regions);
 }
 
-add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8, type: Region.Type) {
-    array_add(*regions, .{ start_offset, end_offset, inclusive, depth, type });
+add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8, type: Region.Type) -> id: int {
+    id := atomic_add(*region_id_count, 1);
+    array_add(*regions, .{ start_offset, end_offset, id, inclusive, depth, type });
+    return id;
+}
+
+get_buffer_region :: (using buffer: *Buffer, id: int) -> *Region {
+    for * regions  if it.id == id  return it;
+    return null;
 }
 
 
