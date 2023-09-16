@@ -416,17 +416,20 @@ rescan_for_wrapped_lines :: (editor: *Editor, buffer: Buffer) {
 }
 
 recalculate_colors :: (buffer: *Buffer) {
+    lock(*buffer.content_lock);
+    defer unlock(*buffer.content_lock);
+    lock(*console_mutex);
+    defer unlock(*console_mutex);
+
     if buffer.flags & .manual_coloring {
         buffer.flags &= ~.needs_coloring;
         old_count := buffer.colors.count;
-        array_resize(*buffer.colors, buffer.bytes.count, false);
+        if buffer.bytes.count > old_count
+            array_resize(*buffer.colors, buffer.bytes.count, false);
         color_index := ifx buffer == *open_buffers[console_buffer_id] then Code_Color.CONSOLE_TEXT else 0;
         memset(buffer.colors.data + old_count, xx color_index, buffer.colors.count - old_count);
         return;
     }
-
-    lock(*buffer.content_lock);
-    defer unlock(*buffer.content_lock);
 
     assert(!buffer.flags & .dirty);
     buffer.flags &= ~.needs_coloring;
@@ -447,7 +450,11 @@ recalculate_colors :: (buffer: *Buffer) {
         case .Plain_Text;
     }
 
-    if build_error_exists  decorate_last_build_error(buffer);
+    for build_errors
+        if it.decorated_buffer == buffer
+            add_build_error_decoration(buffer, real_coords_to_offset(buffer, it.coords), xx it_index);
+        else if it.decorated_buffer == null
+            print("YO WE GOT A BUFFER FREE DECORATION OVER HERE!!!\n");
 }
 
 tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */ {
@@ -1349,9 +1356,15 @@ Decoration :: struct {
         COLOR_SQUARE;
         BUILD_ERROR;
         HORIZONTAL_RULE;
+        SOURCE_LOCATION;
     }
     position: Offset_Range;
     color : Color;
+    build_error_index: s32;
+
+    #place color;
+    target_buffer_index: s32;
+    target_buffer_position: s32;
 }
 
 reset_buffer_decorations :: (using buffer: *Buffer) {
@@ -1359,15 +1372,37 @@ reset_buffer_decorations :: (using buffer: *Buffer) {
 }
 
 add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
-    array_add(*decorations, .{ .COLOR_SQUARE, .{position, position}, color});
+    array_add(*decorations, .{
+        type = .COLOR_SQUARE,
+        position = .{position, position},
+        color = color
+    });
 }
 
-add_build_error_decoration :: (using buffer: *Buffer, position: s32) {
-    array_add(*decorations, .{ .BUILD_ERROR, .{position, position}, with_alpha(Colors.UI_ERROR, 0.5)});
+add_build_error_decoration :: (using buffer: *Buffer, position: s32, index: s32) {
+    array_add(*decorations, .{
+        type = .BUILD_ERROR,
+        position = .{position, position},
+        color = with_alpha(Colors.UI_ERROR, 0.5),
+        build_error_index = index
+    });
+}
+
+add_source_location_decoration :: (using buffer: *Buffer, position: s32, target_buffer_index: s32, target_buffer_position: s32) {
+    array_add(*decorations, .{
+        type = .SOURCE_LOCATION,
+        position = .{position, position},
+        target_buffer_index = target_buffer_index,
+        target_buffer_position = target_buffer_position
+    });
 }
 
 add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
-    array_add(*decorations, .{ .HORIZONTAL_RULE, .{position, position}, with_alpha(Colors.CODE_COMMENT, 0.5)});
+    array_add(*decorations, .{
+        type = .HORIZONTAL_RULE,
+        position = .{position, position},
+        color = with_alpha(Colors.CODE_COMMENT, 0.5)
+    });
 }
 
 region_id_count := 0;

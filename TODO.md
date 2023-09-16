@@ -1,21 +1,28 @@
 # Mine
 
+- [ ] FIX run build immediately after launching; crash while decorating errors
+
+- [ ] Change "floating_area" "floating editor" to "console"
+
+- [ ] Fix console save as / open buffer mangling console colors
+
 - [x] Fix delete actions copying!
 - [x] Check output exe is writable in first.jai
 - [x] Save as on non-file buffer should remove non-file buffer
 
-- [ ] Show error at error line when cursor on error line
+- [x] Show error at error line when cursor on error line
 
 - [.] output window
+    - [ ] input box
     - [x] Fix build animation
-    - [ ] Decorations: ^, Error?, link button?
+    - [x] Decorations: ^, Error?, link button?
     - [x] UI / settings for position
+        - [x] maximize / restore button
 
     - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
         - [ ] Have silenced stdout after error received, but the order should be fixed!
     - [x] Recolor header based on success
-    - [ ] Clickable locations
-    - [ ] input box
+    - [x] Clickable locations
     - [x] Auto goto error
     - [x] fade background alpha to 1.0 when hovering
     - [x] color results

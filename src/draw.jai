@@ -439,6 +439,88 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
     }
 }
 
+draw_error_message :: (build_error_index: s32, parent: Rect, top_left: Vector2) -> offset_for_next: float {
+    using font_data;
+    build_error := build_errors[build_error_index];
+
+    margin  := floor( 4 * dpi_scale);
+    padding := floor( 4 * dpi_scale);
+
+    // Figure out message height
+    lines := temp_strings.line_split(build_error.message);
+
+    max_seen_width := 0;
+    last_line_width := 0;
+    for line: lines {
+        last_line_width = Simp.get_text_width(font_ui, line);
+        max_seen_width = max(last_line_width, max_seen_width);
+    }
+    message_height := lines.count * font_ui_line_height;
+
+    message_rect := Rect.{top_left.x, top_left.y - message_height - padding - margin, xx max_seen_width, message_height};
+
+    postscript := "";
+    postscript_width := 0;
+    if build_errors.count > 1 {
+        postscript = tprint("%/%", build_error_index + 1, build_errors.count);
+        postscript_width = Simp.get_text_width(font_ui_very_small, postscript);
+        if last_line_width + postscript_width + char_x_advance > message_rect.w {
+            message_rect.h += font_ui_line_height;
+            message_rect.y -= font_ui_line_height;
+        }
+    }
+    box_rect := expand(message_rect, padding);
+    box_rect.x += padding;
+    line_rect := Rect.{box_rect.x, box_rect.y + box_rect.h, dpi_scale * 3, margin};
+    if box_rect.x + box_rect.w > parent.x + parent.w
+        box_rect.x = parent.x + parent.w - box_rect.w - padding * 3;
+    if editors.floating >= 0 {
+        if point_within(.{box_rect.x + box_rect.w, box_rect.y}, floating_area)
+        || point_within(.{box_rect.x + box_rect.w, box_rect.y + box_rect.h}, floating_area)
+            box_rect.x = floating_area.x - box_rect.w - padding * 3;
+    }
+    if box_rect.x < parent.x + padding
+        box_rect.x = parent.x + padding;
+
+
+
+    message_rect.x = box_rect.x + padding;
+
+    color: Color = ---;
+    if #complete build_error.kind == {
+        case .error;    color = Colors.UI_ERROR;
+        case .info; #through;
+        case .warning;  color = Colors.UI_WARNING_DIM;
+    }
+
+    color = with_alpha(color, 0.9);
+    draw_cool_rect(line_rect, color, 0.5);
+    draw_cool_rect(box_rect, color, 0.5);
+
+    text_color := Colors.UI_DEFAULT;
+    pen_x := cast(s64) message_rect.x;
+    pen_y := cast(s64) message_rect.y + message_rect.h - font_ui_line_height + padding;
+
+    push_scissor(message_rect);
+    defer pop_scissor();
+
+    y := pen_y;
+    for line: lines {
+        x := pen_x;
+        Simp.draw_text(font_ui, x, xx y, line, text_color);
+        Simp.draw_text(font_ui, xx (x + 0.25), xx y, line, text_color);
+        y -= xx font_ui_line_height;
+    }
+
+    if build_errors.count > 1 {
+        x := box_rect.x + box_rect.w - xx postscript_width - padding;
+        y := box_rect.y + padding;
+        Simp.draw_text(font_ui_very_small, xx x, xx y, postscript, text_color);
+        Simp.draw_text(font_ui_very_small, xx (x + 0.25), xx y, postscript, text_color);
+    }
+
+    return box_rect.h + padding;
+}
 
 draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui_Id, total_editor_area := Rect.{}) {
     assert(editor_id >= 0);
@@ -493,7 +575,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     if became_active then activate_editors();
     editor_is_active := editor_id == editors.active && Input.input_application_has_focus;
 
-    is_console_ui_enabled := lock_console_anchor_button_position || lock_console_size_button_position;
+    is_console_ui_enabled := lock_console_anchor_button_position || lock_console_size_button_position || lock_console_restore_button_position;
     if ui_id == .editor_floating {
         if ui.hot == ui_id || editor_is_active {
             draw_cool_rect(rect, with_alpha(Colors.CONSOLE_BACKGROUND, 1.0), shader_value);
@@ -944,60 +1026,64 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
             }
             else if region.type == .scope_file {
-                at_end_of_file := end >= max_lines;
-                if at_end_of_file || !end_is_visible  {
-                    region_rect.h += region_rect.y;
-                    region_rect.y = 0;
+                if ui_id != .editor_floating {
+                    at_end_of_file := end >= max_lines;
+                    if at_end_of_file || !end_is_visible  {
+                        region_rect.h += region_rect.y;
+                        region_rect.y = 0;
+                    }
+                    if start_is_visible {
+                        header_rect, remainder_rect := cut_top(region_rect, line_height);
+                        scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                        draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                        draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                    }
+                    else {
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                    }
+                    if !at_end_of_file && end_is_visible {
+                        // Draw trailing rectangle to right of next scope tab
+                        region_rect.y -= line_height;
+                        region_rect.h = line_height;
+                        scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                        width := char_x_advance * (scope_line_count + 1);
+                        region_rect.x += width;
+                        region_rect.w -= width;
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                    }
+                    scope_background = Colors.BACKGROUND_REGION_PRIVATE;
+                    scope_background_ends_at = end;
                 }
-                if start_is_visible {
-                    header_rect, remainder_rect := cut_top(region_rect, line_height);
-                    scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                    draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                    draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                }
-                else {
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                }
-                if !at_end_of_file && end_is_visible {
-                    // Draw trailing rectangle to right of next scope tab
-                    region_rect.y -= line_height;
-                    region_rect.h = line_height;
-                    scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
-                    width := char_x_advance * (scope_line_count + 1);
-                    region_rect.x += width;
-                    region_rect.w -= width;
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                }
-                scope_background = Colors.BACKGROUND_REGION_PRIVATE;
-                scope_background_ends_at = end;
             }
             else if region.type == .scope_module {
-                at_end_of_file := end >= max_lines;
-                if at_end_of_file || !end_is_visible {
-                    region_rect.h += region_rect.y;
-                    region_rect.y = 0;
+                if ui_id != .editor_floating {
+                    at_end_of_file := end >= max_lines;
+                    if at_end_of_file || !end_is_visible {
+                        region_rect.h += region_rect.y;
+                        region_rect.y = 0;
+                    }
+                    if start_is_visible {
+                        header_rect, remainder_rect := cut_top(region_rect, line_height);
+                        scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                        draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                        draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                    }
+                    else {
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                    }
+                    if !at_end_of_file && end_is_visible {
+                        // Draw trailing rectangle to right of next scope tab
+                        region_rect.y -= line_height;
+                        region_rect.h = line_height;
+                        scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                        width := char_x_advance * (scope_line_count + 1);
+                        region_rect.x += width;
+                        region_rect.w -= width;
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                    }
+                    scope_background = Colors.BACKGROUND_REGION_PUBLIC;
+                    scope_background_ends_at = end;
                 }
-                if start_is_visible {
-                    header_rect, remainder_rect := cut_top(region_rect, line_height);
-                    scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                    draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                    draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                }
-                else {
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                }
-                if !at_end_of_file && end_is_visible {
-                    // Draw trailing rectangle to right of next scope tab
-                    region_rect.y -= line_height;
-                    region_rect.h = line_height;
-                    scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
-                    width := char_x_advance * (scope_line_count + 1);
-                    region_rect.x += width;
-                    region_rect.w -= width;
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                }
-                scope_background = Colors.BACKGROUND_REGION_PUBLIC;
-                scope_background_ends_at = end;
             }
             else if region.type >= .console_header && region.type <= .console_header_error {
                 color := ifx region.type == .console_header
@@ -1021,9 +1107,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
-        // Decorations  (maybe in the future we'll need two passes, one before and one after text, but for now we only draw things below text)
+        // Decorations first pass: decorations drawn below text
+        previous_build_error_line := -1;
         for decoration: buffer.decorations {
             using decoration;
+
             if visible_offset_range.end < position.start
             || visible_offset_range.start > position.end
                 continue;
@@ -1040,14 +1128,31 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 draw_rect(square_rect, color);
 
                 case .BUILD_ERROR;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_size, line_height);
+                coords := offset_to_coords(editor, buffer, position.start);
+                if previous_build_error_line == coords.line  continue;
+                previous_build_error_line = coords.line;
+                screen_pos := get_cursor_screen_pos(text_origin, coords);
+                scrollbar_margin := #ifx HIDE_SCROLLBARS 0; else scrollbar_size;
+                line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_margin, line_height);
                 draw_rect(line_rect, color);
 
                 case .HORIZONTAL_RULE;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
                 draw_rect(hr_rect, color);
+
+                case .SOURCE_LOCATION;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                button_rect := make_rect(screen_pos.x - char_x_advance, screen_pos.y, line_height, line_height);
+                icon :: "\uf14c";
+                button_id := get_ui_id_from_loc(parent_id = ui_id) + xx position.start; // I guess
+                maybe_set_hot_or_active(button_id, button_rect, .NORMAL);
+                if draw_button(font_icons_small, icon, .{a=0.0}, Colors.UI_DEFAULT, button_id, button_rect, .icon, 0, 0) {
+                    if target_buffer_index >= 0 && target_buffer_index < open_buffers.count {
+                        target_buffer := *open_buffers[target_buffer_index];
+                        jump_to_file_offset(target_buffer.file.full_path, target_buffer_position);
+                    }
+                }
             }
         }
 
@@ -1314,6 +1419,31 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
                 marker.x += marker_width;
                 measure += marker_width;
+            }
+        }
+
+        // Decorations second pass: decorations drawn above text
+        for decoration: buffer.decorations {
+            using decoration;
+            if visible_offset_range.end < position.start
+            || visible_offset_range.start > position.end
+                continue;
+
+            if type == {
+                case .BUILD_ERROR;
+                if build_error_index < build_errors.count {
+                    cursor := cursors[main_cursor];
+                    if cursor.pos == position.start {
+                        coords := cursor_coords[main_cursor].pos;
+                        cursor_position := get_cursor_screen_pos(text_origin, coords);
+                        for build_error: build_errors {
+                            if build_error.decorated_buffer == buffer
+                            && build_error.coords.line == coords.line
+                            && build_error.coords.col == coords.col
+                                cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1727,7 +1857,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if !lock_console_anchor_button_position {
             anchor_button_rect = cut_top(rect, xx font_icons_size);
             anchor_button_rect = cut_right(anchor_button_rect, anchor_button_rect.h);
-            anchor_button_rect.x -= 4 + (4 + anchor_button_rect.w);
+            anchor_button_rect.x -= 4 + 2 * (4 + anchor_button_rect.w);
             anchor_button_rect.y -= 4;
         }
         maybe_set_hot_or_active(anchor_button_id, anchor_button_rect, .NORMAL);
@@ -1742,12 +1872,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 floating_area_position |= .top;
         }
 
-        size_icon :: "\uf2d2";
+        size_icon :: "\ue4ba";
         size_button_id := get_ui_id_from_loc(parent_id = ui_id);
         if !lock_console_size_button_position {
             size_button_rect = cut_top(rect, xx font_icons_size);
             size_button_rect = cut_right(size_button_rect, size_button_rect.h);
-            size_button_rect.x -= 4;
+            size_button_rect.x -= 4 + 1 * (4 + size_button_rect.w);
             size_button_rect.y -= 4;
         }
         maybe_set_hot_or_active(size_button_id, size_button_rect, .NORMAL);
@@ -1769,13 +1899,36 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
             }
         }
+
+        restore_icon :: "\uf2d2";
+        restore_button_id := get_ui_id_from_loc(parent_id = ui_id);
+        if !lock_console_restore_button_position {
+            restore_button_rect = cut_top(rect, xx font_icons_size);
+            restore_button_rect = cut_right(restore_button_rect, restore_button_rect.h);
+            restore_button_rect.x -= 4;
+            restore_button_rect.y -= 4;
+        }
+        maybe_set_hot_or_active(restore_button_id, restore_button_rect, .NORMAL);
+        lock_console_restore_button_position = ui.hot == restore_button_id;
+        if draw_button(font_icons_small, restore_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, restore_button_id, restore_button_rect, .icon, 0, 0) {
+            toggle_console_maximize();
+        }
     }
 }
 
+set_bits :: (a: $T, b: T, mask: T) -> T {
+    masked_a := a & mask;
+    masked_b := b & mask;
+    xor_mab := masked_a ^ masked_b;
+    return xor_mab ^ a;
+}
+
 anchor_button_rect : Rect;
-size_button_rect : Rect;
 lock_console_anchor_button_position := false;
+size_button_rect : Rect;
 lock_console_size_button_position := false;
+restore_button_rect : Rect;
+lock_console_restore_button_position := false;
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false, calculate_only := false) -> new_width: float, new_pen: Vector2 {
     file_name_color := Colors.UI_DEFAULT;
@@ -3732,6 +3885,7 @@ draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_colo
         button.y -= 1;
         rect_color.a = 0.6;
     }
+    if color.a == 0  rect_color.a = 0;
     draw_rounded_rect(button, rect_color);
 
     pen := ifx align == .icon
@@ -3749,6 +3903,7 @@ floating_area_position : enum_flags {
     narrow;
     tall;
 }
+floating_area_position_to_restore: type_of(floating_area_position);
 
 get_floating_area :: (rect: Rect) -> Rect {
     if #complete editors.layout == {

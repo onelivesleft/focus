@@ -13,6 +13,7 @@ AUTO_JUMP_TO_ERROR :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
 BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
+TOAST_BUILD_RESULT :: false;
 
 show_keystrokes := false;
 show_filename := true;
@@ -445,6 +446,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_console;                                     show_console(true);                                 return true;
         case .hide_console;                                     hide_console();                                     return true;
         case .toggle_console;                                   toggle_console();                                   return true;
+        case .toggle_console_maximize;                          toggle_console_maximize();
         case .toggle_fullscreen;                                editor_toggle_fullscreen();                         return true;
 
         case .dump_key_mappings;                                dump_key_mappings();                                return true;
@@ -456,6 +458,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .move_to_next_buffer;                              move_to_next_buffer();                              return true;
 
         case .jump_to_error;                                    jump_to_error();                                    return true;
+        case .jump_to_previous_error;                           jump_to_error(backwards = true);                    return true;
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
         case .toggle_show_filename;                             toggle_show_filename();                             return true;

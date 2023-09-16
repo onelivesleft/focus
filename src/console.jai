@@ -30,15 +30,15 @@ print_to_console :: inline (output: string) {
     print_to_console(output, false, Language.Plain_Text);
 }
 
-print_to_console :: inline (output: string, lang: Language) {
-    print_to_console(output, false, lang);
+print_to_console :: inline (output: string, lang: Language, is_error := false) {
+    print_to_console(output, false, lang, is_error);
 }
 
 print_to_console :: inline (output: string, append_newline: bool) {
     print_to_console(output, true, Language.Plain_Text);
 }
 
-print_to_console :: (output: string, append_newline: bool, lang: Language, $do_lock := true) {
+print_to_console :: (output: string, append_newline: bool, lang: Language, is_error := false, $do_lock := true) {
     #if do_lock {
         lock(*console_mutex);
         defer unlock(*console_mutex);
@@ -52,7 +52,7 @@ print_to_console :: (output: string, append_newline: bool, lang: Language, $do_l
     insert_string_raw(buffer, buffer.bytes.count, s, false);
     rescan_for_lines(buffer);
     recalculate_colors(buffer); // resizes color array
-    highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang);
+    highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang, is_error);
 
     show_console(false);
     editor := *open_editors[editors.floating];
@@ -71,7 +71,10 @@ print_console_header :: (s: string, leading_newline := true, is_error := false) 
     assert(console_buffer_id >= 0 && open_buffers.count > console_buffer_id, "console_buffer_id: %  buffer count: %", console_buffer_id, open_buffers.count);
     buffer := *open_buffers[console_buffer_id];
 
-    if leading_newline  print_to_console("\n");
+    if leading_newline {
+        if !ends_with_empty_line(buffer)
+            print_to_console("\n");
+     }
     start := cast(s32) buffer.bytes.count;
     print_to_console(s, true, .Plain_Text, false);
     end := cast(s32) buffer.bytes.count - 1;
@@ -94,6 +97,17 @@ toggle_console :: () {
     if editors.floating >= 0  hide_console();
     else                      show_console(true);
 }
+
+toggle_console_maximize :: () {
+    if floating_area_position & .tall && !(floating_area_position & .narrow) {
+        floating_area_position = set_bits(floating_area_position, floating_area_position_to_restore, .tall | .narrow);
+    }
+    else {
+        floating_area_position_to_restore = set_bits(floating_area_position_to_restore, floating_area_position, .tall | .narrow);
+        floating_area_position = set_bits(floating_area_position, .tall, .tall | .narrow);
+    }
+}
+
 
 set_build_task_name :: (s: string) -> success: bool {
     if build_task_running  return false;
@@ -150,11 +164,16 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     console_was_open := editors.floating >= 0 && console_manually_opened;
     start_time := frame_time;
 
-    if build_error_exists {
-        if last_build_error.decorated_buffer
-            last_build_error.decorated_buffer.flags |= .needs_coloring;
-        build_error_exists = false;
+    if build_errors {
+        for * build_errors {
+            free_build_error_members(it);
+            if it.decorated_buffer
+                it.decorated_buffer.flags |= .needs_coloring;
+        }
+        array_reset(*build_errors);
+        last_jumped_to_build_error = -1;
     }
+
     store_next_build_error = task.title;
     build_task_running = true;
     silence_stdout = false;
@@ -200,28 +219,28 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 
     if successful {
         duration : float64 : 5;
-        add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
-        #if HIDE_CONSOLE_ON_SUCCESS  if !console_was_open  add_delayed_action(hide_console, duration);
+        #if TOAST_BUILD_RESULT
+            add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
+        #if HIDE_CONSOLE_ON_SUCCESS
+            if !console_was_open  add_delayed_action(hide_console, duration);
         set_build_header(success=true);
         print_to_console(tprint("Success: % seconds\n", frame_time - start_time));
     }
     else {
-        if build_error_exists {
-            //add_user_error(tprint("%\n% %,%\n%", task.title, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
-            //#if AUTO_JUMP_TO_ERROR  jump_to_error();
+        if build_errors {
+            #if TOAST_BUILD_RESULT {
+                build_error := build_errors[0];
+                add_user_error(tprint("%\n% %,%\n%", task.title, build_error.path, build_error.coords.line+1, build_error.coords.col+1, build_error.message), build_error.path, origin=.build);
+            }
         }
         else if contains(output, "LNK1104") {
-            _, message := split_into_two(output, "LNK1104: ");
-            _, path := split_into_two(message, "'");
-            path, _ = split_into_two(path, "'");
-            add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
+            #if TOAST_BUILD_RESULT {
+                _, message := split_into_two(output, "LNK1104: ");
+                _, path := split_into_two(message, "'");
+                path, _ = split_into_two(path, "'");
+                add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
+            }
         }
-
-        //lock(*console_mutex);
-        //buffer := *open_buffers[console_buffer_id];
-        //while buffer.bytes[buffer.bytes.count - 1] <= #char " " && buffer.bytes[buffer.bytes.count - 2] <= #char " "
-        //    buffer.bytes.count -= 1;
-        //unlock(*console_mutex);
     }
 
     return .CONTINUE;
@@ -233,20 +252,13 @@ on_output :: (s: string) {
 }
 
 on_error :: (s: string) {
-    print_to_console(s, .Jai);
-    #if BUILD_SILENCE_STDOUT_AFTER_ERROR  silence_stdout = true;
-    if store_next_build_error {
-        build_error, ok := make_build_error(s);
-        if ok {
-            free_build_error_members(*last_build_error);
-            last_build_error = build_error;
-            build_error_exists = true;
-            decorate_last_build_error();
-            add_user_error(tprint("%\n% %,%\n%", store_next_build_error, last_build_error.path, last_build_error.coords.line+1, last_build_error.coords.col+1, last_build_error.message), last_build_error.path, origin=.build);
-            set_build_header(success=false);
-            store_next_build_error = "";
-            #if AUTO_JUMP_TO_ERROR  jump_to_error();
-        }
+    is_first_error := build_errors.count == 0;
+    print_to_console(s, .Jai, is_error = true);
+    if build_errors && is_first_error {
+        set_build_header(success=false);
+        #if BUILD_SILENCE_STDOUT_AFTER_ERROR
+            silence_stdout = true;
+        #if AUTO_JUMP_TO_ERROR  jump_to_error();
     }
 }
 
@@ -259,25 +271,25 @@ set_build_header :: (success: bool) {
     }
 }
 
-make_build_error :: (s: string) -> Build_Error, ok: bool {
+add_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error.kind), message: string) -> Build_Error {
+    build_error := make_build_error(location, coords, kind, trim(message));
+    decorate_with_build_error(*build_error);
+    array_add(*build_errors, build_error);
+    return build_error;
+}
+
+make_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error.kind), _message: string) -> Build_Error {
     result : Build_Error = ---;
-    sentinel :: ": Error: ";
-    if !contains(s, sentinel) return result, false;
 
-    line := trim(s);
+    result.path = copy_string(platform_normalize_path(location), console_allocator);
+    result.coords = coords;
+    if result.coords.col < 0  result.coords.col = 0;
+    result.kind = kind;
+    result.decorated_buffer = null;
 
-    location, message := split_into_two(line, sentinel);
-    location = slice(location, last_index(location, #char "\n") + 1);
-
-    coord_start := last_index(location, #char ":");
-    coords := slice(location, coord_start + 1);
-    ok : bool;
-    result.coords, ok = coords_from_string(coords);
-    if !ok  return result, false;
-
-    result.path = copy_string(platform_normalize_path(slice(location, 0, coord_start)), console_allocator);
-    message = split_into_two(message, #char "\n");
-    message_char_width :: 96;
+    //message_char_width := window_width / 2 / font_ui.x_advance;
+    message_char_width :: 40;
+    message := _message;
     if message.count > message_char_width {
         builder : String_Builder;
         part: string;
@@ -297,9 +309,8 @@ make_build_error :: (s: string) -> Build_Error, ok: bool {
         message = builder_to_string(*builder, temp);
     }
     result.message = copy_string(trim_end(message), console_allocator);
-    result.decorated_buffer = null;
 
-    return result, true;
+    return result;
 }
 
 free_build_error_members :: (build_error: *Build_Error) {
@@ -307,36 +318,31 @@ free_build_error_members :: (build_error: *Build_Error) {
     if build_error.message  free(build_error.message.data, console_allocator);
 }
 
-decorate_last_build_error :: (buffer: *Buffer = null) {
-    if !build_error_exists  return;
+decorate_with_build_error :: (build_error: *Build_Error ) {
+    buffer_index := find_or_create_buffer(build_error.path);
+    if buffer_index < 0  return;
 
-    if buffer {
-        if !platform_path_equals(buffer.file.full_path, last_build_error.path)
-            return;
-    }
-    else {
-        buffer_index := find_buffer(last_build_error.path);
-        if buffer_index < 0  return;
-
-        buffer = *open_buffers[buffer_index];
-    }
-
-    last_build_error.decorated_buffer = buffer;
-
-    add_build_error_decoration(buffer, real_coords_to_offset(buffer, last_build_error.coords));
+    buffer := *open_buffers[buffer_index];
+    build_error.decorated_buffer = buffer;
     buffer.flags |= .needs_coloring;
 }
 
 
-last_build_error : Build_Error;
+build_errors : [..] Build_Error;
+last_jumped_to_build_error := -1;
 store_next_build_error := "";
-build_error_exists := false;
+
 
 Build_Error :: struct {
     path : string;
     coords : Coords;
     message : string;
     decorated_buffer : *Buffer;
+    kind : enum {
+        info;
+        warning;
+        error;
+    }
 }
 
 reset_build :: () {
@@ -382,28 +388,29 @@ Color :: enum {
     plain;
     location;
     error;
+    info;
 }
 
 // Must match the order of the types in the enum
 COLOR_MAP :: Code_Color.[
-    .CONSOLE_TEXT,  // plain
-    .STRING,        // location
+    .CONSOLE_TEXT,   // plain
+    .STRING,         // location
     .CONSOLE_ERROR,  // error
+    .VALUE,          // header
 ];
 
-highlight_console_output :: (buffer: *Buffer, start_index: s32, count: s32, lang: Language) {
+// @Note Unlike other highlight_ procedures, the console highlight procedure only gets called once when data
+//       is written to the console buffer.  It is not called every frame.   Therefor, it does not necessarily
+//       have to be as performant, and we can do work in it (such as error parsing)
+
+highlight_console_output :: (buffer: *Buffer, start_index: s32, count: s32, lang: Language, is_error: bool) {
     if lang == {
         case .Jai;
-        highlight_console_jai_output(buffer, start_index, count);
+        highlight_console_jai_output(buffer, start_index, count, is_error);
 
         case .Focus_Config;
         highlight_console_focus_config(buffer, start_index, count);
     }
-}
-
-set_color :: (s: string, color: Color) #expand {
-    offset := s.data - `first_u8_byte;
-    memset(`first_color_byte + offset, xx COLOR_MAP[color], s.count);
 }
 
 highlight_console_focus_config :: (buffer: *Buffer, start_index: s32, count: s32) {
@@ -411,7 +418,7 @@ highlight_console_focus_config :: (buffer: *Buffer, start_index: s32, count: s32
     add_buffer_region(buffer, start_index, start_index + count, false, 1, .todo_definitely_todo_this);
 }
 
-highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) {
+highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, is_error: bool) {
     code_start: *u8;
     in_code_block := false;
 
@@ -434,6 +441,8 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
             found = i >= 0 && `buffer.bytes[start + i] == #char "^";
         }
     }
+
+    look_for_special_case := false;
 
     for line: line_split(s) {
         if !line {
@@ -458,22 +467,46 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
             code_start = null;
         }
 
-        sentinel :: ": Error: ";
-        sentinel_colors :: Code_Color.[COLOR_MAP[Color.plain], COLOR_MAP[Color.plain], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.error], COLOR_MAP[Color.plain], COLOR_MAP[Color.plain]];
-        #assert sentinel.count == sentinel_colors.count;
+        if !is_error || line.count < 10  continue;
 
-        if contains(line, sentinel) {
-            location, message := split_into_two(line, sentinel);
-            set_color(location, .location);
-            sentinel_start := location.data + location.count - first_u8_byte;
-            memcpy(first_color_byte + sentinel_start, sentinel_colors.data, sentinel_colors.count);
-            set_color(message, .plain);
+        replaced_early_colon := false;
+        if line[1] == #char ":" {
+            line[1] = #char " ";
+            replaced_early_colon = true;
+        }
 
-            //coord_start := last_index(location, #char ":");
-            //coords := slice(location, coord_start + 1);
+        parts : [4] string;
+        split(*parts, line, #char ":");
+        if parts[3] {
+            if replaced_early_colon  line[1] = #char ":";
+            coords, is_location_message := coords_from_string(parts[1]);
+            if is_location_message {
+                location := parts[0];
+                location.count += 1 + parts[1].count;
+                kind_string := parts[2];
+                set_color(location, .location);
+                error_kind : type_of(Build_Error.kind) = .info;
+                color := Color.info;
+                if kind_string == {
+                    case " Error";
+                    error_kind = .error;
+                    color = Color.error;
+
+                    case " Warning"; // does this exist?
+                    error_kind = .warning;
+
+                    case " Info";
+                }
+                set_color(kind_string, color);
+
+                build_error := add_build_error(parts[0], coords, error_kind, parts[3]);
+                target_buffer_index := find_buffer(build_error.path);
+                if target_buffer_index >= 0
+                    add_source_location_decoration(buffer, xx (parts[2].data - buffer.bytes.data), xx target_buffer_index, real_coords_to_offset(open_buffers[target_buffer_index], build_error.coords));
+            }
         }
         else {
-            set_color(line, .plain);
+            if replaced_early_colon  line[1] = #char ":";
         }
     }
 
@@ -484,4 +517,10 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
         add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
         highlight_last_caret(start, end);
     }
+}
+
+
+set_color :: (s: string, color: Color) #expand {
+    offset := s.data - `first_u8_byte;
+    memset(`first_color_byte + offset, xx COLOR_MAP[color], s.count);
 }

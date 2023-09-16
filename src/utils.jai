@@ -377,6 +377,16 @@ count_whitespace :: (bytes: [] u8, start_offset: s64, max_offset: s64, spaces :=
     return cast(s32) (max_offset - start_offset);
 }
 
+ends_with_empty_line :: (buffer: *Buffer) -> bool {
+    if buffer.bytes.count < 1  return false;
+    t := buffer.bytes.data + buffer.bytes.count - 2;
+    while t >= buffer.bytes.data {
+        if t.* == #char "\n"  return true;
+        if t.* > #char " "  break;
+        t -= 1;
+    }
+    return false;
+}
 get_tmp_spaces :: (num: int) -> string {
     spaces := talloc_string(num);
     memset(spaces.data, cast(u8) #char " ", num);

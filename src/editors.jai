@@ -452,6 +452,22 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     return true;
 }
 
+jump_to_file_offset :: (path: string, offset: s32) -> *Editor, *Buffer {
+    editors_open_file(path);
+    if editors.active <0  return null, null;
+
+    editor := *open_editors[editors.active];
+    buffer := *open_buffers[editor.buffer_id];
+
+    cursor := leave_only_original_cursor(editor);
+    cursor.pos = offset;
+    cursor.sel = offset;
+    add_paste_animation(editor, get_selection(cursor));
+    editor.cursor_moved = .jumped;
+    editor.scroll_to_cursor = .yes;
+    return editor, buffer;
+}
+
 jump_to_file_coord :: (path: string, coords: Coords) -> *Editor, *Buffer {
     editors_open_file(path);
     if editors.active <0  return null, null;
@@ -469,10 +485,20 @@ jump_to_file_coord :: (path: string, coords: Coords) -> *Editor, *Buffer {
     return editor, buffer;
 }
 
-jump_to_error :: () {
-    if !build_error_exists  return;
+jump_to_error :: (backwards := false) {
+    if !build_errors  return;
 
-    editor, buffer := jump_to_file_coord(last_build_error.path, last_build_error.coords);
+    if !backwards {
+        last_jumped_to_build_error = (last_jumped_to_build_error + 1) % build_errors.count;
+    }
+    else {
+        last_jumped_to_build_error -= 1;
+        if last_jumped_to_build_error < 0
+            last_jumped_to_build_error += build_errors.count;
+    }
+    build_error := build_errors[last_jumped_to_build_error];
+    editor, buffer := jump_to_file_coord(build_error.path, build_error.coords);
+
     if !editor || !buffer return;
 
     if buffer.lang == {
@@ -639,7 +665,7 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
 show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
     cursor := cursors[main_cursor];
     coords := offset_to_coords(editor, buffer, cursor.pos);
-    message := tprint("\nRow: %  Col: %  Pos: %\n", coords.line, coords.col, cursor.pos);
+    message := tprint("\nRow: %  Col: %  Pos: %\n", coords.line + 1, coords.col + 1, cursor.pos);
     if editors.floating == -1
         add_delayed_action(hide_console, 5.0);
     print_to_console(message);
