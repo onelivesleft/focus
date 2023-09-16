@@ -1,12 +1,10 @@
 # Mine
 
 - [x] Fix delete actions copying!
-
-- [ ] Check output exe is writable in first.jai
+- [x] Check output exe is writable in first.jai
+- [x] Save as on non-file buffer should remove non-file buffer
 
 - [ ] Show error at error line when cursor on error line
-
-- [ ] Save as on non-file buffer should remove non-file buffer
 
 - [.] output window
     - [x] Fix build animation

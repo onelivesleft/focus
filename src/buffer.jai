@@ -563,7 +563,6 @@ offset_is_within_multiline_token :: (tokens: [] Indentation_Token, offset: s32) 
 }
 
 save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
-
     file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
     if !(success && file_path)
         return false;
@@ -578,6 +577,7 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
     if !success then return false;
 
     new_id, created := find_or_create_buffer(file_path);
+    new_buffer := *open_buffers[new_id];
     redraw_requested = true;
 
     // Reroute all editors using the old id
@@ -585,12 +585,19 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
         if editor.buffer_id == buffer_id {
             editor.buffer_id = new_id;
             editor.scroll_to_cursor = .yes;
-            for * cursor : editor.cursors { put_cursor_in_valid_spot(cursor, buffer); }
+            for * cursor : editor.cursors { put_cursor_in_valid_spot(cursor, new_buffer); }
             organise_cursors(editor);
         }
     }
 
     if !file_is_watched(file_path) then start_watching_file(file_path);
+    if !(buffer.flags & .has_file) {
+        for * buffer_order {
+            if it.* == buffer_id
+                it.* = new_id;
+        }
+        buffer.flags |= .ignore;
+    }
     update_window_title(open_editors[editors.active].buffer_id);
 
     return true;
