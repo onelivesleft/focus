@@ -36,7 +36,7 @@ main :: () {
 
     args := get_command_line_arguments();
     executable_name = args[0];
-    is_standalone_debug_build := executable_name == "focus_debug";
+    is_standalone_debug_build := contains(executable_name, "focus_debug");
     debug_change_color &= is_standalone_debug_build;
     debug_small_window &= is_standalone_debug_build;
 

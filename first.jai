@@ -56,6 +56,27 @@ build :: () {
 
     if !optimized then options.output_executable_name = sprint("%_debug", options.output_executable_name);
 
+    if !no_output {
+        #if OS == .WINDOWS {
+            slash :: "\\";
+            exe :: ".exe";
+        }
+        else {
+            slash :: "/";
+            exe :: "";
+        }
+        output_path := tprint("%1%2%3", #filepath, options.output_executable_name, exe);
+        handle, exists := file_open(output_path);
+        if exists {
+            file_close(*handle);
+            if !file_delete(output_path) {
+                print("Could not write to output executable: %\n", output_path, to_standard_error = true);
+                exit(1);
+            }
+        }
+    }
+
+
     w := compiler_create_workspace(options.output_executable_name);
     set_build_options(options, w);
     #if OS == .WINDOWS {
@@ -202,7 +223,6 @@ build :: () {
 
         #import "MacOS_Bundler";
         #import "Process";
-        #import "File";
     }
 }
 
@@ -221,6 +241,7 @@ logger :: (message: string, data: *void, info: Log_Info) {
 #import,file "modules/Iprof/module.jai";
 #import "Metaprogram_Plugins";
 #import "String";
+#import "File";
 
 #if OS == .WINDOWS {
     #import "Ico_File";

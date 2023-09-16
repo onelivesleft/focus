@@ -290,12 +290,12 @@ delete_word_right :: inline (using input: *Text_Input) {
 
 delete_to_start_of_line :: inline (using input: *Text_Input) {
     cursor.sel = 0;
-    delete_selection(input, copy_to_clipboard = true);
+    delete_selection(input, copy_to_clipboard = false);
 }
 
 delete_to_end_of_line :: inline (using input: *Text_Input) {
     cursor.sel = xx text.count;
-    delete_selection(input, copy_to_clipboard = true);
+    delete_selection(input, copy_to_clipboard = false);
 }
 
 delete_selection :: inline (using input: *Text_Input, copy_to_clipboard := false) {

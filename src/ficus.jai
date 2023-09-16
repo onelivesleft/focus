@@ -494,7 +494,12 @@ is_int_number :: (item: Stack_Item) -> bool {
 }
 
 intrinsics :: #code if word_name == {
-    // core
+    // Word names have a very broad lattitude for characters, the only reserved characters are:
+    //  [ ] ( ) # "
+    // Conventions for naming:
+    //   Do not start a word with !, as all the focus actions are loaded into words starting with !
+    //   (for instance, `!copy` performs ctrl-c, while `copy` duplicates the last item on the stack)
+    //   End words with a `?` if they return a value but do not consume any items from the stack
 
     case "true";
         push(true, stack);
@@ -502,28 +507,28 @@ intrinsics :: #code if word_name == {
     case "false";
         push(false, stack);
 
-    case "number";
+    case "<number>";
         push_type(.number, stack);
 
-    case "text";
+    case "<text>";
         push_type(.text, stack);
 
-    case "boolean";
+    case "<boolean>";
         push_type(.boolean, stack);
 
-    case "error";
+    case "<error>";
         push_type(.error, stack);
 
-    case "separator";
+    case "<separator>";
         push_type(.separator, stack);
 
-    case "sequence";
+    case "<sequence>";
         push_type(.sequence, stack);
 
-    case "type";
+    case "<type>";
         push_type(.type, stack);
 
-    case "type?";
+    case "type";
         item := pop();
         push_type(item.type, stack);
 
@@ -533,7 +538,7 @@ intrinsics :: #code if word_name == {
         item.type = xx type.int_value;
         push(item, stack);
 
-    case "count";
+    case "count?";
         push(stack.count, stack);
 
     case "+";
@@ -707,7 +712,7 @@ intrinsics :: #code if word_name == {
 
     // utils
 
-    case "words";
+    case "words?";
         table_reset(*word_cache);
         for intrinsic_words  table_set(*word_cache, it, true);
         for baked_words      table_set(*word_cache, it_index, true);
@@ -744,6 +749,35 @@ intrinsics :: #code if word_name == {
         seconds := pop(.number);
         action := unique_string(tprint("%\0", to_string(pop())));
         add_delayed_action(execute_delayed_string, action.data, seconds.value);
+
+    // strings
+
+    case "concatenate";
+        index, found := last_separator();
+        start_index := ifx found then index + 1 else index;
+        builder : String_Builder;
+        for i: start_index .. stack.count - 1 {
+            append(*builder, to_string(stack.*[i]));
+        }
+        stack.count = index;
+        push(builder_to_string(*builder), stack);
+
+    case "join";
+        joint := to_string(pop());
+        index, found := last_separator();
+        start_index := ifx found then index + 1 else index;
+        builder : String_Builder;
+        for i: start_index .. stack.count - 1 {
+            if i  append(*builder, joint);
+            append(*builder, to_string(stack.*[i]));
+        }
+        stack.count = index;
+        push(builder_to_string(*builder), stack);
+
+    case "contains";
+        needle := pop(.text);
+        haystack := pop(.text);
+        push(contains(haystack.string_value, needle.string_value), stack);
 
     // Focus info
 
@@ -1021,15 +1055,15 @@ to_string :: (item: Stack_Item) -> string {
 
         case .type;
         if #complete cast(type_of(Stack_Item.type))item.int_value == {
-            case .word;       return "word";
-            case .text;       return "text";
-            case .sequence;   return "sequence";
-            case .int_number; return "number";
-            case .number;     return "number";
-            case .boolean;    return "boolean";
-            case .error;      return "error";
-            case .separator;  return "separator";
-            case .type;       return "type";
+            case .word;       return "<word>";
+            case .text;       return "<text>";
+            case .sequence;   return "<sequence>";
+            case .int_number; return "<number>";
+            case .number;     return "<number>";
+            case .boolean;    return "<boolean>";
+            case .error;      return "<error>";
+            case .separator;  return "<separator>";
+            case .type;       return "<type>";
         }
     }
 }

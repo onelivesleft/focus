@@ -1,5 +1,7 @@
 # Mine
 
+- [x] Fix delete actions copying!
+
 - [ ] Check output exe is writable in first.jai
 
 - [ ] Show error at error line when cursor on error line
@@ -30,7 +32,8 @@
     - [x] build
     - [x] keybinds
     - [x] types
-    - [ ] strings
+    - [.] strings
+    - [ ] break
     - [ ] global vars (persistent)
     - [ ] all the words
     - [ ] local vars

@@ -36,19 +36,6 @@ exhausted?:
                      [false]
             ]
 
-# string
-
-join:
-    stash'push
-    temp'clear
-    while [exhausted? not ] [ temp'push ]
-    temp'pop
-    while [temp'exhausted? temp'pop not ] [
-        stash'copy stash'pop
-        temp'pop + +
-    ]
-    stash'pop pop
-
 
 # misc
 
