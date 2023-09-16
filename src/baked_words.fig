@@ -1,11 +1,13 @@
 # Ficus baked words
 # These words sit a level above intrinsics, below user space
 
+# control flow
+
 if:
     [execute_if] 2 expect_then_execute
 
-echo:
-    copy . swap print
+if_else:
+    [execute_if_else] 3 expect_then_execute
 
 execute_while:
     code'push(body) copy(condition) code'push(condition)
@@ -16,8 +18,39 @@ execute_while:
         code'swap code'peek [jump] execute_if
         code'pop code'pop
     ] execute_if
+    pop pop
 
 while:
     [execute_while] 2 expect_then_execute
 
+!=:
+    = not
 
+# stack manipulation
+
+exhausted?:
+    if_else [count 0 =]
+            [true]
+            [if_else [copy type? separator =]
+                     [pop true]
+                     [false]
+            ]
+
+# string
+
+join:
+    stash'push
+    temp'clear
+    while [exhausted? not ] [ temp'push ]
+    temp'pop
+    while [temp'exhausted? temp'pop not ] [
+        stash'copy stash'pop
+        temp'pop + +
+    ]
+    stash'pop pop
+
+
+# misc
+
+echo:
+    copy ! swap print

@@ -201,7 +201,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     if successful {
         duration : float64 : 5;
         add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
-        #if HIDE_CONSOLE_ON_SUCCESS  if !console_was_open add_delayed_action(hide_console, duration);
+        #if HIDE_CONSOLE_ON_SUCCESS  if !console_was_open  add_delayed_action(hide_console, duration);
         set_build_header(success=true);
         print_to_console(tprint("Success: % seconds\n", frame_time - start_time));
     }
@@ -217,11 +217,11 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
         }
 
-        lock(*console_mutex);
-        buffer := *open_buffers[console_buffer_id];
-        while buffer.bytes[buffer.bytes.count - 1] == #char "\n" && buffer.bytes[buffer.bytes.count - 2] == #char "\n"
-            buffer.bytes.count -= 1;
-        unlock(*console_mutex);
+        //lock(*console_mutex);
+        //buffer := *open_buffers[console_buffer_id];
+        //while buffer.bytes[buffer.bytes.count - 1] <= #char " " && buffer.bytes[buffer.bytes.count - 2] <= #char " "
+        //    buffer.bytes.count -= 1;
+        //unlock(*console_mutex);
     }
 
     return .CONTINUE;
@@ -485,4 +485,3 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32) 
         highlight_last_caret(start, end);
     }
 }
-

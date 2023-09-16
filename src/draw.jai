@@ -473,6 +473,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     lock(*buffer.content_lock); // @TODO Urgh, do not like, but buffer.dirty will screw up offset_to_coords calls, etc.
     defer unlock(*buffer.content_lock);
 
+    is_console_buffer := console_buffer_id >= 0 && buffer == *open_buffers[console_buffer_id];
+
     line_number_panel: Rect;
     if config.settings.show_line_numbers {
         max_lines  := get_max_line_num(editor, buffer) + 1;
@@ -491,16 +493,19 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     if became_active then activate_editors();
     editor_is_active := editor_id == editors.active && Input.input_application_has_focus;
 
+    is_console_ui_enabled := lock_console_anchor_button_position || lock_console_size_button_position;
     if ui_id == .editor_floating {
-        if ui.hot == ui_id || editor_is_active
+        if ui.hot == ui_id || editor_is_active {
             draw_cool_rect(rect, with_alpha(Colors.CONSOLE_BACKGROUND, 1.0), shader_value);
-        else
+            is_console_ui_enabled = true;
+        }
+        else {
             draw_cool_rect(rect, Colors.CONSOLE_BACKGROUND, shader_value);
+        }
     }
     else {
         draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
     }
-
 
     // Calculate text origin in screen coordinates
     text_offset := make_vector2(char_x_advance, -char_x_advance);
@@ -1006,8 +1011,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
                     position := cut_right(region_rect, region_rect.h).xy;
                     position.x -= 2;
-                    position.y += (region_rect.h - font_icons_size) * 0.5 + 2;
-                    draw_icon(build_icons[icon_index], position, Colors.CONSOLE_HEADER_TEXT);
+                    use_small_icons := cast(s64)region_rect.h <= font_icons_size + 4;
+                    position.y += (region_rect.h - ifx use_small_icons then font_icons_small_size else font_icons_size) * 0.5 + 2;
+                    draw_icon(build_icons[icon_index], position, Colors.CONSOLE_HEADER_TEXT, ifx use_small_icons then .small else .default);
                 }
             }
             else {
@@ -1234,7 +1240,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             line = take_first_n_chars(line, max_chars_horizontally);
             line = trim_right(line, " \r\n");
             colors := ifx line then array_view(buffer.colors, line.data - buffer.bytes.data, line.count) else .[];
-            code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors };
+            bold_offset := cast(u8)(is_console_buffer && line_start < buffer.colors.count && buffer.colors[line_start] == xx Code_Color.CONSOLE_HEADER_TEXT) * cast(u8)64;
+            code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors, bold_offset = bold_offset };
         }
         Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
 
@@ -1709,7 +1716,66 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 Input.window_region_override = .TITLE_BAR;
         }
     }
+
+    // Draw console buttons if appropriate
+    if is_console_ui_enabled {
+        // anchor: top bottom center
+        // height: tall normal
+        // width: narrow normal
+        anchor_icon :: "\uf338";
+        anchor_button_id := get_ui_id_from_loc(parent_id = ui_id);
+        if !lock_console_anchor_button_position {
+            anchor_button_rect = cut_top(rect, xx font_icons_size);
+            anchor_button_rect = cut_right(anchor_button_rect, anchor_button_rect.h);
+            anchor_button_rect.x -= 4 + (4 + anchor_button_rect.w);
+            anchor_button_rect.y -= 4;
+        }
+        maybe_set_hot_or_active(anchor_button_id, anchor_button_rect, .NORMAL);
+        lock_console_anchor_button_position = ui.hot == anchor_button_id;
+        if draw_button(font_icons_small, anchor_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, anchor_button_id, anchor_button_rect, .icon, 0, 0) {
+            if floating_area_position & .top
+                if floating_area_position & .bottom
+                    floating_area_position &= ~(.top | .bottom);
+                else
+                    floating_area_position |= .bottom;
+            else
+                floating_area_position |= .top;
+        }
+
+        size_icon :: "\uf2d2";
+        size_button_id := get_ui_id_from_loc(parent_id = ui_id);
+        if !lock_console_size_button_position {
+            size_button_rect = cut_top(rect, xx font_icons_size);
+            size_button_rect = cut_right(size_button_rect, size_button_rect.h);
+            size_button_rect.x -= 4;
+            size_button_rect.y -= 4;
+        }
+        maybe_set_hot_or_active(size_button_id, size_button_rect, .NORMAL);
+        lock_console_size_button_position = ui.hot == size_button_id;
+        if draw_button(font_icons_small, size_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, size_button_id, size_button_rect, .icon, 0, 0) {
+            if floating_area_position & .tall {
+                if floating_area_position & .narrow
+                    floating_area_position &= ~(.tall | .narrow);
+                else
+                    floating_area_position |= .narrow;
+            }
+            else {
+                if floating_area_position & .narrow {
+                    floating_area_position |= .tall;
+                    floating_area_position &= ~(.narrow);
+                }
+                else {
+                    floating_area_position |= .narrow;
+                }
+            }
+        }
+    }
 }
+
+anchor_button_rect : Rect;
+size_button_rect : Rect;
+lock_console_anchor_button_position := false;
+lock_console_size_button_position := false;
 
 draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, bold := true, draw_crlf_warning := false, draw_config_warning := false, calculate_only := false) -> new_width: float, new_pen: Vector2 {
     file_name_color := Colors.UI_DEFAULT;
@@ -3642,12 +3708,18 @@ draw_scrollbar :: (main_rect: Rect, width: float, content_height: float, scroll:
     return scroll_target;
 }
 
-draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_color: Color, parent_id: Ui_Id, row_rect: Rect, align: enum { left; right; } = .right, padding_v: float, padding_h: float, loc := #caller_location) -> pressed: bool, width: float {
+draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_color: Color, parent_id: Ui_Id, row_rect: Rect, align: enum { left; right; icon; } = .right, padding_v: float, padding_h: float, loc := #caller_location) -> pressed: bool, width: float {
     label_width := cast(float) Simp.prepare_text(font, label);
 
     button := row_rect;
-    button.w = label_width + 2 * padding_h;
-    button.h = cast(float) font.character_height + 2 * padding_v;
+    if align == .icon {
+        button.h = row_rect.h;
+        button.w = button.h;
+    }
+    else {
+        button.h = cast(float) font.character_height + 2 * padding_v;
+        button.w = label_width + 2 * padding_h;
+    }
     if align == .right then button.x = row_rect.x + row_rect.w - button.w;
 
     button_ui_id := get_ui_id_from_loc(loc, parent_id = parent_id);
@@ -3662,7 +3734,10 @@ draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_colo
     }
     draw_rounded_rect(button, rect_color);
 
-    pen := Vector2.{ x = button.x + padding_h, y = button.y + (button.h - font.character_height) / 2 + 3 * dpi_scale };
+    pen := ifx align == .icon
+           then Vector2.{ x = button.x + (button.w - label_width) * 0.5, y = button.y + (button.h - font.character_height + 2) * 0.5 }
+           else Vector2.{ x = button.x + padding_h, y = button.y + (button.h - font.character_height) / 2 + 3 * dpi_scale };
+
     Simp.draw_prepared_text(font, xx pen.x, xx pen.y, text_color);
 
     return ui.active_last_frame == button_ui_id && mouse_pointer_is_within(button) && mouse.left.just_released, button.w;

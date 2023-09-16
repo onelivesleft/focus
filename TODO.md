@@ -1,11 +1,15 @@
 # Mine
 
+- [ ] Check output exe is writable in first.jai
+
+- [ ] Show error at error line when cursor on error line
+
+- [ ] Save as on non-file buffer should remove non-file buffer
 
 - [.] output window
     - [x] Fix build animation
     - [ ] Decorations: ^, Error?, link button?
-    - [ ] Fade out instead of sudden hide when autohiding
-    - [ ] UI / settings for position
+    - [x] UI / settings for position
 
     - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
         - [ ] Have silenced stdout after error received, but the order should be fixed!
@@ -25,7 +29,11 @@
 - [.] Ficus
     - [x] build
     - [x] keybinds
+    - [x] types
+    - [ ] strings
+    - [ ] global vars (persistent)
     - [ ] all the words
+    - [ ] local vars
 
     - [ ] run
     - [ ] view action history

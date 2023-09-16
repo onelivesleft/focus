@@ -17,6 +17,7 @@ BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
 show_keystrokes := false;
 show_filename := true;
 
+executable_name: string;
 
 main :: () {
     #if DEBUG && MEMORY_DEBUGGING {
@@ -34,7 +35,8 @@ main :: () {
     cpu_info = get_cpu_info();
 
     args := get_command_line_arguments();
-    is_standalone_debug_build := args[0] == "focus_debug";
+    executable_name = args[0];
+    is_standalone_debug_build := executable_name == "focus_debug";
     debug_change_color &= is_standalone_debug_build;
     debug_small_window &= is_standalone_debug_build;
 
@@ -183,10 +185,14 @@ main :: () {
         frame_time = current_time;
         frame_count += 1;
 
-        for delayed_action: delayed_actions {
-            if delayed_action.at <= frame_time {
-                delayed_action.action();
-                remove delayed_action;
+        for delayed_actions {
+            if (it.type == .time && it.at_frame_time <= frame_time)
+            || (it.type == .count && it.at_frame_count <= frame_count) {
+                if it.has_arg
+                    it.action1(it.data);
+                else
+                    it.action0();
+                remove it;
             }
         }
 
@@ -845,19 +851,49 @@ Mouse_Button_State :: struct {
 }
 
 Delayed_Action :: struct {
-    action : #type ();
-    at : Time;
+    union {
+        action0 : #type ();
+        action1 : #type (data: *void);
+    }
+    type : enum { time; count; }
+    union {
+        at_frame_time : Time;
+        at_frame_count : int;
+    }
+    data : *void;
+    has_arg := false;
 }
 
 delayed_actions : [..] Delayed_Action;
 
 add_delayed_action :: (action: #type (), delay: float64) {
-    array_add(*delayed_actions, .{ action, xx (frame_time + delay) });
+    array_add(*delayed_actions, Delayed_Action.{ action0 = action, type = .time, at_frame_time = xx (frame_time + delay), data = null });
+}
+
+add_delayed_action :: (action: #type (), delay: int) {
+    array_add(*delayed_actions, Delayed_Action.{ action0 = action, type = .count, at_frame_count = xx (frame_count + delay), data = null });
+}
+
+add_delayed_action :: (action: #type (data: *void), data : *void, delay: float64) {
+    array_add(*delayed_actions, Delayed_Action.{ action1 = action, type = .time, at_frame_time = xx (frame_time + delay), data = data, has_arg = true });
+}
+
+add_delayed_action :: (action: #type (data: *void), data : *void, delay: int) {
+    array_add(*delayed_actions, Delayed_Action.{ action1 = action, type = .count, at_frame_count = xx (frame_count + delay), data = data, has_arg = true });
 }
 
 remove_delayed_action :: (action: #type ()) {
     for delayed_actions {
-        if it.action == action {
+        if it.action0 == action {
+            remove it;
+            break;
+        }
+    }
+}
+
+remove_delayed_action :: (action: #type (data: *void)) {
+    for delayed_actions {
+        if it.action1 == action {
             remove it;
             break;
         }

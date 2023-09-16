@@ -45,6 +45,7 @@ ficus_get_next_token :: (using tokenizer: *Ficus_Tokenizer) -> Ficus_Token {
     if is_whitespace(t.*) {
         is_start_of_line = false;
         eat_whitespace(tokenizer);
+        if t >= max_t  return token;
     }
 
     start_t = t;
@@ -96,9 +97,18 @@ ficus_get_next_token :: (using tokenizer: *Ficus_Tokenizer) -> Ficus_Token {
 
         case;
         if was_start_of_line {
-            ficus_parse_maybe_declaration(tokenizer, *token);
-            if token.type != .error && t < max_t && t.* == #char ":"
+            ficus_parse_word(tokenizer, *token, maybe_declaration = true);
+            if token.type != .error && t < max_t && t.* == #char ":" {
                 token.type = .declaration;
+                ptr := start_t;
+                while ptr < t {
+                    if ptr.* == #char "'" {
+                        token.type = .error;
+                        break;
+                    }
+                    ptr += 1;
+                }
+            }
         }
         else {
             ficus_parse_word(tokenizer, *token);
@@ -118,10 +128,12 @@ ficus_is_reserved :: (c: u8) -> bool {
         || c == #char "\"";
 }
 
-ficus_parse_word :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
+ficus_parse_word :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token, maybe_declaration := false) {
     t += 1;
     has_stack := false;
     while t < max_t && t.* != #char "\n" && !is_whitespace(t.*) && !ficus_is_reserved(t.*) {
+        if maybe_declaration && t.* == #char ":"
+            break;
         if t.* == #char "'" {
             if has_stack {
                 token.type = .error;
@@ -136,17 +148,6 @@ ficus_parse_word :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
     }
 
     token.type = ifx has_stack then .word_with_stack else .word;
-    return;
-}
-
-ficus_parse_maybe_declaration :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
-    token.type = .word;
-    t += 1;
-    while t < max_t && t.* != #char "\n" && !is_whitespace(t.*) && t.* != #char ":" && !ficus_is_reserved(t.*) {
-        if t.* == #char "'"  token.type = .error;
-        t += 1;
-    }
-
     return;
 }
 

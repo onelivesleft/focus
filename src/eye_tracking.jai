@@ -64,7 +64,7 @@ eye_tracking_init :: () {
 
 
 eye_tracking_tick :: () {
-    IL_WaitAndUpdate(intlib, 0);
+    IL_Update(intlib);
 
     eye_tracking_hot = Input.is_key_held(18) && Input.is_key_held(17);
 

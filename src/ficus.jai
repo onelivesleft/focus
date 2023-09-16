@@ -41,6 +41,7 @@ Stack_Item :: struct {
         sequence;
         error;
         separator;
+        type;
     }
 
     string_value: string;
@@ -151,6 +152,11 @@ execute_on_main_thread :: (script: string, $event := "", space := Space.user, ou
     array_add(*ficus_scripts_to_execute, .{script, event, space, output});
 }
 
+execute_delayed_string :: (script_pointer: *void) {
+    s := to_string(cast(*u8)script_pointer);
+    _execute_string(s, *context.ficus.main_stack, true, .user, .default);
+}
+
 unique_string :: (s: string) -> string {
     result : string = ---;
     result.count = s.count;
@@ -241,7 +247,7 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
         }
 
         token_string = token_as_string();
-        assert(xx trim(token_string));
+        assert(token.type != .word || token_string);
 
         if sequence_depth || (token.type != .begin_sequence && move_tokens_to_stack_count) {
             added_token_to_stack := false;
@@ -414,6 +420,7 @@ _execute_word :: inline (word_name: string, stack: *[..] Stack_Item, space: Spac
 
 _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool, space: Space, output: Volume, intrinsic_only := false) -> error: string {
     using *context.ficus;
+    assert(!contains(word_name, #char "'"));
 
     instruction_count += 1;
     if instruction_count > max_instructions_per_frame
@@ -450,13 +457,10 @@ _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool,
 
     handle_basic_operator :: (int_operator: (int, int)->$T, $U: Type = float, float_operator: (float,float)->U = null) #expand {
         b := pop();
-        if b.type != .int_number && b.type != .number && b.type != .boolean
-            `return tprint("% only work on numbers", `word_name);
+        if !is_number(b)  `return tprint("% only work on numbers", `word_name);
         a := pop();
-        if a.type != .int_number && a.type != .number && a.type != .boolean
-            `return tprint("% only work on numbers", `word_name);
-        both_are_ints := (a.type == .int_number || a.type == .boolean) && (b.type == .int_number || b.type == .boolean);
-        if both_are_ints
+        if !is_number(a)  `return tprint("% only work on numbers", `word_name);
+        if is_int_number(a) && is_int_number(b)
             push(cast(T)int_operator(a.int_value, b.int_value), stack);
         else if float_operator
             push(cast(U)float_operator(a.value, b.value), stack);
@@ -481,18 +485,103 @@ _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool,
     return "";
 }
 
+is_number :: (item: Stack_Item) -> bool {
+    return item.type == .int_number || item.type == .number || item.type == .boolean;
+}
+
+is_int_number :: (item: Stack_Item) -> bool {
+    return item.type == .int_number || item.type == .boolean;
+}
+
 intrinsics :: #code if word_name == {
+    // core
+
     case "true";
         push(true, stack);
 
     case "false";
         push(false, stack);
 
-    case "+";   handle_basic_operator((x, y) => x+y,  float_operator = (x, y) => x+y);
+    case "number";
+        push_type(.number, stack);
+
+    case "text";
+        push_type(.text, stack);
+
+    case "boolean";
+        push_type(.boolean, stack);
+
+    case "error";
+        push_type(.error, stack);
+
+    case "separator";
+        push_type(.separator, stack);
+
+    case "sequence";
+        push_type(.sequence, stack);
+
+    case "type";
+        push_type(.type, stack);
+
+    case "type?";
+        item := pop();
+        push_type(item.type, stack);
+
+    case "cast";
+        item := pop();
+        type := pop(.type);
+        item.type = xx type.int_value;
+        push(item, stack);
+
+    case "count";
+        push(stack.count, stack);
+
+    case "+";
+        b := pop();
+        a := pop();
+        if a.type == .text || b.type == .text {
+            push(tprint("%1%2", to_string(a), to_string(b)), stack);
+        }
+        else {
+            if !is_number(a)  return tprint("% only work on numbers or text", word_name);
+            if !is_number(b)  return tprint("% only work on numbers or text", word_name);
+            if is_int_number(a) && is_int_number(b)
+                push(a.int_value + b.int_value, stack);
+            else
+                push(a.value + b.value, stack);
+        }
+
+    case "=";
+        b := pop();
+        a := pop();
+        if is_number(a) && is_number(b) {
+            if is_int_number(a) && is_int_number(b)
+                push(a.int_value == b.int_value, stack);
+            else
+                push(a.value == b.value, stack);
+        }
+        else if a.type == b.type {
+            if a.type == {
+                case .type; #through;
+                case .error;
+                push(a.int_value == b.int_value, stack);
+
+                case .separator;
+                push(true, stack);
+
+                case .word; #through;
+                case .text; #through;
+                case .sequence;
+                push(a.string_value == b.string_value, stack);
+            }
+        }
+        else {
+            push(false, stack);
+        }
+
     case "-";   handle_basic_operator((x, y) => x-y,  float_operator = (x, y) => x-y);
     case "*";   handle_basic_operator((x, y) => x*y,  float_operator = (x, y) => x*y);
     case "/";   handle_basic_operator((x, y) => x/y,  float_operator = (x, y) => x/y);
-    case "=";   handle_basic_operator((x, y) => x==y, bool, float_operator = (x, y) => x==y);
     case "<";   handle_basic_operator((x, y) => x<y,  bool, float_operator = (x, y) => x<y);
     case ">";   handle_basic_operator((x, y) => x>y,  bool, float_operator = (x, y) => x>y);
     case "<=";  handle_basic_operator((x, y) => x<=y, bool, float_operator = (x, y) => x<=y);
@@ -516,7 +605,8 @@ intrinsics :: #code if word_name == {
         else
             return tprint("% can only be used on numbers", word_name);
 
-    case ".";
+    case "!"; // ficus_separator_name
+        #assert("!" == ficus_separator_name);
         push_separator(stack);
 
     case "pop";
@@ -601,18 +691,34 @@ intrinsics :: #code if word_name == {
                 return _execute_string(sequence_if_false.string_value, stack, false, space, output);
         }
 
-    case "console_position";
-        floating_area_position = xx pop(.int_number).int_value & 0xF;
+    case "debug_print_stack";
+        if DEFAULT {
+            builder : String_Builder;
+            for stack.* {
+                append(*builder, to_display_string(it));
+                append(*builder, " ");
+            }
+            console_log(builder_to_string(*builder), word_name);
+        }
+
+    case "clear";
+        clear_stack(stack);
+
+
+    // utils
 
     case "words";
         table_reset(*word_cache);
         for intrinsic_words  table_set(*word_cache, it, true);
-        for baked_words    table_set(*word_cache, it_index, true);
+        for baked_words      table_set(*word_cache, it_index, true);
         for global_words     table_set(*word_cache, it_index, true);
         for project_words    table_set(*word_cache, it_index, true);
         for user_words       table_set(*word_cache, it_index, true);
         for action_words     table_set(*word_cache, it_index, true);
         for word_cache       push_word(it_index, stack);
+
+    case ".";
+        console_log(to_display_string(pop()), word_name);
 
     case "print";
         index, found := last_separator();
@@ -629,18 +735,36 @@ intrinsics :: #code if word_name == {
         if DEFAULT  console_log(builder_to_string(*builder), word_name);
         else        reset(*builder);
 
-    case "debug_print_stack";
-        if DEFAULT {
-            builder : String_Builder;
-            for stack.* {
-                append(*builder, to_display_string(it));
-                append(*builder, " ");
-            }
-            console_log(builder_to_string(*builder), word_name);
-        }
+    case "after_frames";
+        count := pop(.int_number);
+        action := unique_string(tprint("%\0", to_string(pop())));
+        add_delayed_action(execute_delayed_string, action.data, count.int_value);
 
-    case "clear";
-        clear_stack(stack);
+    case "after_seconds";
+        seconds := pop(.number);
+        action := unique_string(tprint("%\0", to_string(pop())));
+        add_delayed_action(execute_delayed_string, action.data, seconds.value);
+
+    // Focus info
+
+    case "version?";
+        push(VERSION, stack);
+
+    case "focus_build?";
+        if DEBUG push("debug", stack);
+        else     push("release", stack);
+
+    case "focus_executable?";
+        push(executable_name, stack);
+
+    // Focus settings
+
+    case "console_position";
+        floating_area_position = xx pop(.int_number).int_value;
+    case "console_position?";
+        push(cast(int)floating_area_position, stack);
+
+    // Focus commands
 
     case "open_project";
         item := pop(.text);
@@ -651,7 +775,7 @@ intrinsics :: #code if word_name == {
             success = open_project(to_string(item));
         push(success, stack);
 
-    case "projects";
+    case "projects?";
         names := get_project_names();
         for names  push(it, stack);
 
@@ -697,6 +821,8 @@ intrinsics :: #code if word_name == {
         }
         stack.count = index;
         if has_commands  build();
+
+    // nada
 
     case;
         return tprint("Could not find word [%]", word_name);
@@ -811,6 +937,13 @@ push_error :: (value: s64, stack: *[..] Stack_Item) {
     array_add(stack, error);
 }
 
+push_type :: (type: type_of(Stack_Item.type), stack: *[..] Stack_Item) {
+    item : Stack_Item = ---;
+    item.type = .type;
+    item.int_value = xx type;
+    array_add(stack, item);
+}
+
 push_separator :: (stack: *[..] Stack_Item) {
     separator : Stack_Item = ---;
     separator.type = .separator;
@@ -870,6 +1003,7 @@ to_bool :: (item: Stack_Item) -> bool {
         case .boolean;     return item.bool_value;
         case .error;       return false;
         case .separator;   return false;
+        case .type;        return false;
     }
 }
 
@@ -883,7 +1017,20 @@ to_string :: (item: Stack_Item) -> string {
         case .number;      return tprint("%", item.value);
         case .boolean;     return tprint("%", item.bool_value);
         case .error;       return tprint("Error: %", item.int_value);
-        case .separator;   return ".";
+        case .separator;   return ficus_separator_name;
+
+        case .type;
+        if #complete cast(type_of(Stack_Item.type))item.int_value == {
+            case .word;       return "word";
+            case .text;       return "text";
+            case .sequence;   return "sequence";
+            case .int_number; return "number";
+            case .number;     return "number";
+            case .boolean;    return "boolean";
+            case .error;      return "error";
+            case .separator;  return "separator";
+            case .type;       return "type";
+        }
     }
 }
 
@@ -896,7 +1043,20 @@ to_display_string :: (item: Stack_Item) -> string {
         case .number;      return tprint("%", item.value);
         case .boolean;     return tprint("%", item.bool_value);
         case .error;       return tprint("<Error: %>", item.int_value);
-        case .separator;   return ".";
+        case .separator;   return ficus_separator_name;
+
+        case .type;
+        if #complete cast(type_of(Stack_Item.type))item.int_value == {
+            case .word;       return "<word>";
+            case .text;       return "<text>";
+            case .sequence;   return "<sequence>";
+            case .int_number; return "<number>";
+            case .number;     return "<number>";
+            case .boolean;    return "<boolean>";
+            case .error;      return "<error>";
+            case .separator;  return "<separator>";
+            case .type;       return "<type>";
+        }
     }
 }
 
@@ -912,3 +1072,4 @@ clear_all_stacks :: () {
 }
 
 
+ficus_separator_name :: "!";

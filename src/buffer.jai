@@ -420,7 +420,8 @@ recalculate_colors :: (buffer: *Buffer) {
         buffer.flags &= ~.needs_coloring;
         old_count := buffer.colors.count;
         array_resize(*buffer.colors, buffer.bytes.count, false);
-        memset(buffer.colors.data + old_count, 0, buffer.colors.count - old_count);
+        color_index := ifx buffer == *open_buffers[console_buffer_id] then Code_Color.CONSOLE_TEXT else 0;
+        memset(buffer.colors.data + old_count, xx color_index, buffer.colors.count - old_count);
         return;
     }
 

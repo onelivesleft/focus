@@ -69,6 +69,7 @@ Code_Line :: struct {
     line:   string;
     tab_spaces: s64;
     colors: [] u8;
+    bold_offset : u8 = 0;
 }
 
 init_fonts :: (_page_size_x: s32 = -1, _page_size_y: s32 = -1) {
@@ -163,6 +164,7 @@ draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_h
     for visible_lines {
         line   := it.line;
         colors := it.colors;
+        bold_offset := it.bold_offset;
 
         sx  := cast(float) (x + it.tab_spaces * char_x_advance);
         col := start_col + it.tab_spaces;
@@ -219,6 +221,8 @@ draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_h
                 quad.v0 = glyph.y0 / cast(float) texture.height;
                 quad.v1 = (cast(float) glyph.y0 + glyph.height) / texture.height;
 
+                assert(colors.count > t - line.data);
+                assert(color_map.count > colors[t - line.data]);
                 color := color_map[colors[t - line.data]];
                 if utf32 != #char "\t" {
                     sx  += char_x_advance;
@@ -231,6 +235,12 @@ draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_h
                     color.w = 0.1;  // don't make it too bright
                 }
                 immediate_letter_quad(quad, color);
+                if bold_offset {
+                    k := cast(float)bold_offset / 255;
+                    quad.p0.x += k; quad.p1.x += k;
+                    quad.p2.x += k; quad.p3.x += k;
+                    immediate_letter_quad(quad, color);
+                }
             }
 
             t = unicode_next_character(t);
