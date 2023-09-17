@@ -96,6 +96,14 @@ run_command :: (args: .. string, working_directory := "", capture_and_return_out
         start_time := current_time_monotonic();
         remaining_timeout_ms := timeout_ms;
 
+        // We can't just call the callbacks with the strings from the current iteration because they may be buffered:
+        // getting the string to send to the callback may take more than one iteration.  So: we need another
+        // couple of string builders:
+        output_callback_builder : String_Builder;
+        init_string_builder(*output_callback_builder);
+        error_callback_builder : String_Builder;
+        init_string_builder(*error_callback_builder);
+
         while true {
             output_buffer := ensure_contiguous_space_and_return_available_range(*output_builder);
             error_buffer := ensure_contiguous_space_and_return_available_range(*error_builder);
@@ -103,20 +111,32 @@ run_command :: (args: .. string, working_directory := "", capture_and_return_out
 
             if output_bytes {
                 advance_through_ensured_space(*output_builder, output_bytes);
-                if output_callback  output_callback(to_string(output_buffer.data, output_bytes));
+                if output_callback  append(*output_callback_builder, to_string(output_buffer.data, output_bytes));
                 if print_captured_output {
                     new_data := to_string(output_buffer.data, output_bytes);
                     write_string(new_data, to_standard_error = false);
                 }
             }
+            else if output_callback {
+                buffer := get_current_buffer(*output_callback_builder);
+                if buffer.count > 0
+                    output_callback(builder_to_string(*output_callback_builder));
+            }
+
             if error_bytes {
                 advance_through_ensured_space(*error_builder, error_bytes);
-                if error_callback  error_callback(to_string(error_buffer.data, error_bytes));
+                if error_callback  append(*error_callback_builder, to_string(error_buffer.data, error_bytes));
                 if print_captured_output {
                     new_data := to_string(error_buffer.data, error_bytes);
                     write_string(new_data, to_standard_error = true);
                 }
             }
+            else if error_callback {
+                buffer := get_current_buffer(*error_callback_builder);
+                if buffer.count > 0
+                    error_callback(builder_to_string(*error_callback_builder));
+            }
+
 
             if !success {
                 log_error("Could not read output of command \"%\"", get_quoted_command_string(args));
@@ -141,6 +161,17 @@ run_command :: (args: .. string, working_directory := "", capture_and_return_out
             }
 
             if process.output.eof && process.error.eof    break;
+        }
+
+        if output_callback {
+            buffer := get_current_buffer(*output_callback_builder);
+            if buffer.count > 0
+                output_callback(builder_to_string(*output_callback_builder));
+        }
+        if error_callback {
+            buffer := get_current_buffer(*error_callback_builder);
+            if buffer.count > 0
+                error_callback(builder_to_string(*error_callback_builder));
         }
 
         output_string = builder_to_string(*output_builder);

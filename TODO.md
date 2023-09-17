@@ -1,6 +1,6 @@
 # Mine
 
-- [ ] FIX run build immediately after launching; crash while decorating errors
+- [x] FIX run build immediately after launching; crash while decorating errors
 
 - [ ] Change "floating_area" "floating editor" to "console"
 
