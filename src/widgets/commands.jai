@@ -228,6 +228,7 @@ commands := #run Command.[
     .{ .ficus_run_current_verbose,                          "Ficus Run Current (Verbose)",        0, .Single },
     .{ .build_debug,                                        "Build Release",                      0, .None },
     .{ .build_release,                                      "Build Debug",                        0, .None },
+    .{ .clear_build_errors,                                 "Clear Build Errors",                 0, .None },
 
     .{ .quit,                                               "Quit Focus",                         0, .None },
 ];

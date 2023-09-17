@@ -330,6 +330,7 @@ ACTIONS_COMMON :: string.[
     "jump_to_file_end",
     "jump_to_error",
     "jump_to_previous_error",
+    "clear_build_errors",
     "toggle_show_keystrokes",
     "toggle_show_filename",
     "toggle_collapse_leading_whitespace",

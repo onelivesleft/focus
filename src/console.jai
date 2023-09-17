@@ -164,15 +164,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     console_was_open := editors.floating >= 0 && console_manually_opened;
     start_time := frame_time;
 
-    if build_errors {
-        for * build_errors {
-            free_build_error_members(it);
-            if it.decorated_buffer
-                it.decorated_buffer.flags |= .needs_coloring;
-        }
-        array_reset(*build_errors);
-        last_jumped_to_build_error = -1;
-    }
+    clear_build_errors();
 
     store_next_build_error = task.title;
     build_task_running = true;
@@ -269,6 +261,16 @@ set_build_header :: (success: bool) {
         region.type = ifx success then .console_header_success
                                   else .console_header_error;
     }
+}
+
+clear_build_errors :: () {
+    if !build_errors  return;
+    for * build_errors {
+        if it.decorated_buffer  it.decorated_buffer.flags |= .needs_coloring;
+        free_build_error_members(it);
+    }
+    array_reset(*build_errors);
+    last_jumped_to_build_error = -1;
 }
 
 add_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error.kind), message: string) -> Build_Error {

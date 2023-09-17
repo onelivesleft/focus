@@ -459,6 +459,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .jump_to_error;                                    jump_to_error();                                    return true;
         case .jump_to_previous_error;                           jump_to_error(backwards = true);                    return true;
+        case .clear_build_errors;                               clear_build_errors();                               return true;
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
         case .toggle_show_filename;                             toggle_show_filename();                             return true;
