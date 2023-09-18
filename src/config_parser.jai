@@ -74,7 +74,7 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
 
     if script_string {
         event :: #ifx is_initial_load then "on_open"; else "";
-        execute_on_main_thread(copy_string(script_string), event, space);
+        execute_on_main_thread(copy_string(script_string), space, event = event);
     }
 
     // Mix the common key mappings into every keymap to support common actions

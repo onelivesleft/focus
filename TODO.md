@@ -5,6 +5,7 @@
 - [ ] Change "floating_area" "floating editor" to "console"
 - [x] Fix console save as / open buffer mangling console colors
 
+- [ ] Parse jai error polymorph info: "C:" is not at start of string is why it isn't working
 
 - [.] output window
     - [ ] input box

@@ -917,7 +917,7 @@ ficus_execute_main_thread_scripts :: () {
             execute_string(exec.script, exec.space, exec.output);
             if exec.event
                 try_execute_word_in_space(exec.event, exec.space, exec.output);
-            free(exec.script);
+            //free(exec.script);
             if exec.space == .global  refresh_global_buffer = true;
             if exec.space == .project  refresh_project_buffer = true;
         }
@@ -939,6 +939,7 @@ ficus_execute_main_thread_scripts :: () {
                 buffer.flags |= .needs_coloring;
         }
     }
+    ficus_execute_frames();
 }
 
 #scope_export
