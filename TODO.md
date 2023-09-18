@@ -1,9 +1,9 @@
 # Mine
 
 
-- [ ] Regions should color line numbers
+- [x] Regions should color line numbers
 - [ ] Change "floating_area" "floating editor" to "console"
-- [ ] Fix console save as / open buffer mangling console colors
+- [x] Fix console save as / open buffer mangling console colors
 
 
 - [.] output window

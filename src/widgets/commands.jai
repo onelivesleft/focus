@@ -222,7 +222,7 @@ commands := #run Command.[
     .{ .toggle_collapse_leading_whitespace,                 "Toggle Collapse Leading Whitespace", 0, .None },
     .{ .toggle_profiling,                                   "Toggle Profiling",                   0, .None },
 
-    .{ .open_console_buffer,                                "Open Console Buffer",                0, .Single },
+    .{ .open_console_buffer,                                "Open Console Buffer",                0, .None },
 
     .{ .ficus_run_current,                                  "Ficus Run Current",                  0, .Single },
     .{ .ficus_run_current_verbose,                          "Ficus Run Current (Verbose)",        0, .Single },

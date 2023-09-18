@@ -577,8 +577,12 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
     if buffer.flags & .readonly && platform_path_equals(file_path, buffer.file.full_path)
         return false;
 
+    if buffer_id == console_buffer_id {
+    }
+
     // Save the file BEFORE making a new buffer so find_or_create_buffer can find it
-    if config.settings.strip_trailing_whitespace_on_save then strip_trailing_whitespace(buffer, buffer_id);
+    if buffer_id != console_buffer_id && config.settings.strip_trailing_whitespace_on_save
+        strip_trailing_whitespace(buffer, buffer_id);
 
     success = write_entire_file(file_path, to_string(buffer.bytes));
     if !success then return false;
@@ -589,7 +593,7 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
 
     // Reroute all editors using the old id
     for * editor : open_editors {
-        if editor.buffer_id == buffer_id {
+        if editor.buffer_id == buffer_id && it_index != editors.floating {
             editor.buffer_id = new_id;
             editor.scroll_to_cursor = .yes;
             for * cursor : editor.cursors { put_cursor_in_valid_spot(cursor, new_buffer); }
@@ -598,7 +602,7 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
     }
 
     if !file_is_watched(file_path) then start_watching_file(file_path);
-    if !(buffer.flags & .has_file && buffer_id != console_buffer_id) {
+    if !(buffer.flags & .has_file) {
         for * buffer_order {
             if it.* == buffer_id
                 it.* = new_id;

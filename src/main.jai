@@ -430,6 +430,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .show_default_config;                              editors_show_default_config(placement);             return true;
 
         case .show_icon_search;                                 show_icon_search_dialog();                          return true;
+        case .open_console_buffer;                              editors_open_buffer(console_buffer_id);             return true;
         case .convert_buffer_to_colors;                         convert_active_buffer_to_colors();                  return true;
 
         case .go_to_line;                                       show_go_to_line_dialog();                           return true;
