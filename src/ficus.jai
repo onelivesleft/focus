@@ -84,7 +84,7 @@ init_ficus :: () {
         print_to_builder(*b, #string jai
             _execute_string(#string fig
 %
-            fig, *context.ficus.main_stack, true, .baked, .silent);
+            fig , *context.ficus.main_stack, true, .baked, .silent);
         jai, baked_words);
         for name, index: ACTIONS_EDITORS  print_to_builder(*b, "table_set(*action_words, \"!%\", %);\n", name, index);
         return builder_to_string(*b);
@@ -533,11 +533,12 @@ _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool,
         return stack.*[stack.count - 1];
     }
 
-    last_separator :: () -> index: int, found: bool #expand {
-        for < i: stack.count - 1 .. 0
-            if stack.*[i].type == .separator
-                return i, true;
-        return 0, false;
+    index_after_separator :: (_stack: *[..] Stack_Item = null) -> index: int, index_before_separator: int #expand {
+        if !_stack  _stack = stack;
+        for < i: _stack.count - 1 .. 0
+            if _stack.*[i].type == .separator
+                return i + 1, i;
+        return 0, 0;
     }
 
     #insert,scope() intrinsics;
@@ -568,8 +569,16 @@ intrinsics :: #code if word_name == {
     case "true";
         push(true, stack);
 
+    case "true?";
+        value := pop();
+        push(to_bool(value), stack);
+
     case "false";
         push(false, stack);
+
+    case "false?";
+        value := pop();
+        push(!to_bool(value), stack);
 
     case "<number>";
         push_type(.number, stack);
@@ -699,8 +708,8 @@ intrinsics :: #code if word_name == {
         else
             return tprint("% can only be used on numbers", word_name);
 
-    case "!"; // ficus_separator_name
-        #assert("!" == ficus_separator_name);
+    case "\\"; // ficus_separator_name
+        #assert("\\" == ficus_separator_name);
         push_separator(stack);
 
     case "pop";
@@ -727,6 +736,28 @@ intrinsics :: #code if word_name == {
         pop_message(item, *main_stack);
         push(item, stack);
 
+    case "take";
+        if stack == *main_stack
+            return "Cannot take onto main stack (which stack would the items come from?)";
+        index, new_count := index_after_separator(*main_stack);
+        for i: index .. main_stack.count - 1 {
+            item := pop(*main_stack);
+            pop_message(item, *main_stack);
+            push(item, stack);
+        }
+        main_stack.count = new_count;
+
+    case "retrieve";
+        if stack == *main_stack
+            return "Cannot retrieve from main stack (which stack would the items go to?)";
+        while stack.count {
+            item := pop();
+            push(item, *main_stack);
+        }
+
+    case "discard";
+        item := pop();
+
     case "copy";
         item := peek();
         push(item, stack);
@@ -736,6 +767,18 @@ intrinsics :: #code if word_name == {
         b := pop();
         push(a, stack);
         push(b, stack);
+
+    case "reverse";
+        index, found := index_after_separator();
+        count := stack.count - index;
+        last_index := stack.count - 1;
+        for 0 .. count / 2 - 1 {
+            i := it + index;
+            j := last_index - it;
+            t := stack.*[i];
+            stack.*[i] = stack.*[j];
+            stack.*[j] = t;
+        }
 
     case "break";
         flags |= .break_next_jump;
@@ -825,16 +868,15 @@ intrinsics :: #code if word_name == {
         console_log(to_display_string(pop()), word_name);
 
     case "print";
-        index, found := last_separator();
-        start_index := ifx found then index + 1 else index;
+        index, new_count := index_after_separator();
         builder : String_Builder;
-        for i: start_index .. stack.count - 1 {
+        for i: index .. stack.count - 1 {
             if DEFAULT {
                 append(*builder, to_display_string(stack.*[i]));
                 append(*builder, " ");
             }
         }
-        stack.count = index;
+        stack.count = new_count;
 
         if DEFAULT  console_log(builder_to_string(*builder), word_name);
         else        reset(*builder);
@@ -856,25 +898,23 @@ intrinsics :: #code if word_name == {
         push(to_string(item), stack);
 
     case "concatenate";
-        index, found := last_separator();
-        start_index := ifx found then index + 1 else index;
+        index, new_count := index_after_separator();
         builder : String_Builder;
-        for i: start_index .. stack.count - 1 {
+        for i: index .. stack.count - 1 {
             append(*builder, to_string(stack.*[i]));
         }
-        stack.count = index;
+        stack.count = new_count;
         push(builder_to_string(*builder), stack);
 
     case "join";
         joint := to_string(pop());
-        index, found := last_separator();
-        start_index := ifx found then index + 1 else index;
+        index, new_count := index_after_separator();
         builder : String_Builder;
-        for i: start_index .. stack.count - 1 {
+        for i: index .. stack.count - 1 {
             if i  append(*builder, joint);
             append(*builder, to_string(stack.*[i]));
         }
-        stack.count = index;
+        stack.count = new_count;
         push(builder_to_string(*builder), stack);
 
     case "contains";
@@ -917,6 +957,16 @@ intrinsics :: #code if word_name == {
             return tprint("Expected an integer number or string for %", word_name);
         }
 
+    case "split";
+        splitter := pop(.text).string_value;
+        text := pop(.text).string_value;
+        for split(text, splitter)
+            push(it, stack);
+
+    case "line_split";
+        text := pop(.text).string_value;
+        for line_split(text)
+            push(it, stack);
 
     // Focus info
 
@@ -981,10 +1031,9 @@ intrinsics :: #code if word_name == {
         if !ok  return tprint("Cannot % while a build is already running", word_name);
 
     case "build";
-        index, found := last_separator();
-        start_index := ifx found then index + 1 else index;
+        index, new_count := index_after_separator();
         has_commands := false;
-        for i: start_index .. stack.count - 1 {
+        for i: index .. stack.count - 1 {
             command := stack.*[i];
             if command.type != .text
                 return tprint("% expected a command but got a %", word_name, command.type);
@@ -992,7 +1041,7 @@ intrinsics :: #code if word_name == {
             if !ok  return tprint("Cannot % while a build is already running", word_name);
             has_commands = true;
         }
-        stack.count = index;
+        stack.count = new_count;
         if has_commands  build();
 
     // nada
@@ -1012,7 +1061,7 @@ intrinsic_words :: #insert -> string { // is: string.[]
             continue;
         literal := cast(*Code_Literal) _case.condition;
         assert(literal.kind == .LITERAL && literal.value_type == .STRING);
-        print_to_builder(*builder, "    \"%\",\n", literal._string);
+        print_to_builder(*builder, "    \"%\",\n", replace(literal._string, "\\", "\\\\"));
     }
     append(*builder, "];");
     return builder_to_string(*builder);
@@ -1287,4 +1336,4 @@ clear_all_stacks :: () {
 }
 
 
-ficus_separator_name :: "!";
+ficus_separator_name :: "\\";

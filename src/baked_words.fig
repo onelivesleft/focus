@@ -17,7 +17,7 @@ execute_code_while:
         code'swap code'peek execute
         code'swap code'copy [jump] code'push execute_code_if
     ] code'push execute_code_if
-    code'pop code'pop pop pop
+    code'discard code'discard
 
 while:
     [execute_code_while] 2 expect_then_execute
@@ -31,7 +31,7 @@ times:
         code'swap 1 code'push code'- code'peek
         0 > code'push [jump] code'push execute_code_if
     ]  code'push execute_code_if
-    code'pop code'pop pop pop
+    code'discard code'discard
 
 map:
     stash'push
@@ -42,7 +42,7 @@ map:
         stash'peek
         execute
     ]
-    stash'pop pop
+    stash'discard
 
 filter:
     stash'push
@@ -53,7 +53,7 @@ filter:
         copy
         if [stash'peek execute not] [pop]
     ]
-    stash'pop pop
+    stash'discard
 
 reduce:
     stash'push
@@ -65,7 +65,7 @@ reduce:
         stash'peek
         execute
     ]
-    stash'pop pop
+    stash'discard
 
 
 !=:
@@ -77,7 +77,7 @@ exhausted?:
     if_else [stack_count? 0 =]
             [true]
             [if_else [copy type <separator> =]
-                     [pop true]
+                     [discard true]
                      [false]]
 
 

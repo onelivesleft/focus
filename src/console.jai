@@ -168,7 +168,7 @@ build :: () {
 
     clear_user_messages(.build);
 
-    save_all(null, null, false);
+    save_all(null, null, false, false);
 
     task := New(Console_Task, allocator=console_allocator);
     if next_build_task_name

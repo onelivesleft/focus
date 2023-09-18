@@ -482,8 +482,6 @@ draw_error_message :: (build_error_index: s32, parent: Rect, top_left: Vector2) 
     if box_rect.x < parent.x + padding
         box_rect.x = parent.x + padding;
 
-
-
     message_rect.x = box_rect.x + padding;
 
     color: Color = ---;
@@ -557,12 +555,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     is_console_buffer := console_buffer_id >= 0 && buffer == *open_buffers[console_buffer_id];
 
+    left_x := rect.x;
+    line_number_panel_width := 0.0;
+
     line_number_panel: Rect;
-    if config.settings.show_line_numbers {
+    actually_show_line_numbers := config.settings.show_line_numbers && editors.floating != editor_id;
+    if actually_show_line_numbers {
         max_lines  := get_max_line_num(editor, buffer) + 1;
         num_digits := tprint("%", max_lines).count;
-        panel_width := (num_digits + 2) * char_x_advance;
-        if rect.w > panel_width then line_number_panel, rect = cut_left(rect, panel_width);
+        line_number_panel_width = (num_digits + 2) * char_x_advance;
+        if rect.w > line_number_panel_width then line_number_panel, rect = cut_left(rect, line_number_panel_width);
     }
 
     if !(config.settings.collapse_leading_whitespace && editor_id != editors.floating)
@@ -987,6 +989,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Draw regions
         scope_background := Colors.BACKGROUND;
         scope_background_ends_at := 0;
+        pop_scissor();
+        push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x, rect.h));
+        drawn_gutter_up_to := -1;
         for region: buffer.regions {
             if region.start_offset < 0 || region.start_offset > buffer.bytes.count
             || region.end_offset < 0 || region.end_offset > buffer.bytes.count
@@ -1007,20 +1012,30 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             if region.inclusive && start == end
                 start = end - 1;
 
+            gutter_width := ifx end > drawn_gutter_up_to
+                            then line_number_panel_width
+                            else 0;
             region_rect := make_rect(
-                rect.x, text_origin.y - end * line_height,
-                rect.w /*- scrollbar_size*/, line_height * (end - start)
+                rect.x - gutter_width, text_origin.y - end * line_height,
+                rect.x + rect.w - (rect.x - gutter_width), line_height * (end - start)
             );
+            drawn_gutter_up_to = max(drawn_gutter_up_to, end);
 
             if region.depth == 0 { // "inserting" code
                 bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
                 draw_cool_rect(region_rect, bg, shader_value);
+                if gutter_width {
+                    region_rect.w = gutter_width;
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
+                    region_rect.x += gutter_width;
+                }
                 region_rect.w = char_x_advance;
                 draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
                 region_rect.x += char_x_advance;
                 fade_char_count :: 8;
-                for < fade_char_count .. 1 {
-                    color := with_alpha(Colors.BACKGROUND_REGION, Colors.BACKGROUND_REGION.a * it / cast(float)fade_char_count);
+                for 1 .. fade_char_count {
+                    alpha := lerp(Colors.BACKGROUND_REGION.a, 0, it / cast(float)fade_char_count);
+                    color := with_alpha(Colors.BACKGROUND_REGION, alpha);
                     draw_cool_rect(region_rect, xx color, shader_value);
                     region_rect.x += char_x_advance;
                 }
@@ -1035,7 +1050,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     if start_is_visible {
                         header_rect, remainder_rect := cut_top(region_rect, line_height);
                         scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                        draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                        draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
                         draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
                     }
                     else {
@@ -1065,7 +1080,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     if start_is_visible {
                         header_rect, remainder_rect := cut_top(region_rect, line_height);
                         scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                        draw_cool_rect(cut_left(header_rect, char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                        draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
                         draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
                     }
                     else {
@@ -1076,7 +1091,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         region_rect.y -= line_height;
                         region_rect.h = line_height;
                         scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
-                        width := char_x_advance * (scope_line_count + 1);
+                        width := line_number_panel_width + char_x_advance * (scope_line_count + 1);
                         region_rect.x += width;
                         region_rect.w -= width;
                         draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
@@ -1106,6 +1121,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 draw_rect(region_rect, Colors.BACKGROUND_REGION);
             }
         }
+        push_scissor(rect);
+        defer pop_scissor();
 
         // Decorations first pass: decorations drawn below text
         previous_build_error_line := -1;
@@ -1351,7 +1368,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
 
         // Draw continuation markers for wrapped lines
-        if line_wrap_is_active(editor) && !config.settings.show_line_numbers {
+        if line_wrap_is_active(editor) && !actually_show_line_numbers {
             Simp.set_shader_for_rects();
 
             radius   := char_x_advance / 4;
@@ -1453,7 +1470,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         push_scissor(line_number_panel);
         defer pop_scissor();
 
-        draw_rect(line_number_panel, Colors.BACKGROUND);
+        draw_rect(line_number_panel, Colors.GUTTER);
 
         // Get the visible lines which have cursors on them (for highlighting)
         active_lines: [..] s32;

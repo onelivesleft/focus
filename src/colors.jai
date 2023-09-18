@@ -42,6 +42,7 @@ Color_Values :: struct {
     TEXT_INPUT_LABEL        := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
     MOTIF                   := Color.{ r = 0.459, g = 0.369, b = 0.184 };
     COLLAPSED_AREA_MARKER   := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 0.8 };
+    GUTTER                  := Color.{ r = 0.0, g = 0.0, b = 0.0, a = 0.1 };
 
     CONSOLE_BACKGROUND      := Color.{ r = 0.065, g = 0.101, b = 0.125 };
     CONSOLE_TEXT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };

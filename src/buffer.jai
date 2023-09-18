@@ -598,7 +598,7 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
     }
 
     if !file_is_watched(file_path) then start_watching_file(file_path);
-    if !(buffer.flags & .has_file) {
+    if !(buffer.flags & .has_file && buffer_id != console_buffer_id) {
         for * buffer_order {
             if it.* == buffer_id
                 it.* = new_id;

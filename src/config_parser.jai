@@ -146,6 +146,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "text_input_label";                   return *config.colors.TEXT_INPUT_LABEL;
         case "motif";                              return *config.colors.MOTIF;
         case "collapsed_area_marker";              return *config.colors.COLLAPSED_AREA_MARKER;
+        case "gutter";                             return *config.colors.GUTTER;
 
         case "console_background";                 return *config.colors.CONSOLE_BACKGROUND;
         case "console_text";                       return *config.colors.CONSOLE_TEXT;

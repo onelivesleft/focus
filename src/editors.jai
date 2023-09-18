@@ -1748,10 +1748,11 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
 
 #scope_export
 
-save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true) {
+save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true, include_config_buffers := true) {
     for * b, b_id : open_buffers {
         if !b.flags & .modified continue;
         if !include_fileless_buffers && !(b.flags & .has_file)  continue;
+        if !include_config_buffers && b.lang == .Focus_Config  continue;
 
         if b.num_editors_open {
             for * e: open_editors {

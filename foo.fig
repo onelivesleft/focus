@@ -1,6 +1,4 @@
 
-if_else [ focus_executable? "focus_debug" contains ] [
-    "GUI" .
-] [
-    "Focus" .
-]
+
+1 2 3 4 5 reverse
+print

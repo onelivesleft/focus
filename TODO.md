@@ -1,16 +1,10 @@
 # Mine
 
-- [x] FIX run build immediately after launching; crash while decorating errors
 
+- [ ] Regions should color line numbers
 - [ ] Change "floating_area" "floating editor" to "console"
-
 - [ ] Fix console save as / open buffer mangling console colors
 
-- [x] Fix delete actions copying!
-- [x] Check output exe is writable in first.jai
-- [x] Save as on non-file buffer should remove non-file buffer
-
-- [x] Show error at error line when cursor on error line
 
 - [.] output window
     - [ ] input box
@@ -160,6 +154,11 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] FIX run build immediately after launching; crash while decorating errors
+- [x] Fix delete actions copying!
+- [x] Check output exe is writable in first.jai
+- [x] Save as on non-file buffer should remove non-file buffer
+- [x] Show error at error line when cursor on error line
 - [x] Fade scope regions together
 - [x] Investigate scrolling text to side to hide minimum whitespace, leave some kind of marker?
     - [x] Show when cursor is off to left
