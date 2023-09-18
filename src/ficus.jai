@@ -1,15 +1,20 @@
+DEBUG_FICUS :: false;
+
 max_stack_size :: 4096;
 max_user_stacks :: 64;
-max_instructions_per_frame :: 1024;
+max_instructions_per_frame :: 81920;
+max_stack_depth :: 20;
 
 #add_context ficus : struct {
     baked_words: Table(string, string);
     global_words: Table(string, string);
     project_words: Table(string, string);
     user_words: Table(string, string);
+    global_variables: Table(string, Stack_Item);
 
     frame_index := 0;
     instruction_count := 0;
+    stack_depth := 0;
     main_stack: [..] Stack_Item;
     user_stacks: [max_user_stacks] [..] Stack_Item;
     user_stack_names: [max_user_stacks] string;
@@ -18,11 +23,12 @@ max_instructions_per_frame :: 1024;
     record_jump_target := false;
     jump_to_jump_target := false;
 
-    move_tokens_to_stack_count := 0;
+    move_tokens_to_expect_stack_count := 0;
 
     flags : enum_flags {
         already_opened_project;
         displayed_header;
+        break_next_jump;
     }
 
     Jump_Target :: struct {
@@ -109,11 +115,6 @@ execute_string :: inline (s: string, space := Space.user, output := Volume.defau
     return _execute_string(copy_string(s, temp), *context.ficus.main_stack, true, space, output);
 }
 
-execute_word :: inline (word_name: string, space := Space.user, output := Volume.default, $loc := #caller_location) -> error: string {
-    #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
-    return _execute_word(copy_string(word_name, temp), *context.ficus.main_stack, true, space, output);
-}
-
 try_execute_word_in_space :: inline (word_name: string, space: Space, output := Volume.default, $loc := #caller_location) -> found: bool, error: string {
     #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
     words := words_for_space(space);
@@ -180,8 +181,9 @@ reset_environment :: () {
     flags = 0;
     record_jump_target = false;
     jump_to_jump_target = false;
-    move_tokens_to_stack_count = 0;
+    move_tokens_to_expect_stack_count = 0;
     instruction_count = 0;
+    assert(stack_depth == 0);
 }
 
 console_log :: (s: string, word := "") {
@@ -200,17 +202,32 @@ console_log :: (s: string, word := "") {
 _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, space := Space.user, output := Volume.default) -> error: string {
     using *context.ficus;
 
+    if space == .none  return "";
+
+    if entry_point  reset_environment();
+    finalize := entry_point;
+
+    stack_depth += 1;
+    defer stack_depth -= 1;
+    if stack_depth > max_stack_depth {
+        #if DEBUG_FICUS {
+            for 1 .. stack_depth print(" ");
+            print("EXCEEDED STACK DEPTH\n");
+        }
+        return tprint("Exceeded program stack depth limit (%)", max_stack_depth);
+    }
+
+    #if DEBUG_FICUS {
+        for 1 .. stack_depth print(" ");
+        print("%\n", s);
+    }
+
     my_frame_index := frame_index;
     frame_index += 1;
-
-    if space == .none  return "";
 
     ERRORS := output >= .errors;
     DEFAULT := output >= .default;
     VERBOSE := output >= .verbose;
-
-    if entry_point  reset_environment();
-    finalize := entry_point;
 
     words := words_for_space(space);
     token : Ficus_Token;
@@ -249,14 +266,16 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
         token_string = token_as_string();
         assert(token.type != .word || token_string);
 
-        if sequence_depth || (token.type != .begin_sequence && move_tokens_to_stack_count) {
+        if sequence_depth || (token.type != .begin_sequence && move_tokens_to_expect_stack_count) {
             added_token_to_stack := false;
-            if !sequence_depth && move_tokens_to_stack_count {
+            sequence_stack := ifx move_tokens_to_expect_stack_count
+                              then get_stack("code")
+                              else stack;
+            if !sequence_depth && move_tokens_to_expect_stack_count {
                 s : string = ---;
                 s.data = buf.data + token.start;
                 s.count = token.len;
-                push_sequence(s, stack);
-                if VERBOSE  console_log(tprint("Pushed sequence [%]", s));
+                push_sequence(s, sequence_stack);
                 added_token_to_stack = true;
             }
             else if token.type == {
@@ -264,15 +283,13 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
                     sequence_depth -= 1;
                     if sequence_depth == 0 {
                         if sequence_is_empty {
-                            push_empty_sequence(stack);
-                            if VERBOSE  console_log("Pushed sequence [ ]");
+                            push_empty_sequence(sequence_stack);
                         }
                         else {
                             s : string = ---;
                             s.data = buf.data + sequence_start;
                             s.count = token.start - sequence_start;
-                            push_sequence(s, stack);
-                            if VERBOSE  console_log(tprint("Pushed sequence [%]", s));
+                            push_sequence(s, sequence_stack);
                         }
                         added_token_to_stack = true;
                     }
@@ -292,11 +309,10 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
                     sequence_is_empty = false;
             }
 
-            if move_tokens_to_stack_count && added_token_to_stack {
-                _execute_word("swap", stack, false, space, output, true);
-                move_tokens_to_stack_count -= 1;
-                if !move_tokens_to_stack_count
-                    _execute_word("execute", stack, space, output, true);
+            if move_tokens_to_expect_stack_count && added_token_to_stack {
+                move_tokens_to_expect_stack_count -= 1;
+                if !move_tokens_to_expect_stack_count
+                    _execute_string("execute", stack, false, space, output);
             }
 
             continue;
@@ -349,8 +365,11 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
                     execute_stack = stack;
                 }
 
-                error = _execute_word(word_name, execute_stack, space, output);
+                error=, to_execute := _execute_word(word_name, execute_stack, space, output);
+                if to_execute
+                    error = _execute_string(to_execute, execute_stack, false, space, output);
                 if error  break;
+
 
                 if jump_to_jump_target {
                     jump_target := peek(jump_stack);
@@ -399,8 +418,8 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
     if !error {
         if sequence_depth
             error = "Expected ]";
-        else if finalize && move_tokens_to_stack_count
-            error = tprint("Expected % more tokens", move_tokens_to_stack_count);
+        else if finalize && move_tokens_to_expect_stack_count
+            error = tprint("Expected % more tokens", move_tokens_to_expect_stack_count);
         else if finalize && jump_to_jump_target
             error = "Couldn't find jump target for jump";
     }
@@ -414,11 +433,12 @@ _execute_string :: (s: string, stack : *[..] Stack_Item, entry_point: bool, spac
     return error;
 }
 
-_execute_word :: inline (word_name: string, stack: *[..] Stack_Item, space: Space, output: Volume, intrinsic_only := false) -> error: string {
-    return _execute_word(word_name, stack, false, space, output, intrinsic_only);
+_execute_word :: inline (word_name: string, stack: *[..] Stack_Item, space: Space, output: Volume, intrinsic_only := false) -> error: string, to_execute: string {
+    a, b := _execute_word(word_name, stack, false, space, output, intrinsic_only);
+    return a, b;
 }
 
-_execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool, space: Space, output: Volume, intrinsic_only := false) -> error: string {
+_execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool, space: Space, output: Volume, intrinsic_only := false) -> error: string, to_execute: string = "" {
     using *context.ficus;
     assert(!contains(word_name, #char "'"));
 
@@ -426,33 +446,73 @@ _execute_word :: (word_name: string, stack: *[..] Stack_Item, entry_point: bool,
     if instruction_count > max_instructions_per_frame
         return tprint("Exceeded instruction count limit (%)", max_instructions_per_frame);
 
+    stack_depth += 1;
+    defer stack_depth -= 1;
+    if stack_depth > max_stack_depth {
+        #if DEBUG_FICUS {
+            for 1 .. stack_depth print(" ");
+            print("EXCEEDED STACK DEPTH\n");
+        }
+        return tprint("Exceeded program stack depth limit (%)", max_stack_depth);
+    }
+
+    #if DEBUG_FICUS {
+        for 1 .. stack_depth print(" ");
+        print("%\n", word_name);
+    }
+
     ERRORS  := output >= .errors;
     DEFAULT := output >= .default;
     VERBOSE := output >= .verbose;
 
-    if !intrinsic_only {
-        word, found := get_word(word_name);
-        if found
-            return _execute_string(word, stack, entry_point, space, output);
-
-        handled:, found = try_handle_action_word(word_name);
-        if found {
-            if handled  return "";
-            else        return tprint("Error: Tried to perform action [%] but we failed to handle it.", word_name);
-        }
-    }
-
     pop :: (t: type_of(Stack_Item.type)) -> Stack_Item #expand {
         if !stack.count  `return tprint("% expected <%> but stack was empty", word_name, t);
         item := pop(stack);
-        if item.type != t  `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+        pop_message(item, stack);
+        if t == .number {
+            if item.type != .number && item.type != .int_number && item.type != .boolean
+                `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+        }
+        else {
+            if item.type != t  `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+        }
         return item;
     }
 
     pop :: () -> Stack_Item #expand {
         if !stack.count  `return tprint("% expected a value but stack was empty", word_name);
         item := pop(stack);
+        pop_message(item, stack);
         return item;
+    }
+
+    if !intrinsic_only {
+        word, found := get_word(word_name);
+        if found
+            return "", word;
+
+        handled:, found = try_handle_action_word(word_name);
+        if found {
+            if handled  return "";
+            else        return tprint("Error: Tried to perform action [%] but we failed to handle it.", word_name);
+        }
+
+        if word_name.count > 1 && (word_name[word_name.count - 1] == #char "!" || word_name[word_name.count - 1] == #char "?") {
+            variable_name := unique_string(word_name);
+            variable_name.count -= 1;
+            if word_name[word_name.count - 1] == #char "!" {
+                ptr := find_or_add(*global_variables, variable_name);
+                ptr.* = pop();
+                return "";
+            }
+            else {
+                ptr := table_find_pointer(*global_variables, variable_name);
+                if ptr {
+                    push(ptr.*, stack);
+                    return "";
+                }
+            }
+        }
     }
 
     handle_basic_operator :: (int_operator: (int, int)->$T, $U: Type = float, float_operator: (float,float)->U = null) #expand {
@@ -493,6 +553,10 @@ is_int_number :: (item: Stack_Item) -> bool {
     return item.type == .int_number || item.type == .boolean;
 }
 
+is_executable :: (item: Stack_Item) -> bool {
+    return item.type == .word || item.type == .sequence;
+}
+
 intrinsics :: #code if word_name == {
     // Word names have a very broad lattitude for characters, the only reserved characters are:
     //  [ ] ( ) # "
@@ -528,6 +592,30 @@ intrinsics :: #code if word_name == {
     case "<type>";
         push_type(.type, stack);
 
+    case "number?";
+        if !is_number(peek())  return tprint("Type-checked for a number, found a %", peek().type);
+
+    case "int_number?";
+        if !is_int_number(peek())  return tprint("Type-checked for a number, found a %", peek().type);
+
+    case "text?";
+        if peek().type != .text  return tprint("Type-checked for a text, found a %", peek().type);
+
+    case "boolean?";
+        if peek().type != .boolean  return tprint("Type-checked for a boolean, found a %", peek().type);
+
+    case "error?";
+        if peek().type != .error  return tprint("Type-checked for a error, found a %", peek().type);
+
+    case "separator?";
+        if peek().type != .separator  return tprint("Type-checked for a separator, found a %", peek().type);
+
+    case "sequence?";
+        if peek().type != .sequence  return tprint("Type-checked for a sequence, found a %", peek().type);
+
+    case "<type>?";
+        push_type(.type, stack);
+
     case "type";
         item := pop();
         push_type(item.type, stack);
@@ -538,7 +626,7 @@ intrinsics :: #code if word_name == {
         item.type = xx type.int_value;
         push(item, stack);
 
-    case "count?";
+    case "stack_count?";
         push(stack.count, stack);
 
     case "+";
@@ -591,6 +679,7 @@ intrinsics :: #code if word_name == {
     case ">";   handle_basic_operator((x, y) => x>y,  bool, float_operator = (x, y) => x>y);
     case "<=";  handle_basic_operator((x, y) => x<=y, bool, float_operator = (x, y) => x<=y);
     case ">=";  handle_basic_operator((x, y) => x>=y, bool, float_operator = (x, y) => x>=y);
+    case "%";   handle_basic_operator((x, y) => x%y, float_operator = (x, y) => fmod_cycling(x, y));
     case "&";   handle_basic_operator((x, y) => x&y);
     case "^";   handle_basic_operator((x, y) => x^y);
     case "|";   handle_basic_operator((x, y) => x|y);
@@ -635,6 +724,7 @@ intrinsics :: #code if word_name == {
         if !main_stack.count
             return tprint("% expected a value but stack was empty", word_name);
         item := pop(*main_stack);
+        pop_message(item, *main_stack);
         push(item, stack);
 
     case "copy";
@@ -647,12 +737,21 @@ intrinsics :: #code if word_name == {
         push(a, stack);
         push(b, stack);
 
+    case "break";
+        flags |= .break_next_jump;
+
     case "jump_target";
         record_jump_target = true;
 
     case "jump";
         if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
-        jump_to_jump_target = true;
+        if flags & .break_next_jump {
+            flags &= ~.break_next_jump;
+            pop(*jump_stack);
+        }
+        else {
+            jump_to_jump_target = true;
+        }
 
     case "pop_jump_target";
         if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
@@ -664,37 +763,35 @@ intrinsics :: #code if word_name == {
         count := pop(.int_number).int_value;
         if count < 0 || count >= max_stack_size
             return tprint("Illegal value for %: %", word_name, count);
-        move_tokens_to_stack_count = count;
+        move_tokens_to_expect_stack_count = count;
 
     case "execute";
         item := pop();
-        if item.type == .sequence || item.type == .word
-            return _execute_string(item.string_value, stack, false, space, output);
+        if is_executable(item)
+            return "", item.string_value;
         else
             push(item, stack);
 
-    case "execute_if";
-        sequence := pop(.sequence);
-        error := _execute_word("execute", stack, space, output, true); // execute condition
+    case "execute_code_if";
+        code_stack := get_stack("code");
+        then_body := pop(code_stack);
+        error := _execute_string("code'pop execute", stack, false, space, output); // execute condition
         if error  return error;
         value := pop();
-        if to_bool(value) && sequence.string_value
-            return _execute_string(sequence.string_value, stack, false, space, output);
+        if to_bool(value)
+            return "", then_body.string_value;
 
-    case "execute_if_else";
-        sequence_if_false := pop(.sequence);
-        sequence_if_true := pop(.sequence);
-        error := _execute_word("execute", stack, space, output, true); // execute condition
+    case "execute_code_if_else";
+        code_stack := get_stack("code");
+        else_body := pop(code_stack);
+        then_body := pop(code_stack);
+        error := _execute_string("code'pop execute", stack, false, space, output); // execute condition
         if error  return error;
         value := pop();
-        if to_bool(value) {
-            if sequence_if_true.string_value
-                return _execute_string(sequence_if_true.string_value, stack, false, space, output);
-        }
-        else {
-            if sequence_if_false.string_value
-                return _execute_string(sequence_if_false.string_value, stack, false, space, output);
-        }
+        if to_bool(value)
+            return "", then_body.string_value;
+        else
+            return "", else_body.string_value;
 
     case "debug_print_stack";
         if DEFAULT {
@@ -709,6 +806,8 @@ intrinsics :: #code if word_name == {
     case "clear";
         clear_stack(stack);
 
+    case "globals";
+        for global_variables  push(it_index, stack);
 
     // utils
 
@@ -752,6 +851,10 @@ intrinsics :: #code if word_name == {
 
     // strings
 
+    case "to_string";
+        item := pop();
+        push(to_string(item), stack);
+
     case "concatenate";
         index, found := last_separator();
         start_index := ifx found then index + 1 else index;
@@ -778,6 +881,42 @@ intrinsics :: #code if word_name == {
         needle := pop(.text);
         haystack := pop(.text);
         push(contains(haystack.string_value, needle.string_value), stack);
+
+    case "first_index";
+        needle := pop(.text);
+        haystack := pop(.text);
+        push(first_index(haystack.string_value, needle.string_value), stack);
+
+    case "last_index";
+        needle := pop(.text);
+        haystack := pop(.text);
+        push(last_index(haystack.string_value, needle.string_value), stack);
+
+    case "starts_with";
+        needle := pop(.text);
+        haystack := pop(.text);
+        push(starts_with(haystack.string_value, needle.string_value), stack);
+
+    case "ends_with";
+        needle := pop(.text);
+        haystack := pop(.text);
+        push(ends_with(haystack.string_value, needle.string_value), stack);
+
+    case "slice";
+        n := pop(.number);
+        if !is_int_number(n)  return tprint("Expected an integer number for %", word_name);
+        x := pop();
+        if is_int_number(x) {
+            s := pop(.text);
+            push(slice(s.string_value, x.int_value, n.int_value), stack);
+        }
+        else if x.type == .text {
+            push(slice(x.string_value, n.int_value), stack);
+        }
+        else {
+            return tprint("Expected an integer number or string for %", word_name);
+        }
+
 
     // Focus info
 
@@ -949,18 +1088,56 @@ based_on_string :: (item: Stack_Item) -> bool {
     return item.type == .text || item.type == .word || item.type == .sequence;
 }
 
+pop_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {
+    #if DEBUG_FICUS {
+        if stack == *context.ficus.main_stack {
+            print("<<< {%} popped (%)\n", to_string(item), stack.count);
+        }
+        else {
+            for * context.ficus.user_stacks {
+                if it == stack {
+                    print("<<< {%} popped from {%}(%)\n", to_string(item), context.ficus.user_stack_names[it_index], stack.count);
+                    return;
+                }
+            }
+            print(">>> {%} popped from {unknown}{%}\n", to_string(item), stack.count);
+        }
+    }
+}
+
+push_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {
+    #if DEBUG_FICUS {
+        if stack == *context.ficus.main_stack {
+            print(">>> {%} pushed (%)\n", to_string(item), stack.count);
+        }
+        else {
+            for * context.ficus.user_stacks {
+                if it == stack {
+                    print(">>> {%} pushed onto {%}(%)\n", to_string(item), context.ficus.user_stack_names[it_index], stack.count);
+                    return;
+                }
+            }
+            print(">>> {%} pushed onto {unknown}(%)\n", to_string(item), stack.count);
+        }
+    }
+}
+
 push :: (item: Stack_Item, stack: *[..] Stack_Item) {
+    push_message(item, stack);
     array_add(stack, item);
 }
 
 push :: (value: $T, stack: *[..] Stack_Item) {
-    array_add(stack, stack_item(value));
+    item := stack_item(value);
+    push_message(item, stack);
+    array_add(stack, item);
 }
 
 push_word :: (word: string, stack: *[..] Stack_Item) {
     item : Stack_Item = ---;
     item.type = .word;
     item.string_value = unique_string(word);
+    push_message(item, stack);
     array_add(stack, item);
 }
 
@@ -968,6 +1145,7 @@ push_error :: (value: s64, stack: *[..] Stack_Item) {
     error : Stack_Item = ---;
     error.type = .error;
     error.int_value = value;
+    push_message(error, stack);
     array_add(stack, error);
 }
 
@@ -975,12 +1153,14 @@ push_type :: (type: type_of(Stack_Item.type), stack: *[..] Stack_Item) {
     item : Stack_Item = ---;
     item.type = .type;
     item.int_value = xx type;
+    push_message(item, stack);
     array_add(stack, item);
 }
 
 push_separator :: (stack: *[..] Stack_Item) {
     separator : Stack_Item = ---;
     separator.type = .separator;
+    push_message(separator, stack);
     array_add(stack, separator);
 }
 
@@ -992,6 +1172,7 @@ push_sequence :: (sequence: string, stack: *[..] Stack_Item) {
     item : Stack_Item = ---;
     item.type = .sequence;
     item.string_value = unique_string(sequence);
+    push_message(item, stack);
     array_add(stack, item);
 }
 

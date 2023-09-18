@@ -4,24 +4,69 @@
 # control flow
 
 if:
-    [execute_if] 2 expect_then_execute
+    [execute_code_if] 2 expect_then_execute
 
 if_else:
-    [execute_if_else] 3 expect_then_execute
+    [execute_code_if_else] 3 expect_then_execute
 
-execute_while:
-    code'push(body) copy(condition) code'push(condition)
-    execute(condition)
+execute_code_while:
+    code'swap code'peek
+    execute code'push
     [
         jump_target
         code'swap code'peek execute
-        code'swap code'peek [jump] execute_if
-        code'pop code'pop
-    ] execute_if
-    pop pop
+        code'swap code'copy [jump] code'push execute_code_if
+    ] code'push execute_code_if
+    code'pop code'pop pop pop
 
 while:
-    [execute_while] 2 expect_then_execute
+    [execute_code_while] 2 expect_then_execute
+
+times:
+    swap code'push(body) number? code'push(count) code'peek
+    [ 0 > ] code'push
+    [
+        jump_target
+        code'swap code'peek execute
+        code'swap 1 code'push code'- code'peek
+        0 > code'push [jump] code'push execute_code_if
+    ]  code'push execute_code_if
+    code'pop code'pop pop pop
+
+map:
+    stash'push
+    temp'clear
+    while [exhausted? not] [temp'push]
+    while [temp'stack_count? temp'pop] [
+        temp'pop
+        stash'peek
+        execute
+    ]
+    stash'pop pop
+
+filter:
+    stash'push
+    temp'clear
+    while [exhausted? not] [temp'push]
+    while [temp'stack_count? temp'pop] [
+        temp'pop
+        copy
+        if [stash'peek execute not] [pop]
+    ]
+    stash'pop pop
+
+reduce:
+    stash'push
+    temp'clear
+    while [exhausted? not] [temp'push]
+    temp'pop
+    while [temp'stack_count? temp'pop] [
+        temp'pop
+        stash'peek
+        execute
+    ]
+    stash'pop pop
+
 
 !=:
     = not
@@ -29,15 +74,14 @@ while:
 # stack manipulation
 
 exhausted?:
-    if_else [count 0 =]
+    if_else [stack_count? 0 =]
             [true]
-            [if_else [copy type? separator =]
+            [if_else [copy type <separator> =]
                      [pop true]
-                     [false]
-            ]
+                     [false]]
 
 
 # misc
 
-echo:
-    copy ! swap print
+?:
+    copy .

@@ -489,7 +489,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
 handle_script_action :: (action: Action_Script) -> handled: bool {
     if action < cast(Action_Script)ACTIONS_SCRIPT.count {
-        execute_word(tprint("!%", ACTIONS_SCRIPT[action]));
+        execute_string(tprint("!%", ACTIONS_SCRIPT[action]));
         return true;
     }
     return false;

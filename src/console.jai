@@ -54,14 +54,35 @@ print_to_console :: (output: string, append_newline: bool, lang: Language, is_er
     recalculate_colors(buffer); // resizes color array
     highlight_console_output(buffer, start, cast(s32)buffer.bytes.count - start, lang, is_error);
 
-    show_console(false);
-    editor := *open_editors[editors.floating];
+    editor := editor_showing_console();
+    if !editor {
+        show_console(false);
+        editor = *open_editors[editors.floating];
+    }
     cursor := leave_only_original_cursor(editor);
     cursor.pos = xx buffer.bytes.count;
     cursor.sel = cursor.pos;
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .unimportant;
     editor.scroll_to_cursor = .yes;
+}
+
+editor_showing_console :: () -> *Editor {
+    if #complete editors.layout == {
+        case .None;
+            return null;
+
+        case .Single;
+        if open_editors[editors.active].buffer_id == console_buffer_id
+            return *open_editors[editors.active];
+
+        case .Double;
+        if open_editors[editors.left].buffer_id == console_buffer_id
+            return *open_editors[editors.left];
+        if open_editors[editors.right].buffer_id == console_buffer_id
+            return *open_editors[editors.right];
+    }
+    return null;
 }
 
 print_console_header :: (s: string, leading_newline := true, is_error := false) -> Offset_Range, region_id: int {
@@ -219,6 +240,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         print_to_console(tprint("Success: % seconds\n", frame_time - start_time));
     }
     else {
+        set_build_header(success=false);
         if build_errors {
             #if TOAST_BUILD_RESULT {
                 build_error := build_errors[0];

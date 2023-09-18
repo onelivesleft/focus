@@ -1,15 +1,6 @@
-# test ficus file
 
-dec:
-    1 -
-
-#10
-#jump_target
-#copy . swap "Counting down..." swap print
-#dec copy 0 > [jump] execute_if
-#pop
-
-#10 [copy 0 >] [copy . swap "Counting down..." swap print dec] execute_while pop
-
-10 while [copy 0 >] [copy . swap "Counting down..." swap print dec]
-
+if_else [ focus_executable? "focus_debug" contains ] [
+    "GUI" .
+] [
+    "Focus" .
+]

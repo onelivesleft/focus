@@ -44,29 +44,29 @@ Keep_Separator :: enum {
 
 #scope_file
 
-simd_mode : [strings_shared_max_thread_count] enum { SSE2; OFF; AUTO; AVX2; }; // @TODO use macro instead and have OFF be 0?
+simd_mode :  enum { SSE2; OFF; AUTO; AVX2; }; // @TODO use macro instead and have OFF be 0?
 
 #scope_export
 
 
 
-set_simd_mode :: (mode: type_of(simd_mode[0])) {
+set_simd_mode :: (mode: type_of(simd_mode)) {
     if mode == {
         case .AUTO;
         cpu_info := get_cpu_info();
         if check_feature(cpu_info.feature_leaves, .AVX2)
-            simd_mode[context.thread_index] = .AVX2;
+            simd_mode = .AVX2;
         else
-            simd_mode[context.thread_index] = .SSE2;
+            simd_mode = .SSE2;
 
         case .AVX2;
-        simd_mode[context.thread_index] = .AVX2;
+        simd_mode = .AVX2;
 
         case .SSE2;
-        simd_mode[context.thread_index] = .SSE2;
+        simd_mode = .SSE2;
 
         case .OFF;
-        simd_mode[context.thread_index] = .OFF;
+        simd_mode = .OFF;
     }
 }
 
@@ -184,7 +184,7 @@ to_lower :: (str: string) {
     data : u64 = cast(u64)str.data;
     end  : u64 = data + cast(u64)str.count - 1;
 
-    if simd_mode[context.thread_index] == {
+    if simd_mode == {
         case .SSE2;
             case_bit : u8 : 32;
             case_bytes := #insert #run make_16(case_bit);
@@ -288,7 +288,7 @@ to_upper :: (str: string) {
     data : u64 = cast(u64)str.data;
     end  : u64 = data + cast(u64)str.count - 1;
 
-    if simd_mode[context.thread_index] == {
+    if simd_mode == {
         case .SSE2;
             case_bit : u8 : 32;
             case_bytes := #insert #run make_16(case_bit);
@@ -964,7 +964,7 @@ _reverse :: (str: string) {
     low_data  : u64 = cast(u64)str.data;
     high_data : u64 = low_data + cast(u64)str.count;
 
-    if simd_mode[context.thread_index] == {
+    if simd_mode == {
         case .AVX2;
             if low_data + 64 < high_data {
                 shuffle_bytes := u8.[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
@@ -1067,7 +1067,7 @@ count :: (haystack: string, needle: u8, user_compare: Character_Compare) -> tota
 /*
     if compare.kind == {
         case .CASE_SENSITIVE;
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     data := cast(u64)haystack.data;
                     end := cast(u64)haystack.data + cast(u64)haystack.count;
@@ -1156,7 +1156,7 @@ count :: (haystack: string, needle: u8, user_compare: Character_Compare) -> tota
             }
 
         case .IGNORE_CASE;
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     data := cast(u64)haystack.data;
                     end := cast(u64)haystack.data + cast(u64)haystack.count;
@@ -1308,7 +1308,7 @@ first_index :: (haystack: string, needle: u8, from_index: int, compare: Characte
             haystack_ptr := cast(u64)haystack.data + cast(u64)from_index;
             end := cast(u64)haystack.data + cast(u64)haystack.count;
 
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     handled = true;
 
@@ -1396,7 +1396,7 @@ first_index :: (haystack: string, needle: u8, from_index: int, compare: Characte
             haystack_ptr := cast(u64)haystack.data + cast(u64)from_index;
             end := cast(u64)haystack.data + cast(u64)haystack.count;
 
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     handled = true;
                     needles : [16] u8 = ---;
@@ -1638,7 +1638,7 @@ last_index :: (haystack: string, needle: u8, from_index: int, compare: Character
 
     if compare.kind == {
         case .CASE_SENSITIVE;
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     if from_index >= 15 {
                         handled = true;
@@ -1733,7 +1733,7 @@ last_index :: (haystack: string, needle: u8, from_index: int, compare: Character
             }
 
         case .IGNORE_CASE;
-            if simd_mode[context.thread_index] == {
+            if simd_mode == {
                 case .SSE2;
                     if from_index >= 15 {
                         handled = true;
