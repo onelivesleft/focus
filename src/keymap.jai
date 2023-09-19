@@ -448,6 +448,9 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_line_numbers",
     "ficus_run_current",
     "ficus_run_current_verbose",
+    "ficus_debug_current",
+    "ficus_step",
+    "ficus_continue",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

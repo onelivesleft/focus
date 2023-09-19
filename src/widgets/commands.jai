@@ -226,6 +226,11 @@ commands := #run Command.[
 
     .{ .ficus_run_current,                                  "Ficus Run Current",                  0, .Single },
     .{ .ficus_run_current_verbose,                          "Ficus Run Current (Verbose)",        0, .Single },
+    .{ .ficus_debug_current,                                "Ficus Debug Current",                0, .Single },
+    .{ .ficus_step,                                         "Ficus Step",                   0, .None },
+    .{ .ficus_continue,                                     "Ficus Continue",               0, .None },
+
+
     .{ .build_debug,                                        "Build Release",                      0, .None },
     .{ .build_release,                                      "Build Debug",                        0, .None },
     .{ .clear_build_errors,                                 "Clear Build Errors",                 0, .None },

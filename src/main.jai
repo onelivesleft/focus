@@ -471,6 +471,9 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .build_debug;                                      run_build_script(.Debug);                           return true;
         case .build_release;                                    run_build_script(.Release);                         return true;
 
+        case .ficus_step;                                       ficus_step();                                       return true;
+        case .ficus_continue;                                   ficus_run();                                        return true;
+
         case .profiler_mode_cycle;                              #if IPROF { iprof_mode_cycle(); return true; } else return false;
         case .profiler_up;                                      #if IPROF { iprof_up();         return true; } else return false;
         case .profiler_down;                                    #if IPROF { iprof_down();       return true; } else return false;

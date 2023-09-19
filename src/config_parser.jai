@@ -74,11 +74,15 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
 
     if script_string {
         event :: #ifx is_initial_load then "on_open"; else "";
-        callback := ifx space == .global
-                    then ficus_finished_global_config_callback
-                    else ifx space == .project
-                         then ficus_finished_project_config_callback
-                         else null;
+        callback : type_of(ficus_finished_global_config_callback) = null;
+        if space == .global {
+            callback = ficus_finished_global_config_callback;
+            script_string = ficus_set_global_words_string(script_string);
+        }
+        else if space == .project {
+            callback = ficus_finished_project_config_callback;
+            script_string = ficus_set_project_words_string(script_string);
+        }
         ficus_execute_string(script_string, space, .default, callback, event);
     }
 

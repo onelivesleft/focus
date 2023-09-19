@@ -5,6 +5,21 @@ max_user_stacks :: 64;
 max_instructions_per_frame :: 81920;
 max_stack_depth :: 1024;
 
+#insert -> string {
+    b: String_Builder;
+    baked_words, ok := read_entire_file("src/baked_words.fig");
+    if !ok  compiler_report("Could not find/read ficus baked words file (src/baked_word.fig)", mode=.WARNING);
+    print_to_builder(*b, #string jai
+ficus_baked_words_string :: #string fig
+%
+fig;
+    jai, baked_words);
+    return builder_to_string(*b);
+}
+ficus_global_words_string : string;
+ficus_project_words_string : string;
+ficus_user_words_string : string;
+
 #scope_file
 
 baked_words: Table(string, string);
@@ -30,10 +45,30 @@ flags : enum_flags {
 
 #scope_export
 
+ficus_machine_state : enum {
+    running;
+    paused;
+    step;
+}
+
+ficus_run :: () {
+    ficus_machine_state = .running;
+}
+
+ficus_pause :: () {
+    ficus_machine_state = .paused;
+}
+
+ficus_step :: () {
+    ficus_machine_state = .step;
+}
+
+last_executed_word := "";
+
 Ficus_Execution_State :: enum {
-    STOPPED;
-    ERRORED;
-    RUNNING;
+    stopped;
+    errored;
+    running;
 }
 
 Ficus_Frame :: struct {
@@ -86,15 +121,9 @@ ficus_allocator: Allocator;
 ficus_string_lookup: Table(string, *u8);
 
 init_ficus :: () {
+    ficus_execute_string(ficus_baked_words_string, .baked, .silent, null);
     #insert -> string {
-        b: String_Builder;
-        baked_words, ok := read_entire_file("src/baked_words.fig");
-        if !ok  compiler_report("Could not find/read ficus baked words file (src/baked_word.fig)", mode=.WARNING);
-        print_to_builder(*b, #string jai
-            ficus_execute_string(#string fig
-%
-            fig , .baked, .silent, null);
-        jai, baked_words);
+        b : String_Builder;
         for name, index: ACTIONS_EDITORS  print_to_builder(*b, "table_set(*action_words, \"!%\", %);\n", name, index);
         return builder_to_string(*b);
     }
@@ -114,6 +143,7 @@ ficus_reset_space :: (space: Space) {
 
 ficus_update :: () {
     if !ficus_execution_stack && !ficus_scripts_to_execute
+    || ficus_machine_state == .paused
         return;
 
     if !ficus_execution_stack {
@@ -123,7 +153,7 @@ ficus_update :: () {
 
     for instruction_count: 1 .. max_instructions_per_frame {
         state, error := execute_one_frame();
-        if state != .RUNNING {
+        if state != .running {
             array_reset(*ficus_execution_stack);
             finished := *ficus_scripts_to_execute[0];
             if finished.callback  finished.callback(error);
@@ -148,6 +178,15 @@ ficus_update :: () {
                 break;
             }
         }
+        if ficus_machine_state == .step && ficus_execution_stack {
+            _, stored_within := ficus_stored_string(last_executed_word);
+            if stored_within
+                console_log(tprint("<%> % ~%", ficus_execution_stack.count, last_executed_word, stored_within));
+            else
+                console_log(tprint("<%> %", ficus_execution_stack.count, last_executed_word));
+            ficus_machine_state = .paused;
+            break;
+        }
     }
 }
 
@@ -171,19 +210,26 @@ ficus_finished_project_config_callback :: (error: string) {
 
 ficus_execute_editor_finished_callback :: (error: string) { }
 
-ficus_execute_editor :: (editor: *Editor, buffer: *Buffer, space := Space.user, output := Volume.default, $loc := #caller_location) {
+ficus_execute_editor :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
     #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
-    array_add(*ficus_scripts_to_execute, .{unique_string(cast(string) buffer.bytes), "", space, output, ficus_execute_editor_finished_callback});
+    ficus_set_user_words_string(cast(string) buffer.bytes);
+    array_add(*ficus_scripts_to_execute, .{ficus_user_words_string, "", .user, output, ficus_execute_editor_finished_callback});
+    ficus_machine_state = .running;
 }
 
-ficus_execute_string :: (script: string, space := Space.user, output := Volume.default, callback: #type (string) = null, $event := "", $loc := #caller_location) {
+ficus_execute_string :: (_script: string, space := Space.user, output := Volume.default, callback: #type (string) = null, $event := "", $loc := #caller_location) {
     #assert event == "" || array_find(ficus_events, event);
-    array_add(*ficus_scripts_to_execute, .{unique_string(script), event, space, output, callback});
+    script := _script;
+    if space == .user
+        script = ficus_set_user_words_string(script);
+    array_add(*ficus_scripts_to_execute, .{script, event, space, output, callback});
+    ficus_machine_state = .running;
 }
 
 ficus_execute_delayed_string :: (script_pointer: *void) {
     script := to_string(cast(*u8)script_pointer);
-    array_add(*ficus_scripts_to_execute, .{unique_string(script), "", .user, .default, null});
+    array_add(*ficus_scripts_to_execute, .{unique_string(script, true), "", .user, .default, null});
+    ficus_machine_state = .running;
 }
 
 run_build_script :: (mode: enum { Compile; Debug; Release; }) {
@@ -210,7 +256,42 @@ focus_config, word_name, current_project_name, mode), .Focus_Config);
     ficus_execute_string(word, .user, .default, build_finished_callback);
 }
 
-unique_string :: (s: string) -> string {
+ficus_stored_string :: (s: string) -> string, enum { none; baked; global; project; user; } {
+    if is_within(s, ficus_baked_words_string)    return ficus_baked_words_string, .baked;
+    if is_within(s, ficus_global_words_string)   return ficus_global_words_string, .global;
+    if is_within(s, ficus_project_words_string)  return ficus_project_words_string, .project;
+    if is_within(s, ficus_user_words_string)     return ficus_user_words_string, .user;
+    return "", .none;
+}
+
+ficus_set_global_words_string :: (s: string) -> string {
+    if ficus_global_words_string  free(ficus_global_words_string);
+    ficus_global_words_string = copy_string(s);
+    return ficus_global_words_string;
+}
+
+ficus_set_project_words_string :: (s: string) -> string {
+    if ficus_project_words_string  free(ficus_project_words_string);
+    ficus_project_words_string = copy_string(s);
+    return ficus_project_words_string;
+}
+
+ficus_set_user_words_string :: (s: string) -> string {
+    if ficus_user_words_string  free(ficus_user_words_string);
+    ficus_user_words_string = copy_string(s);
+    return ficus_user_words_string;
+}
+
+is_within :: (needle: string, haystack: string) -> bool {
+    return haystack.data <= needle.data && needle.data < haystack.data + haystack.count;
+}
+
+unique_string :: (s: string, force_store := false) -> string {
+    if !force_store {
+        already_stored_in := ficus_stored_string(s);
+        if already_stored_in  return s;
+    }
+
     result : string = ---;
     result.count = s.count;
     buffer_location_lookup := table_find_pointer(*ficus_string_lookup, s);
@@ -268,7 +349,7 @@ execute_string :: (s: string, stack : *[..] Stack_Item, space := Space.user, out
 
 execute_one_frame :: () -> Ficus_Execution_State, error: string {
     stack_depth := ficus_execution_stack.count;
-    if stack_depth == 0  return .STOPPED, "";
+    if stack_depth == 0  return .stopped, "";
 
     using frame := *ficus_execution_stack[stack_depth - 1];
 
@@ -277,7 +358,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
             for 1 .. stack_depth print(" ");
             print("EXCEEDED STACK DEPTH\n");
         }
-        return .ERRORED, tprint("Exceeded program stack depth limit (%)", max_stack_depth);
+        return .errored, tprint("Exceeded program stack depth limit (%)", max_stack_depth);
     }
 
     ERRORS := output >= .errors;
@@ -319,6 +400,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
         }
 
         token_string = token_as_string();
+        last_executed_word = token_string;
         assert(token.type != .word || token_string);
 
         if sequence_depth || (token.type != .begin_sequence && move_tokens_to_expect_stack_count) {
@@ -368,7 +450,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
                 move_tokens_to_expect_stack_count -= 1;
                 if !move_tokens_to_expect_stack_count {
                     execute_string("execute", stack, space, output);
-                    return .RUNNING, "";
+                    return .running, "";
                 }
             }
 
@@ -418,7 +500,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
                         break;
                     }
                     execute_string(word_name, execute_stack, space, output);
-                    return .RUNNING, "";
+                    return .running, "";
                 }
 
                 word_name = token_string;
@@ -473,18 +555,18 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
     if error {
         if ERRORS  console_log(error, token_string);
         clear_all_stacks();
-        return .ERRORED, error;
+        return .errored, error;
     }
 
     if token.type == .eof {
         pop(*ficus_execution_stack);
         if !ficus_execution_stack {
             clear_all_stacks();
-            return .STOPPED, "";
+            return .stopped, "";
         }
     }
 
-    return .RUNNING, "";
+    return .running, "";
 }
 
 
@@ -930,12 +1012,12 @@ intrinsics :: #code if word_name == {
 
     case "after_frames";
         count := pop(.int_number);
-        action := unique_string(tprint("%\0", to_string(pop())));
+        action := unique_string(tprint("%\0", to_string(pop())), true);
         add_delayed_action(ficus_execute_delayed_string, action.data, count.int_value);
 
     case "after_seconds";
         seconds := pop(.number);
-        action := unique_string(tprint("%\0", to_string(pop())));
+        action := unique_string(tprint("%\0", to_string(pop())), true);
         add_delayed_action(ficus_execute_delayed_string, action.data, seconds.value);
 
     // strings
