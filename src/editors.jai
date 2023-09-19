@@ -189,8 +189,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_to_next_editor_history_big;  move_to_next_editor_history         (big_steps = true);
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
         case .parse_file;                       parse_file                          (editor, buffer);
-        case .ficus_run_current;                execute_editor(editor, buffer);
-        case .ficus_run_current_verbose;        execute_editor(editor, buffer, output=.verbose);
+        case .ficus_run_current;                ficus_execute_editor(editor, buffer);
+        case .ficus_run_current_verbose;        ficus_execute_editor(editor, buffer, output=.verbose);
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;

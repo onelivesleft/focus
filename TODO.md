@@ -29,12 +29,13 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
-    - [x] build
-    - [x] keybinds
-    - [x] types
+    - [x] state machine : run over multiple frames
     - [.] strings
-    - [ ] break
-    - [ ] global vars (persistent)
+    - [.] global vars
+        - [ ] (persistent)
+    - [ ] do something about memory pool
+    - [ ] debugger
+    - [ ] jump to error
     - [ ] all the words
     - [ ] local vars
 
@@ -46,6 +47,10 @@
     - [ ] debugging
     - [.] quote strings on output
         - [ ] (shrink large ones too)
+    - [x] build
+    - [x] keybinds
+    - [x] types
+    - [x] break
     - [x] loops
     - [x] user stacks
     - [x] generate intrinsic_commands

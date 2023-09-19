@@ -1,7 +1,7 @@
 parse_config :: (name: string, filename: string, file_data: string, space: Space, $is_initial_load: bool) -> Parsed_Config, success: bool, error_msg: string /* temp */, warnings: [] string /* temp */ {
     using parser: Config_Parser;
 
-    reset_space(space);
+    ficus_reset_space(space);
 
     // NOTE: we don't free on purpose, because some of the parsed data will point into the file data
     trimmed_data := trim_left(file_data, " \t\n\r");  // skip empty lines, otherwise the handler will crash!
@@ -74,7 +74,12 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
 
     if script_string {
         event :: #ifx is_initial_load then "on_open"; else "";
-        execute_on_main_thread(copy_string(script_string), space, event = event);
+        callback := ifx space == .global
+                    then ficus_finished_global_config_callback
+                    else ifx space == .project
+                         then ficus_finished_project_config_callback
+                         else null;
+        ficus_execute_string(script_string, space, .default, callback, event);
     }
 
     // Mix the common key mappings into every keymap to support common actions

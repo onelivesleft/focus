@@ -63,12 +63,12 @@ main :: () {
     if !make_directory_if_it_does_not_exist(temp_dir)     then panic_messagebox("Couldn't create folder % for temporary files. Is the directory writable?", temp_dir);
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
+    init_ficus();
     init_file_watcher();
     load_global_config(.load, fallback_to_default_on_failure = true);
     init_workspace();
     init_buffers();
     init_console();
-    init_ficus();
 
     if config.settings.open_on_monitor_one {
         window_x = 1920;
@@ -157,8 +157,8 @@ main :: () {
 
     // Calling ths twice means we can load a project in global config, then a file in project
     // config, and we'll skip drawing the splash screen.
-    ficus_execute_main_thread_scripts();
-    ficus_execute_main_thread_scripts();
+    ficus_update();
+    ficus_update();
 
     // On Wayland and X11 the main window needs to be mapped before we can get input focus.
     // Thus we force one draw here in order to ensure we start the main loop with the window
@@ -176,7 +176,7 @@ main :: () {
                 eye_tracking_tick();
         }
 
-        ficus_execute_main_thread_scripts();
+        ficus_update();
 
         Input.update_window_events();
 
@@ -490,7 +490,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
 handle_script_action :: (action: Action_Script) -> handled: bool {
     if action < cast(Action_Script)ACTIONS_SCRIPT.count {
-        execute_string(tprint("!%", ACTIONS_SCRIPT[action]));
+        ficus_execute_string(tprint("!%", ACTIONS_SCRIPT[action]));
         return true;
     }
     return false;
@@ -905,44 +905,6 @@ remove_delayed_action :: (action: #type (data: *void)) {
     }
 }
 
-#scope_file
-
-ficus_execute_main_thread_scripts :: () {
-    scripts_to_execute_this_frame := ficus_scripts_to_execute.count;
-    refresh_global_buffer := false;
-    refresh_project_buffer := false;
-    if scripts_to_execute_this_frame {
-        for 0 .. scripts_to_execute_this_frame - 1 {
-            exec := ficus_scripts_to_execute[it];
-            execute_string(exec.script, exec.space, exec.output);
-            if exec.event
-                try_execute_word_in_space(exec.event, exec.space, exec.output);
-            //free(exec.script);
-            if exec.space == .global  refresh_global_buffer = true;
-            if exec.space == .project  refresh_project_buffer = true;
-        }
-        if scripts_to_execute_this_frame == ficus_scripts_to_execute.count {
-            array_reset(*ficus_scripts_to_execute);
-        }
-        else {
-            for 1 .. scripts_to_execute_this_frame
-                array_ordered_remove_by_index(*ficus_scripts_to_execute, 0);
-        }
-    }
-    if refresh_global_buffer || refresh_project_buffer {
-        for editor: open_editors {
-            if editor.buffer_id < 0  continue;
-            buffer := *open_buffers[editor.buffer_id];
-            if refresh_global_buffer && platform_path_equals(buffer.file.full_path, global_config_path)
-                buffer.flags |= .needs_coloring;
-            if refresh_project_buffer && platform_path_equals(buffer.file.full_path, project_config_path)
-                buffer.flags |= .needs_coloring;
-        }
-    }
-    ficus_execute_frames();
-}
-
-#scope_export
 
 WHEEL_SENSITIVITY :: 1.0;
 

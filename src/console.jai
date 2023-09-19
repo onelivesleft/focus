@@ -179,6 +179,8 @@ build :: () {
     add_work(*console_thread_group, task, task.title);
 }
 
+build_finished_callback :: (error: string) { }
+
 console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
     using task := cast(*Console_Task) work;
 
