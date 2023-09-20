@@ -456,6 +456,15 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     return true;
 }
 
+jump_to_offset :: (editor: *Editor, offset: s32) {
+    cursor := leave_only_original_cursor(editor);
+    cursor.pos = offset;
+    cursor.sel = offset;
+    add_paste_animation(editor, get_selection(cursor));
+    editor.cursor_moved = .jumped;
+    editor.scroll_to_cursor = .yes;
+}
+
 jump_to_file_offset :: (path: string, offset: s32) -> *Editor, *Buffer {
     editors_open_file(path);
     if editors.active <0  return null, null;
@@ -1756,8 +1765,10 @@ save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_
     for * b, b_id : open_buffers {
         if !b.flags & .modified continue;
         if !include_fileless_buffers && !(b.flags & .has_file)  continue;
-        if !include_unmodified && b.flags & (.modified | .modified_on_disk | .deleted)
-            continue;
+        if !include_unmodified {
+            if !(b.flags & .modified) || (b.flags | .modified_on_disk | .deleted)
+                continue;
+        }
 
         if b.num_editors_open {
             for * e: open_editors {

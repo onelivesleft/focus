@@ -26,7 +26,7 @@ Stack_Item :: struct {
 }
 
 init_ficus :: () {
-    ficus_execute_string(ficus_baked_words_string, .baked, .silent, null);
+    ficus_execute_string(baked_words_string, .baked, .silent, null);
     #insert -> string {
         b : String_Builder;
         for name, index: ACTIONS_EDITORS  print_to_builder(*b, "table_set(*action_words, \"!%\", %);\n", name, index);
@@ -84,12 +84,33 @@ ficus_update :: () {
             }
         }
         if ficus_machine_state == .step && ficus_execution_stack {
-            _, stored_within := ficus_stored_string(last_executed_word);
-            if stored_within
+            container, stored_within := ficus_stored_string(last_executed_word);
+            if stored_within == {
+                case .baked;
+                open_baked_words_buffer();
+                editor := *open_editors[editors.active];
+                jump_to_offset(editor, xx (last_executed_word.data - container.data + last_executed_word.count));
+                ficus_machine_state = .paused;
+
+                case .global;
                 console_log(tprint("<%> % ~%", ficus_execution_stack.count, last_executed_word, stored_within));
-            else
+                jump_to_file_offset(global_words_filename, global_words_buffer_offset + xx (last_executed_word.data + last_executed_word.count));
+                ficus_machine_state = .paused;
+
+                case .project;
+                console_log(tprint("<%> % ~%", ficus_execution_stack.count, last_executed_word, stored_within));
+                jump_to_file_offset(project_words_filename, project_words_buffer_offset + xx (last_executed_word.data + last_executed_word.count));
+                ficus_machine_state = .paused;
+
+                case .user;
+                console_log(tprint("<%> % ~%", ficus_execution_stack.count, last_executed_word, stored_within));
+                jump_to_file_offset(user_words_filename, xx (last_executed_word.data - container.data + last_executed_word.count));
+                ficus_machine_state = .paused;
+
+                case;
                 console_log(tprint("<%> %", ficus_execution_stack.count, last_executed_word));
-            ficus_machine_state = .paused;
+                // don't pause in internal instructions, stay .step and go again!
+            }
             break;
         }
     }
@@ -109,8 +130,8 @@ ficus_step :: () {
 
 ficus_execute_editor :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
     #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
-    ficus_set_user_words_string(cast(string) buffer.bytes, editor.buffer_id);
-    array_add(*ficus_scripts_to_execute, .{ficus_user_words_string, "", .user, output, ficus_execute_editor_finished_callback});
+    ficus_set_user_words_string(cast(string) buffer.bytes, buffer.file.full_path);
+    array_add(*ficus_scripts_to_execute, .{user_words_string, "", .user, output, ficus_execute_editor_finished_callback});
     ficus_machine_state = .running;
 }
 
@@ -118,7 +139,7 @@ ficus_execute_string :: (_script: string, space := Space.user, output := Volume.
     #assert event == "" || array_find(ficus_events, event);
     script := _script;
     if space == .user
-        script = ficus_set_user_words_string(script, -1);
+        script = ficus_set_user_words_string(script, "");
     array_add(*ficus_scripts_to_execute, .{script, event, space, output, callback});
     ficus_machine_state = .running;
 }
@@ -154,40 +175,40 @@ focus_config, word_name, current_project_name, mode), .Focus_Config);
 }
 
 ficus_stored_string :: (s: string) -> string, enum { none; baked; global; project; user; } {
-    if is_within(s, ficus_baked_words_string)    return ficus_baked_words_string, .baked;
-    if is_within(s, ficus_global_words_string)   return ficus_global_words_string, .global;
-    if is_within(s, ficus_project_words_string)  return ficus_project_words_string, .project;
-    if is_within(s, ficus_user_words_string)     return ficus_user_words_string, .user;
+    if is_within(s, baked_words_string)    return baked_words_string, .baked;
+    if is_within(s, global_words_string)   return global_words_string, .global;
+    if is_within(s, project_words_string)  return project_words_string, .project;
+    if is_within(s, user_words_string)     return user_words_string, .user;
     return "", .none;
 }
 
-ficus_set_global_words_string :: (s: string, filename: string, offset: int) -> string {
+ficus_set_global_words_string :: (s: string, filename: string, offset: s32) -> string {
     //print_to_console("\nSETTING GLOBAL\n");
-    if s != ficus_global_words_string {
-        if ficus_global_words_string  free(ficus_global_words_string);
-        ficus_global_words_string = copy_string(s);
+    if s != global_words_string {
+        if global_words_string  free(global_words_string);
+        global_words_string = copy_string(s);
     }
-    global_words_buffer_filename = filename;
+    global_words_filename = filename;
     global_words_buffer_offset = offset;
-    return ficus_global_words_string;
+    return global_words_string;
 }
 
-ficus_set_project_words_string :: (s: string, filename: string, offset: int) -> string {
-    if s != ficus_project_words_string {
-        if ficus_project_words_string  free(ficus_project_words_string);
-        ficus_project_words_string = copy_string(s);
+ficus_set_project_words_string :: (s: string, filename: string, offset: s32) -> string {
+    if s != project_words_string {
+        if project_words_string  free(project_words_string);
+        project_words_string = copy_string(s);
     }
-    project_words_buffer_filename = filename;
+    project_words_filename = filename;
     project_words_buffer_offset = offset;
 
-    return ficus_project_words_string;
+    return project_words_string;
 }
 
-ficus_set_user_words_string :: (s: string, buffer_id: int) -> string {
-    if ficus_user_words_string  free(ficus_user_words_string);
-    ficus_user_words_string = copy_string(s);
-    user_words_buffer_id = buffer_id;
-    return ficus_user_words_string;
+ficus_set_user_words_string :: (s: string, filename: string) -> string {
+    if user_words_string  free(user_words_string);
+    user_words_string = copy_string(s);
+    user_words_filename = filename;
+    return user_words_string;
 }
 
 is_within :: (needle: string, haystack: string) -> bool {
@@ -219,11 +240,12 @@ open_baked_words_buffer :: () {
     buffer : *Buffer = ---;
     if baked_words_buffer_id < 0 {
         baked_words_buffer_id = find_or_create_an_empty_buffer();
+        buffer = *open_buffers[baked_words_buffer_id];
         buffer.flags |= .readonly | .ignore | .manual_coloring;
         buffer.file.name = "<ficus baked words>";
         buffer.file.icon = .fig;
         buffer.lang = .Ficus;
-        insert_string_raw(buffer, buffer.bytes.count, ficus_baked_words_string, false);
+        insert_string_raw(buffer, buffer.bytes.count, baked_words_string, false);
         rescan_for_lines(buffer);
         recalculate_colors(buffer);
     }
@@ -262,28 +284,24 @@ max_stack_depth :: 1024;
     baked_words, ok := read_entire_file("src/baked_words.fig");
     if !ok  compiler_report("Could not find/read ficus baked words file (src/baked_word.fig)", mode=.WARNING);
     print_to_builder(*b, #string jai
-ficus_baked_words_string :: #string fig
+baked_words_string :: #string fig
 %
 fig;
     jai, baked_words);
     return builder_to_string(*b);
 }
 
-ficus_global_words_string : string;
-ficus_project_words_string : string;
-ficus_user_words_string : string;
+global_words_string : string;
+project_words_string : string;
+user_words_string : string;
 
-baked_words_buffer_id   := -1;
-global_words_buffer_id  := -1;
-project_words_buffer_id := -1;
-user_words_buffer_id    := -1;
-global_words_buffer_offset  :
-= 0;
-project_words_buffer_offset := 0;
+global_words_buffer_offset  : s32 = 0;
+project_words_buffer_offset : s32 = 0;
 
-global_words_buffer_filename := "";
-project_words_buffer_filename := "";
-
+baked_words_buffer_id := -1;
+global_words_filename := "";
+project_words_filename := "";
+user_words_filename := "";
 
 baked_words: Table(string, string);
 global_words: Table(string, string);

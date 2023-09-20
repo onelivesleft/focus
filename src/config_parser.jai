@@ -77,11 +77,11 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
         callback : type_of(ficus_finished_global_config_callback) = null;
         if space == .global {
             callback = ficus_finished_global_config_callback;
-            script_string = ficus_set_global_words_string(script_string, filename, script_string.data - file_data.data);
+            script_string = ficus_set_global_words_string(script_string, filename, xx (script_string.data - file_data.data));
         }
         else if space == .project {
             callback = ficus_finished_project_config_callback;
-            script_string = ficus_set_project_words_string(script_string, filename, script_string.data - file_data.data);
+            script_string = ficus_set_project_words_string(script_string, filename, xx (script_string.data - file_data.data));
         }
         ficus_execute_string(script_string, space, .default, callback, event);
     }

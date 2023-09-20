@@ -7,7 +7,6 @@
 
 projects/
 temp/
-build_release/
 build_debug/
 
 focus
