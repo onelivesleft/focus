@@ -340,7 +340,7 @@ is_separator_char :: inline (ch: u8) -> bool {
         ch == #char "." || ch == #char "<" || ch == #char ">" || ch == #char "/" || ch == #char "\"" || ch == #char "\\";
 }
 
-is_balancable_char :: (ch: u32) -> bool {
+is_balanceable_char :: (ch: u32) -> bool {
     return ch == #char "{" || ch == #char "(" || ch == #char "[" || ch == #char "\"";
 }
 
@@ -375,6 +375,18 @@ count_whitespace :: (bytes: [] u8, start_offset: s64, max_offset: s64, spaces :=
         if !jai_string.is_any(it, spaces) return cast(s32) it_index;
     }
     return cast(s32) (max_offset - start_offset);
+}
+
+get_visual_indent_in_spaces :: (line: string, spaces := " \t") -> indent: int {
+    indent := 0;
+    for byte : to_bytes(trim_right(line)) {
+        if byte == {
+            case #char " ";     indent += 1;
+            case #char "\t";    indent += TAB_SIZE - (indent % TAB_SIZE);
+            case;               break;
+        }
+    }
+    return indent;
 }
 
 ends_with_empty_line :: (buffer: *Buffer) -> bool {

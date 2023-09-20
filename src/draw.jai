@@ -928,13 +928,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             end   = get_line_start_offset(editor, buffer, visible_lines_end + 1),
         };
 
-        // Calculate max horizontal scroll in pixels
-        max_line_pixel_width: s32 = 0;
+        max_line_pixel_width: s32 = 0;    // max horizontal scroll in pixels - for horizontal scrolling
         min_prefix_spaces := 99999;
         for line_num : visible_lines_start .. visible_lines_end {
             line_start := get_line_start_offset(editor, buffer, line_num);
             length     := get_line_start_offset(editor, buffer, line_num+1) - line_start;
             line := array_view(buffer.bytes, line_start, length);
+
             line_pixel_width := cast(s32) ((get_num_chars(line) + min_visible_chars) * char_x_advance);
             max_line_pixel_width = max(max_line_pixel_width, line_pixel_width);
             spaces, has_text := count_leading_spaces(cast(string)line);
@@ -944,6 +944,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         if config.settings.collapse_leading_whitespace && editor_id != editors.floating
             whitespace_collapse_width = xx (min_prefix_spaces * char_x_advance);
+
 
         viewport_width := cast(s32) rect.w;
         max_x_scroll: s32 = 0;
@@ -1237,6 +1238,34 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 range.start = offset_to_coords(editor, buffer, start);
                 range.end   = offset_to_coords(editor, buffer, end);
                 draw_range(range, editor, buffer, visible_lines_start, visible_lines_end, text_origin, Colors.SELECTION_HIGHLIGHT);
+            }
+        }
+
+        // Draw indent guides
+        if config.settings.draw_indent_guides {
+            indent_levels: [..] int;
+            indent_levels.allocator = temp;
+
+            current_level := -1;
+            for line_num : visible_lines_start .. visible_lines_end {
+                line   := get_line_as_string(editor, buffer, line_num);
+                indent := get_visual_indent_in_spaces(line);
+
+                indent_level := -1;
+                if indent > 0 then indent_level = (indent - 1) / TAB_SIZE;
+                if !trim_right(line) then indent_level = current_level; else current_level = indent_level;
+
+                array_add(*indent_levels, indent_level);
+            }
+
+            guide := Rect.{ text_origin.x, text_origin.y - visible_lines_start * line_height, 1, line_height };
+            Simp.set_shader_for_color(enable_blend = true);
+            for level : indent_levels {
+                for 0..level {
+                    guide.x = text_origin.x + it * char_x_advance * TAB_SIZE;
+                    draw_rect_raw(guide, Colors.SELECTION_HIGHLIGHT);
+                }
+                guide.y -= line_height;
             }
         }
 

@@ -61,6 +61,9 @@ colored_titlebar:                       true   # Windows 11+ only
 scroll_to_cursor_line_offset            1
 hide_mouse_when_typing:                 true
 highlight_line_with_cursor:             false
+draw_indent_guides:                     false
+auto_surround_with_brackets_and_quotes: false
+
 
 [[keymap]]
 

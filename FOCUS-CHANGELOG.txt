@@ -33,8 +33,9 @@
     + New command: `show_default_config`. Can be used to view the default editor config for your reference (readonly)
     + New command: `select_all_occurrences`. Used to create a cursor on each selection occurrence (thanks @hfr4)
     + New command: `toggle_fullscreen`. Defaults to F11 (thanks @ustance)
-    + New command: `close_project`. Can be used to (surprise!) close active project.
+    + New command: `close_project`. Can be used to (surprise!) close the active project.
     + New option: `highlight_line_with_cursor` (thanks @SentientCoffee)
+    + New option: `draw_indent_guides`. Set to `true` to draw a vertical guide line at every indent level (determined by tab size)
     + Added support for regular expressions in file/project search
     + Basic Python syntax highlighting
 
@@ -51,6 +52,7 @@
     + Linux: fix drag-n-drop crash caused by calling Basic.free on the memory allocated with temp allocator
     + Fix for stuck keys when the editor loses window focus (such as alt-tabbing or moving to other workspaces on Linux)
     + Improved scrolling smoothness (thanks @Sanian-Creations)
+    + Parent directories of files outside of project directories are no longer recursively watched for changes. The editor should no longer hang for a long time when opening a file inside a large directory.
 
 + Other changes:
     + When the workspace is done scanning, the open file dialog input will no longer be cleared

@@ -362,7 +362,6 @@ Workspace :: struct {
 Settings :: struct {
     maximize_on_start                   := false;
     open_on_the_biggest_monitor         := true;
-    open_on_monitor_one                 := false;
     cursor_as_block                     := true;
     cursor_blink_time_in_seconds        := 5;
     highlight_selection_occurrences     := true;
@@ -379,16 +378,14 @@ Settings :: struct {
     can_cancel_go_to_line               := true;
     copy_whole_line_without_selection   := false;
     editor_history_size                 := 128;
-    scroll_to_cursor_line_offset        := 1;
-    ignore_whitespace_in_finder         := false;
-    ignore_whitespace_in_search_bar     := false;
-    collapse_leading_whitespace         := false;
     line_wrap_is_on_by_default          := false;
     show_line_numbers                   := false;
     dark_titlebar                       := false;  // TODO: fix the issues with window resize first
     colored_titlebar                    := true;
     hide_mouse_when_typing              := true;
     highlight_line_with_cursor          := false;
+    draw_indent_guides                     := false;
+    auto_surround_with_brackets_and_quotes := false;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false
