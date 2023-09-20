@@ -108,6 +108,7 @@ get_file_icon :: (name: string, extension: string) -> File_Icon {
 get_lowercase_extension :: (path: string, greedy := true) -> string /* temp */, found_extension: bool {
     // NOTE: not using path_extension because it won't handle filenames with multiple dots as expected (e.g. lib.so.1.1)
     just_path := path_strip_filename(path);
+    print("path: [%]\n", path);
     basename_with_extension := advance(path, just_path.count);
     index := 0;
     if greedy {
@@ -133,6 +134,8 @@ is_file_binary :: (file_data: string) -> bool {
 }
 
 should_ignore_file :: (path: string) -> bool {
+    if path.count <= 0  return true; // project_file_modified.count = -1  <- search for to find out why!
+
     extension, found_extension := get_lowercase_extension(path);
 
     if found_extension {

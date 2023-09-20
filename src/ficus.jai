@@ -163,20 +163,21 @@ ficus_stored_string :: (s: string) -> string, enum { none; baked; global; projec
 
 ficus_set_global_words_string :: (s: string, filename: string, offset: int) -> string {
     //print_to_console("\nSETTING GLOBAL\n");
-    if ficus_global_words_string  free(ficus_global_words_string);
-    ficus_global_words_string = copy_string(s);
+    if s != ficus_global_words_string {
+        if ficus_global_words_string  free(ficus_global_words_string);
+        ficus_global_words_string = copy_string(s);
+    }
     global_words_buffer_filename = filename;
-    print("Global filename: %\n", filename);
     global_words_buffer_offset = offset;
     return ficus_global_words_string;
 }
 
 ficus_set_project_words_string :: (s: string, filename: string, offset: int) -> string {
-    //print_to_console("\nSETTING PROJECT\n");
-    if ficus_project_words_string  free(ficus_project_words_string);
-    ficus_project_words_string = copy_string(s);
+    if s != ficus_project_words_string {
+        if ficus_project_words_string  free(ficus_project_words_string);
+        ficus_project_words_string = copy_string(s);
+    }
     project_words_buffer_filename = filename;
-    print("Project filename: %\n", filename);
     project_words_buffer_offset = offset;
 
     return ficus_project_words_string;
