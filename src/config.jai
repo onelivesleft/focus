@@ -384,6 +384,11 @@ Settings :: struct {
     colored_titlebar                    := true;
     hide_mouse_when_typing              := true;
     highlight_line_with_cursor          := false;
+    ignore_whitespace_in_finder         := false;
+    ignore_whitespace_in_search_bar     := false;
+    collapse_leading_whitespace         := false;
+    scroll_to_cursor_line_offset        := 0;
+    open_on_monitor_one                 := false;
     draw_indent_guides                     := false;
     auto_surround_with_brackets_and_quotes := false;
 
@@ -413,43 +418,17 @@ Setting :: struct {
     type: enum { boolean; integer; };
 }
 
-SETTINGS :: Setting.[
-    .{ "maximize_on_start",                   .boolean },
-    .{ "open_on_the_biggest_monitor",         .boolean },
-    .{ "open_on_monitor_one",                 .boolean },
-    .{ "cursor_as_block",                     .boolean },
-    .{ "highlight_selection_occurrences",     .boolean },
-    .{ "disable_that_annoying_paste_effect",  .boolean },
-    .{ "disable_file_open_close_animations",  .boolean },
-    .{ "double_shift_to_search_in_workspace", .boolean },
-    .{ "insert_spaces_when_pressing_tab",     .boolean },
-    .{ "strip_trailing_whitespace_on_save",   .boolean },
-    .{ "smooth_scrolling",                    .boolean },
-    .{ "can_cancel_go_to_line",               .boolean },
-    .{ "copy_whole_line_without_selection",   .boolean },
-    .{ "ignore_whitespace_in_finder",         .boolean },
-    .{ "ignore_whitespace_in_search_bar",     .boolean },
-    .{ "collapse_leading_whitespace",         .boolean },
-
-    .{ "max_entries_in_open_file_dialog",     .integer },
-    .{ "tab_size",                            .integer },
-    .{ "line_height_scale_percent",           .integer },
-    .{ "max_editor_width",                    .integer },
-    .{ "editor_history_size",                 .integer },
-    .{ "scroll_to_cursor_line_offset",        .integer },
-];
-
 DEFAULT_CONFIG_FILE_DATA  :: #run read_entire_file(DEFAULT_CONFIG_NAME);
 EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
 
 #scope_file
 
 #if OS == .MACOS {
-    DEFAULT_CONFIG_NAME :: "default_macos.focus-config";
+    DEFAULT_CONFIG_NAME :: "config/default_macos.focus-config";
 } else {
-    DEFAULT_CONFIG_NAME :: "default.focus-config";
+    DEFAULT_CONFIG_NAME :: "config/default.focus-config";
 }
-EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
+EXAMPLE_PROJECT_CONFIG_NAME :: "config/example-project.focus-config";
 
 #scope_export
 
