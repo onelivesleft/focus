@@ -191,7 +191,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .parse_file;                       parse_file                          (editor, buffer);
         case .ficus_run_current;                ficus_execute_editor(editor, buffer);
         case .ficus_run_current_verbose;        ficus_execute_editor(editor, buffer, output=.verbose);
-        case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_machine_state = .step;
+        case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_step();
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
@@ -1748,11 +1748,12 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
 
 #scope_export
 
-save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true, include_config_buffers := true) {
+save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true, include_unmodified := false) {
     for * b, b_id : open_buffers {
         if !b.flags & .modified continue;
         if !include_fileless_buffers && !(b.flags & .has_file)  continue;
-        if !include_config_buffers && b.lang == .Focus_Config  continue;
+        if !include_unmodified && b.flags & (.modified | .modified_on_disk | .deleted)
+            continue;
 
         if b.num_editors_open {
             for * e: open_editors {

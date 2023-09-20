@@ -290,7 +290,10 @@ set_build_header :: (success: bool) {
 clear_build_errors :: () {
     if !build_errors  return;
     for * build_errors {
-        if it.decorated_buffer  it.decorated_buffer.flags |= .needs_coloring;
+        if it.decorated_buffer_id >= 0 {
+            buffer := *open_buffers[it.decorated_buffer_id];
+            buffer.flags |= .needs_coloring;
+        }
         free_build_error_members(it);
     }
     array_reset(*build_errors);
@@ -311,7 +314,7 @@ make_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error
     result.coords = coords;
     if result.coords.col < 0  result.coords.col = 0;
     result.kind = kind;
-    result.decorated_buffer = null;
+    result.decorated_buffer_id = -1;
 
     //message_char_width := window_width / 2 / font_ui.x_advance;
     message_char_width :: 40;
@@ -349,7 +352,7 @@ decorate_with_build_error :: (build_error: *Build_Error ) {
     if buffer_index < 0  return;
 
     buffer := *open_buffers[buffer_index];
-    build_error.decorated_buffer = buffer;
+    build_error.decorated_buffer_id = buffer_index;
     buffer.flags |= .needs_coloring;
 }
 
@@ -363,7 +366,7 @@ Build_Error :: struct {
     path : string;
     coords : Coords;
     message : string;
-    decorated_buffer : *Buffer;
+    decorated_buffer_id := -1;
     kind : enum {
         info;
         warning;

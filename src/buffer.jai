@@ -451,9 +451,9 @@ recalculate_colors :: (buffer: *Buffer) {
     }
 
     for build_errors
-        if it.decorated_buffer == buffer
+        if it.decorated_buffer_id == buffer.id
             add_build_error_decoration(buffer, real_coords_to_offset(buffer, it.coords), xx it_index);
-        else if it.decorated_buffer == null
+        else if it.decorated_buffer_id < 0
             print("YO WE GOT A BUFFER FREE DECORATION OVER HERE!!!\n");
 }
 
@@ -831,7 +831,7 @@ find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
 
     buffer_id := open_buffers.count;
     buffer := bucket_array_add(*open_buffers);
-    init_buffer(buffer);
+    init_buffer(buffer, buffer_id);
     buffer.flags &= ~.has_file;
 
     rescan_for_lines(buffer);
@@ -876,7 +876,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     if !found_buffer {
         buffer_id = open_buffers.count;
         buffer = bucket_array_add(*open_buffers);
-        init_buffer(buffer);
+        init_buffer(buffer, buffer_id);
         table_add(*buffers_table, new_strings.lower(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
     }
 
@@ -1084,8 +1084,9 @@ get_range_as_string :: (buffer: Buffer, range: Offset_Range) -> string {
     return result;
 }
 
-init_buffer :: (buffer: *Buffer) {
+init_buffer :: (buffer: *Buffer, buffer_id: int) {
     init(*buffer.content_lock);
+    buffer.id = buffer_id;
 }
 
 unsaved_buffers_exist :: () -> bool {
@@ -1195,6 +1196,7 @@ deinit :: (using edit_group: *Buffer.Edit_Group) {
 // - replace all [..] with a custom array type without an allocator (also probably using s32's)
 Buffer :: struct {
     file: File_Info;
+    id: int;
     num_times_opened: u8;
     num_editors_open: u8;
 
@@ -1438,13 +1440,13 @@ reset_buffer_regions :: (using buffer: *Buffer) {
 }
 
 add_buffer_region :: (using buffer: *Buffer, start_offset: s32, end_offset: s32, inclusive: bool, depth: s8, type: Region.Type) -> id: int {
-    id := atomic_add(*region_id_count, 1);
-    array_add(*regions, .{ start_offset, end_offset, id, inclusive, depth, type });
-    return id;
+    region_id := atomic_add(*region_id_count, 1);
+    array_add(*regions, .{ start_offset, end_offset, region_id, inclusive, depth, type });
+    return region_id;
 }
 
-get_buffer_region :: (using buffer: *Buffer, id: int) -> *Region {
-    for * regions  if it.id == id  return it;
+get_buffer_region :: (using buffer: *Buffer, region_id: int) -> *Region {
+    for * regions  if it.id == region_id  return it;
     return null;
 }
 

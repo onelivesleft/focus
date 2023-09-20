@@ -1,86 +1,8 @@
-DEBUG_FICUS :: false;
+ficus_allocator: Allocator;
+ficus_pool: Flat_Pool;
 
-max_stack_size :: 4096;
-max_user_stacks :: 64;
-max_instructions_per_frame :: 81920;
-max_stack_depth :: 1024;
-
-#insert -> string {
-    b: String_Builder;
-    baked_words, ok := read_entire_file("src/baked_words.fig");
-    if !ok  compiler_report("Could not find/read ficus baked words file (src/baked_word.fig)", mode=.WARNING);
-    print_to_builder(*b, #string jai
-ficus_baked_words_string :: #string fig
-%
-fig;
-    jai, baked_words);
-    return builder_to_string(*b);
-}
-ficus_global_words_string : string;
-ficus_project_words_string : string;
-ficus_user_words_string : string;
-
-#scope_file
-
-baked_words: Table(string, string);
-global_words: Table(string, string);
-project_words: Table(string, string);
-user_words: Table(string, string);
-action_words : Table(string, Action_Editors);
-global_variables: Table(string, Stack_Item);
-
-ficus_execution_stack : [..] Ficus_Frame;
-main_stack: [..] Stack_Item;
-user_stacks: [max_user_stacks] [..] Stack_Item;
-user_stack_names: [max_user_stacks] string;
-
-move_tokens_to_expect_stack_count := 0;
-
-flags : enum_flags {
-    already_opened_project;
-    displayed_header;
-    break_next_jump;
-}
-
-
-#scope_export
-
-ficus_machine_state : enum {
-    running;
-    paused;
-    step;
-}
-
-ficus_run :: () {
-    ficus_machine_state = .running;
-}
-
-ficus_pause :: () {
-    ficus_machine_state = .paused;
-}
-
-ficus_step :: () {
-    ficus_machine_state = .step;
-}
-
-last_executed_word := "";
-
-Ficus_Execution_State :: enum {
-    stopped;
-    errored;
-    running;
-}
-
-Ficus_Frame :: struct {
-    tokenizer: Ficus_Tokenizer;
-    token: Ficus_Token;
-    stack: *[..] Stack_Item;
-    jump_stack: [..] int;
-    jump_to_jump_target: bool;
-    space: Space;
-    output: Volume;
-    words: *Table(string, string);
-}
+Space :: enum { none; baked; global; project; user; }
+Volume :: enum { silent; errors; default; verbose; }
 
 Stack_Item :: struct {
     type : enum {
@@ -102,23 +24,6 @@ Stack_Item :: struct {
     value: float32;
     bool_value: bool;
 }
-
-ficus_scripts_to_execute : [..] struct {
-    script: string;
-    event: string;
-    space: Space;
-    output: Volume;
-    callback: #type (error: string);
-};
-
-ficus_events :: string.["on_open"];
-
-Space :: enum { none; baked; global; project; user; }
-Volume :: enum { silent; errors; default; verbose; }
-
-ficus_pool: Flat_Pool;
-ficus_allocator: Allocator;
-ficus_string_lookup: Table(string, *u8);
 
 init_ficus :: () {
     ficus_execute_string(ficus_baked_words_string, .baked, .silent, null);
@@ -190,29 +95,21 @@ ficus_update :: () {
     }
 }
 
-ficus_finished_global_config_callback :: (error: string) {
-    for editor: open_editors {
-        if editor.buffer_id < 0  continue;
-        buffer := *open_buffers[editor.buffer_id];
-        if platform_path_equals(buffer.file.full_path, global_config_path)
-            buffer.flags |= .needs_coloring;
-    }
+ficus_run :: () {
+    ficus_machine_state = .running;
 }
 
-ficus_finished_project_config_callback :: (error: string) {
-    for editor: open_editors {
-        if editor.buffer_id < 0  continue;
-        buffer := *open_buffers[editor.buffer_id];
-        if platform_path_equals(buffer.file.full_path, project_config_path)
-            buffer.flags |= .needs_coloring;
-    }
+ficus_pause :: () {
+    ficus_machine_state = .paused;
 }
 
-ficus_execute_editor_finished_callback :: (error: string) { }
+ficus_step :: () {
+    ficus_machine_state = .step;
+}
 
 ficus_execute_editor :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
     #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
-    ficus_set_user_words_string(cast(string) buffer.bytes);
+    ficus_set_user_words_string(cast(string) buffer.bytes, editor.buffer_id);
     array_add(*ficus_scripts_to_execute, .{ficus_user_words_string, "", .user, output, ficus_execute_editor_finished_callback});
     ficus_machine_state = .running;
 }
@@ -221,7 +118,7 @@ ficus_execute_string :: (_script: string, space := Space.user, output := Volume.
     #assert event == "" || array_find(ficus_events, event);
     script := _script;
     if space == .user
-        script = ficus_set_user_words_string(script);
+        script = ficus_set_user_words_string(script, -1);
     array_add(*ficus_scripts_to_execute, .{script, event, space, output, callback});
     ficus_machine_state = .running;
 }
@@ -264,21 +161,31 @@ ficus_stored_string :: (s: string) -> string, enum { none; baked; global; projec
     return "", .none;
 }
 
-ficus_set_global_words_string :: (s: string) -> string {
+ficus_set_global_words_string :: (s: string, filename: string, offset: int) -> string {
+    //print_to_console("\nSETTING GLOBAL\n");
     if ficus_global_words_string  free(ficus_global_words_string);
     ficus_global_words_string = copy_string(s);
+    global_words_buffer_filename = filename;
+    print("Global filename: %\n", filename);
+    global_words_buffer_offset = offset;
     return ficus_global_words_string;
 }
 
-ficus_set_project_words_string :: (s: string) -> string {
+ficus_set_project_words_string :: (s: string, filename: string, offset: int) -> string {
+    //print_to_console("\nSETTING PROJECT\n");
     if ficus_project_words_string  free(ficus_project_words_string);
     ficus_project_words_string = copy_string(s);
+    project_words_buffer_filename = filename;
+    print("Project filename: %\n", filename);
+    project_words_buffer_offset = offset;
+
     return ficus_project_words_string;
 }
 
-ficus_set_user_words_string :: (s: string) -> string {
+ficus_set_user_words_string :: (s: string, buffer_id: int) -> string {
     if ficus_user_words_string  free(ficus_user_words_string);
     ficus_user_words_string = copy_string(s);
+    user_words_buffer_id = buffer_id;
     return ficus_user_words_string;
 }
 
@@ -307,7 +214,136 @@ unique_string :: (s: string, force_store := false) -> string {
     return result;
 }
 
+open_baked_words_buffer :: () {
+    buffer : *Buffer = ---;
+    if baked_words_buffer_id < 0 {
+        baked_words_buffer_id = find_or_create_an_empty_buffer();
+        buffer.flags |= .readonly | .ignore | .manual_coloring;
+        buffer.file.name = "<ficus baked words>";
+        buffer.file.icon = .fig;
+        buffer.lang = .Ficus;
+        insert_string_raw(buffer, buffer.bytes.count, ficus_baked_words_string, false);
+        rescan_for_lines(buffer);
+        recalculate_colors(buffer);
+    }
+    editors_open_buffer(baked_words_buffer_id);
+}
+
+ficus_finished_global_config_callback :: (error: string) {
+    for editor: open_editors {
+        if editor.buffer_id < 0  continue;
+        buffer := *open_buffers[editor.buffer_id];
+        if platform_path_equals(buffer.file.full_path, global_config_path)
+            buffer.flags |= .needs_coloring;
+    }
+}
+
+ficus_finished_project_config_callback :: (error: string) {
+    for editor: open_editors {
+        if editor.buffer_id < 0  continue;
+        buffer := *open_buffers[editor.buffer_id];
+        if platform_path_equals(buffer.file.full_path, project_config_path)
+            buffer.flags |= .needs_coloring;
+    }
+}
+
 #scope_file
+
+DEBUG_FICUS :: false;
+
+max_stack_size :: 4096;
+max_user_stacks :: 64;
+max_instructions_per_frame :: 81920;
+max_stack_depth :: 1024;
+
+#insert -> string {
+    b: String_Builder;
+    baked_words, ok := read_entire_file("src/baked_words.fig");
+    if !ok  compiler_report("Could not find/read ficus baked words file (src/baked_word.fig)", mode=.WARNING);
+    print_to_builder(*b, #string jai
+ficus_baked_words_string :: #string fig
+%
+fig;
+    jai, baked_words);
+    return builder_to_string(*b);
+}
+
+ficus_global_words_string : string;
+ficus_project_words_string : string;
+ficus_user_words_string : string;
+
+baked_words_buffer_id   := -1;
+global_words_buffer_id  := -1;
+project_words_buffer_id := -1;
+user_words_buffer_id    := -1;
+global_words_buffer_offset  :
+= 0;
+project_words_buffer_offset := 0;
+
+global_words_buffer_filename := "";
+project_words_buffer_filename := "";
+
+
+baked_words: Table(string, string);
+global_words: Table(string, string);
+project_words: Table(string, string);
+user_words: Table(string, string);
+action_words : Table(string, Action_Editors);
+global_variables: Table(string, Stack_Item);
+
+ficus_execution_stack : [..] Ficus_Frame;
+main_stack: [..] Stack_Item;
+user_stacks: [max_user_stacks] [..] Stack_Item;
+user_stack_names: [max_user_stacks] string;
+
+move_tokens_to_expect_stack_count := 0;
+
+flags : enum_flags {
+    already_opened_project;
+    displayed_header;
+    break_next_jump;
+}
+
+ficus_machine_state : enum {
+    running;
+    paused;
+    step;
+}
+
+
+last_executed_word := "";
+
+Ficus_Execution_State :: enum {
+    stopped;
+    errored;
+    running;
+}
+
+Ficus_Frame :: struct {
+    tokenizer: Ficus_Tokenizer;
+    token: Ficus_Token;
+    stack: *[..] Stack_Item;
+    jump_stack: [..] int;
+    jump_to_jump_target: bool;
+    space: Space;
+    output: Volume;
+    words: *Table(string, string);
+}
+
+ficus_scripts_to_execute : [..] struct {
+    script: string;
+    event: string;
+    space: Space;
+    output: Volume;
+    callback: #type (error: string);
+};
+
+ficus_events :: string.["on_open"];
+
+ficus_string_lookup: Table(string, *u8);
+
+
+ficus_execute_editor_finished_callback :: (error: string) { }
 
 reset_environment :: () {
     assert(ficus_execution_stack.count == 0);

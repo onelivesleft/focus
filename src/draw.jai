@@ -1454,7 +1454,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         coords := cursor_coords[main_cursor].pos;
                         cursor_position := get_cursor_screen_pos(text_origin, coords);
                         for build_error: build_errors {
-                            if build_error.decorated_buffer == buffer
+                            if build_error.decorated_buffer_id == buffer_id
                             && build_error.coords.line == coords.line
                             && build_error.coords.col == coords.col
                                 cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
