@@ -1766,7 +1766,7 @@ save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_
         if !b.flags & .modified continue;
         if !include_fileless_buffers && !(b.flags & .has_file)  continue;
         if !include_unmodified {
-            if !(b.flags & .modified) || (b.flags | .modified_on_disk | .deleted)
+            if !(b.flags & .modified) || (b.flags & (.modified_on_disk | .deleted))
                 continue;
         }
 
@@ -3096,7 +3096,7 @@ delete_to_start_of_line :: (editor: *Editor, buffer: *Buffer) {
         cursor.pos = get_real_line_start_offset(buffer, offset_to_real_line(buffer, selection.start));
     }
     organise_cursors(editor);  // resolve overlapping selections
-    copy_selection_to_clipboard(editor, buffer, cut = true, cut_lines_without_selection = false);
+    delete_selection(editor, buffer);
 }
 
 delete_to_end_of_line :: (editor: *Editor, buffer: *Buffer) {
@@ -3106,7 +3106,7 @@ delete_to_end_of_line :: (editor: *Editor, buffer: *Buffer) {
         cursor.pos = get_real_line_end_offset(buffer, offset_to_real_line(buffer, selection.end));
     }
     organise_cursors(editor);  // resolve overlapping selections
-    copy_selection_to_clipboard(editor, buffer, cut = true, cut_lines_without_selection = false);
+    delete_selection(editor, buffer);
 }
 
 change_case_of_selected_text :: (editor: *Editor, buffer: *Buffer, mode: enum { upper; lower; caps; cycle; }) {

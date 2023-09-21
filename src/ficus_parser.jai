@@ -7,7 +7,7 @@ Ficus_Tokenizer :: struct {
     syntax_highlight_mode: bool;
     is_start_of_line: bool;
 
-    prev_token : Ficus_Token;
+    prev_token: Ficus_Token;
 }
 
 Ficus_Token :: struct {
@@ -318,12 +318,16 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
 ficus_skip_to_non_indented :: (using tokenizer: *Ficus_Tokenizer) {
     prev_was_newline := false;
     while t < max_t {
-        if t.* == #char "\n"
+        if t.* == #char "\n" {
             prev_was_newline = true;
-        else if prev_was_newline && !is_whitespace(t.*)
+        }
+        else if prev_was_newline && !is_whitespace(t.*) {
+            t -= 1;
             return;
-        else
+        }
+        else {
             prev_was_newline = false;
+        }
         t += 1;
     }
 }

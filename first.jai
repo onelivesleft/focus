@@ -54,12 +54,12 @@ build :: () {
         }
     }
 
-    options.output_path = build_dir;
-    make_directory_if_it_does_not_exist(build_dir);
-
-    if !optimized then options.output_executable_name = sprint("%_debug", options.output_executable_name);
-
     if !no_output {
+        options.output_path = build_dir;
+        make_directory_if_it_does_not_exist(build_dir);
+
+        if !optimized then options.output_executable_name = sprint("%_debug", options.output_executable_name);
+
         #if OS == .WINDOWS {
             slash :: "\\";
             exe :: ".exe";
@@ -68,7 +68,7 @@ build :: () {
             slash :: "/";
             exe :: "";
         }
-        output_path := tprint("%1%2%3", #filepath, options.output_executable_name, exe);
+        output_path := tprint("%1%2%3", options.output_path, options.output_executable_name, exe);
         handle, exists := file_open(output_path);
         if exists {
             file_close(*handle);
@@ -78,7 +78,6 @@ build :: () {
             }
         }
     }
-
 
     w := compiler_create_workspace(options.output_executable_name);
     set_build_options(options, w);

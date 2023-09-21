@@ -1,0 +1,152 @@
+
+CLINK c:\Repos\focus>git --no-pager log --oneline --committer onelivesleft --reverse  
+470f4c1 Fix select_word editor binding not working
+88bf4b8 Added setting `can_cancel_go_to_line`
+9241320 Added center_viewport_on_cursor and dump_key_mappings
+379b1a1 Strip junk from center_viewport_on_cursor
+8d40c24 Editor History
+e11991c Update default_macos.focus-config
+0914932 Update compile.bat
+5c5a7b8 Upgraded Editor History to fold like moves
+e593656 Neater logic
+a38e4fd Added `create_cursors_around`
+79a03f4 Basic eye tracking
+d7a6300 Better eye tracking, better theming, prev file,
+24c0d3d Buffer switcher
+beb2a63 Work on autoindent
+1230d09 Merge branch 'main' of https://github.com/onelivesleft/focus
+41528bf Finish merge
+b8ddeed autoindent braceless constructs
+bab138c Update eye_tracking.jai
+279cd57 Merge upstream
+9ebe1da Auto unindent on closing brace
+eab4190 Jump to matching bracket
+a3294b2 Update
+d77dfb3 Work on goto definition, debug color scheme
+c4ff9ba Always draw Pos on status bar, simple definition finder (not good enough)
+8c36d54 Add jai_parser, remove simple definition finder
+eafbb88 Fix Pos: status bar spacing
+741fd71 Fix move to previous buffer, fix cut deleting lines instead of selection
+56f39ca Stuff happened
+88db6bd Fuzzy search - ignore whitespace
+2062eb2 Go back to default initial window size behaviour unless open_on_monitor_one setting is enabled
+25881f6 Merge branch 'main' of https://github.com/onelivesleft/focus
+ee7d45b Merge with official fork
+2676e16 Add setting to control ignore_whitespace_in_search
+aaadb2d Update release.bat
+da5903b Show file navigator when you open a project on welcome screen
+95a1576 Added @OnConfigRefresh hook, fixed path comparison bug, split ignore whitespace into two (search bar and finder)
+d939d73 Improved ignore_whitespace search, finder and search bar no longer select all on open
+6ba8c42 Make finder and search bar select all again
+938e088 Simple goto definition
+c7cf4f2 Allow typing number keycode value in config
+2a76261 Delete focus-crash-report.txt
+2807360 Create run_command.jai
+54161d6 Work on output window /  build system
+59e3690 Build mostly working
+149dcff Merge branch 'main' of https://github.com/onelivesleft/focus
+81f4a37 Merge
+94d333d This version for bytecode analysis!
+e10c11c DEBUG_* options in main
+a71bd40 Merge branch 'main' of https://github.com/onelivesleft/focus
+620bc06 Remove title bar, Move footer to top, Fix HERESTRING parsing
+1a048ef Fix go to line dialog position / width
+6044233 Added motif color
+23fcacd Parse herestring languages
+ee5b62e Start of .MD
+41a0e0a Fix uninitialized simp, fixed buffer overrun
+d537eb8 Regions
+9c5c586 Merge branch 'main' of https://github.com/onelivesleft/focus
+896fb73 Merge glsl, #asm regions, better file fuzzy match
+02be8e9 md basically working, MD inner code blocks, code blocks in md
+1b7e377 MD almost done, autolinewrap per lang,
+95454b5 Add TODO.MD to repo
+0cefb0a MD hyperlinks
+630017e Use regions as visual queues for compile time code generation
+1fafdd3 Fix / Tidy up regions
+0d2b68c Console gets its own font, Fixed opening file in more than one buffer, Highlight format items in Jai herestrings , Fixed regions drawing over things (like selections)
+cab184b Added decorations, Config color indicator
+20e2010 Merge branch 'main' of https://github.com/onelivesleft/focus
+e423cdb Merge official fork
+6bc0fc9 Highlight #if "else" as directive
+e36e280 Better build error decoration, Import Strings instead of String
+78769f3 Better error parsing
+183ec08 Show icon while build task is running, Fix console disappearing prematurely, Added Icon Search dialog
+eb424ea Merge branch 'main' of https://github.com/onelivesleft/focus
+5ee58ac Added change_case_ keybinds,
+720d97d Fixed delete_line on bottom row of file
+30e30c1 Fix goto definition
+a5e7fd2 Added hr to md, fixed build not understanding link error,
+66a5ea9 Merge branch 'main' of https://github.com/onelivesleft/focus
+e54b1b8 Finish merge
+e186ecf Regions for #scope_file / #scope_module
+d45dee0 Added section markers to buffers, fix scroll to top of file, added background color per code visibility,  added big step to editor history, added hide_current_buffer ("close tab" equivalent)
+b0f94ce Merge branch 'main' of https://github.com/onelivesleft/focus
+cd7028f focus config parses inside strings, Added "Convert Current Buffer To [colors]" to generate theme from vscode theme json, ,
+c92ffd3 Fixed section move selecting, Added sections to focus_config
+efcdba0 Fix select_word not working when you have one cursor with a selection
+c6b7ced Change window title to show project first
+5d06a4c Rework get_char_type / scan_through_similar_characters (improve word jump / select word)
+240bf9b Fix jai-embedded focus config
+48124e5 Fix move_by_word (broken in "Rework get_char_type...")
+a9b8ac7 Added important/unimportant section distinction, added background_cursor_row config color,
+469c8c4 Add cursor above/below now skips blank lines
+4d7786b Added align cursors (just before getting it for free from main fork :/ )
+108603e Merge branch 'main' of https://github.com/onelivesleft/focus
+375caeb Merge main
+2b74ddf Minimal title bar
+55e48a1 Made cursor row highlight pretty, fixed it in right editor, disable it when selecting, Added action to Show Cursor Position
+d6be887 HIDE_SCROLLBARS
+af9d368 Cropped error message toast better, Added `Toggle Show Keystrokes`, Added jump to added string source / jump to comments source location
+4369d22 Toggle Show Filename
+2e0fa09 Update TODO.md
+57ab19a Update TODO.md
+6e7c468 Experimental whitespace collapse
+0551ad1 Merge branch 'main' of https://github.com/onelivesleft/focus
+0fe59b3 Merge main
+f73d865 SKIP_CUTSCENES
+cd122be Fix jump to matching bracket not working at end of file
+b2d7244 Draw #scope transitions as tabs
+e86ad4e Added Quit command
+51d4f33 Collapse leading whitespace
+2eeca74 Prettier collapsed whitspace marker
+acd469e Pretty.  Draggable splash screen.
+305fc88 Profiling (Iprof), icon search panel now copies icon string to clipboard
+ffd9432 Better whitespace collapse mode marker
+74f6c59 Merge branch 'main' of https://github.com/onelivesleft/focus
+aa4c762 Working after merge main
+28ea353 Fix toast start position
+446c5a4 Only eyetrack while application is active
+647054a Profile modules, profile graph, fixed regexp
+0622836 Fig 🍃
+a8442ba Ficus! 🍃  Hide Iprof build messages, Fix buffer info arrays, Fix buffer.dirty draw crash,
+9f18016 Premerge
+06fdebe Merge branch 'main' of https://github.com/onelivesleft/focus
+722d39b Merge main
+7423764 Fix scroll clamp
+3b8b4a4 Ficus Turing complete!, Improved console, Iprof jump to row,
+2121100 Fixed console font, prettier console / iprof
+96afa21 Convert Buffer bools to Buffer.flags
+3929af2 Much prettier console
+b25b02c Fix fonts, configurable console font size, prettier console
+ac209eb New build system, Remove old build system, Open Console Buffer, Fix jump to source location, Better fuzzy matching
+e812315 Fixed finder lag, Ficus keybinds
+a1031ad Fix console not hiding after successful build
+ab50625 Fix console build animation
+e4a68a0 Bold text, Fix console colors, Console UI, Fix eye tracking lag (thanks Philip!)
+375b4f6 Ficus++, first.jai now errors out instantly if the target exe is write-locked, Fixed delete actions erroneously copying to clipboard
+9415e62 Fix no-file buffer sticking around after save-as
+2138eea Error descriptors at error, jump_to_previous_error, source location buttons in console, maximize console,
+c6e663f Fix console output not buffering, Restore default version of Strings module (its threading support is bad, but will work OK with how Focus uses threads)
+f5c736f Clear Build Errors command
+9dd7c5f Reverted Strings change, Ficus++
+3703c08 Fix region coloring, Ficus++
+49bb6a0 Fix open_console_buffer / save_as on console buffer
+ef76acc Start of rework Ficus to run async
+966a528 Ficus++ (now has own state machine)
+7511060 Start of Ficus debugging
+3fda478 Fix decorated buffer using a raw pointer, fix save_all saving unmodified files
+cb1ea84 Merge branch 'main' of https://github.com/onelivesleft/focus
+2c33bcf Merge main
+22577a8 Fix up merge
+9e7896b Fix save_all

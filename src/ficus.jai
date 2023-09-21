@@ -606,7 +606,6 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
             error = tprint("Expected % more tokens", move_tokens_to_expect_stack_count);
     }
 
-
     if error {
         if ERRORS  console_log(error, token_string);
         clear_all_stacks();

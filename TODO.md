@@ -1,9 +1,7 @@
 # Mine
 
 
-- [x] Regions should color line numbers
 - [ ] Change "floating_area" "floating editor" to "console"
-- [x] Fix console save as / open buffer mangling console colors
 
 - [ ] Parse jai error polymorph info: "C:" is not at start of string is why it isn't working
 
@@ -33,6 +31,7 @@
     - [.] strings
     - [.] global vars
         - [ ] (persistent)
+    - [ ] eval dialog
     - [ ] do something about memory pool
     - [ ] debugger
     - [ ] jump to error
@@ -132,9 +131,10 @@
 - [ ] Create project from folder
 - [ ] search broken? possibly same problem as memory crash?
 
-
 - [ ] next/prev search result
 
+- [x] Regions should color line numbers
+- [x] Fix console save as / open buffer mangling console colors
 - [x] Go to added_string source
     - [x] Manual command to do it
 - [x] Stop clicking floating window sending buffer to main editor panes
