@@ -1135,7 +1135,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 continue;
 
             if #complete type == {
-                case .COLOR_SQUARE;
+                case .color_square;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 square_rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
                 square_rect = shrink(square_rect, 4);
@@ -1145,7 +1145,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
                 draw_rect(square_rect, color);
 
-                case .BUILD_ERROR;
+                case .breakpoint;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                thickness :: 2;
+                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * position.end + thickness + 1, thickness);
+                draw_rect(outline, secondary_color);
+                outline.y += line_height - thickness;
+                draw_rect(outline, secondary_color);
+                outline.x += outline.w - thickness;
+                outline.h = line_height - thickness * 2;
+                outline.y -= outline.h;
+                outline.w = thickness;
+                draw_rect(outline, secondary_color);
+
+                case .build_error;
                 coords := offset_to_coords(editor, buffer, position.start);
                 if previous_build_error_line == coords.line  continue;
                 previous_build_error_line = coords.line;
@@ -1154,12 +1167,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_margin, line_height);
                 draw_rect(line_rect, color);
 
-                case .HORIZONTAL_RULE;
+                case .horizontal_rule;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
                 draw_rect(hr_rect, color);
 
-                case .SOURCE_LOCATION;
+                case .source_location;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 button_rect := make_rect(screen_pos.x - char_x_advance, screen_pos.y, line_height, line_height);
                 icon :: "\uf14c";
@@ -1476,7 +1489,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 continue;
 
             if type == {
-                case .BUILD_ERROR;
+                case .build_error;
                 if build_error_index < build_errors.count {
                     cursor := cursors[main_cursor];
                     if cursor.pos == position.start {
@@ -1490,6 +1503,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         }
                     }
                 }
+
+                case .breakpoint;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                square_rect := make_rect(screen_pos.x - 4, screen_pos.y, 4, line_height);
+                draw_rect(square_rect, color);
             }
         }
     }

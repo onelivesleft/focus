@@ -455,6 +455,10 @@ recalculate_colors :: (buffer: *Buffer) {
             add_build_error_decoration(buffer, real_coords_to_offset(buffer, it.coords), xx it_index);
         else if it.decorated_buffer_id < 0
             print("YO WE GOT A BUFFER FREE DECORATION OVER HERE!!!\n");
+
+    for ficus_breakpoints
+        if it.buffer_id == buffer.id
+            add_breakpoint_decoration(buffer, it.offset_from_buffer_start, it.len);
 }
 
 tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */ {
@@ -1359,18 +1363,22 @@ if_reset_then_generate_buffer_info_arrays :: () #expand {
 
 Decoration :: struct {
     type : enum {
-        COLOR_SQUARE;
-        BUILD_ERROR;
-        HORIZONTAL_RULE;
-        SOURCE_LOCATION;
+        color_square;
+        build_error;
+        breakpoint;
+        horizontal_rule;
+        source_location;
     }
     position: Offset_Range;
-    color : Color;
+    color: Color;
     build_error_index: s32;
 
     #place color;
     target_buffer_index: s32;
     target_buffer_position: s32;
+
+    #place build_error_index;
+    secondary_color: Color;
 }
 
 reset_buffer_decorations :: (using buffer: *Buffer) {
@@ -1379,7 +1387,7 @@ reset_buffer_decorations :: (using buffer: *Buffer) {
 
 add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Color) {
     array_add(*decorations, .{
-        type = .COLOR_SQUARE,
+        type = .color_square,
         position = .{position, position},
         color = color
     });
@@ -1387,16 +1395,25 @@ add_color_square_decoration :: (using buffer: *Buffer, position: s32, color: Col
 
 add_build_error_decoration :: (using buffer: *Buffer, position: s32, index: s32) {
     array_add(*decorations, .{
-        type = .BUILD_ERROR,
+        type = .build_error,
         position = .{position, position},
         color = with_alpha(Colors.UI_ERROR, 0.5),
         build_error_index = index
     });
 }
 
+add_breakpoint_decoration :: (using buffer: *Buffer, position: s32, len: s32) {
+    array_add(*decorations, Decoration.{
+        type = .breakpoint,
+        position = .{position, len},
+        color = Colors.UI_ERROR,
+        secondary_color = with_alpha(Colors.UI_ERROR, 0.5)
+    });
+}
+
 add_source_location_decoration :: (using buffer: *Buffer, position: s32, target_buffer_index: s32, target_buffer_position: s32) {
     array_add(*decorations, .{
-        type = .SOURCE_LOCATION,
+        type = .source_location,
         position = .{position, position},
         target_buffer_index = target_buffer_index,
         target_buffer_position = target_buffer_position
@@ -1405,7 +1422,7 @@ add_source_location_decoration :: (using buffer: *Buffer, position: s32, target_
 
 add_horizontal_rule_decoration :: (using buffer: *Buffer, position: s32) {
     array_add(*decorations, .{
-        type = .HORIZONTAL_RULE,
+        type = .horizontal_rule,
         position = .{position, position},
         color = with_alpha(Colors.CODE_COMMENT, 0.5)
     });

@@ -33,7 +33,11 @@
         - [ ] (persistent)
     - [ ] eval dialog
     - [ ] do something about memory pool
-    - [ ] debugger
+    - [.] debugger
+        - [.] breakpoints
+            - [x] draw
+            - [.] functional
+            - [ ] ficus_clear_breakpoints
     - [ ] jump to error
     - [ ] all the words
     - [ ] local vars

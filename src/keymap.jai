@@ -449,8 +449,10 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "ficus_run_current",
     "ficus_run_current_verbose",
     "ficus_debug_current",
+    "ficus_toggle_breakpoint",
     "ficus_step",
     "ficus_continue",
+    "ficus_open_baked_words_buffer",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[

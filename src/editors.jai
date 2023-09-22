@@ -191,7 +191,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .parse_file;                       parse_file                          (editor, buffer);
         case .ficus_run_current;                ficus_execute_editor(editor, buffer);
         case .ficus_run_current_verbose;        ficus_execute_editor(editor, buffer, output=.verbose);
-        case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_step();
+        case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_pause();
+        case .ficus_toggle_breakpoint;          ficus_toggle_breakpoint(editor, buffer);
 
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;

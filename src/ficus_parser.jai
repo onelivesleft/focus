@@ -332,6 +332,59 @@ ficus_skip_to_non_indented :: (using tokenizer: *Ficus_Tokenizer) {
     }
 }
 
+ficus_is_executable_token :: (token: Ficus_Token, using tokenizer: *Ficus_Tokenizer) -> bool {
+    if #complete token.type == {
+        case .declaration; #through;
+        case .begin_sequence; #through;
+        case .word_with_stack; #through;
+        case .number_literal; #through;
+        case .string_literal;
+            return true;
+
+        case .word;
+            return token.len != 1 || buf[token.start] != #char ":";
+
+        case .eof; #through;
+        case .eol; #through;
+        case .comment; #through;
+        case .error; #through;
+        case .string_error; #through;
+        case .punctuation; #through;
+        case .end_sequence;
+            return false;
+    }
+}
+
+ficus_executable_token_at_offset :: (buffer: string, offset: s32) -> token: Ficus_Token, found: bool {
+    tokenizer: Ficus_Tokenizer = ---;
+    tokenizer.buf   = buffer;
+    tokenizer.max_t = buffer.data + buffer.count;
+    tokenizer.t     = buffer.data;
+    tokenizer.syntax_highlight_mode = false;
+
+    token: Ficus_Token = ---;
+
+    while true {
+        token = ficus_get_next_token(*tokenizer);
+        if token.type == .eof  break;
+        if !ficus_is_executable_token(token, *tokenizer)  continue;
+
+        if token.start <= offset && offset < token.start + token.len {
+            return token, true;
+        }
+        else if offset == token.start + token.len {
+            next_token := ficus_get_next_token(*tokenizer);
+            if next_token.start == offset && ficus_is_executable_token(next_token, *tokenizer)
+                return next_token, true;
+            else
+                return token, true;
+        }
+    }
+
+    return token, false;
+}
+
+
 #scope_file
 
 eat_until_newline :: (using tokenizer: *Ficus_Tokenizer) {

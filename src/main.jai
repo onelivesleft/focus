@@ -473,6 +473,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .ficus_step;                                       ficus_step();                                       return true;
         case .ficus_continue;                                   ficus_run();                                        return true;
+        case .ficus_open_baked_words_buffer;                    open_baked_words_buffer();                          return true;
 
         case .profiler_mode_cycle;                              #if IPROF { iprof_mode_cycle(); return true; } else return false;
         case .profiler_up;                                      #if IPROF { iprof_up();         return true; } else return false;
