@@ -584,16 +584,9 @@ offset_is_within_multiline_token :: (tokens: [] Indentation_Token, offset: s32) 
     return token.type == .maybe_multiline && (token.start + token.len) >= offset;
 }
 
-save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: bool {
-    file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
-    if !(success && file_path)
-        return false;
-
+save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64, file_path: string) -> saved: bool {
     if buffer.flags & .readonly && platform_path_equals(file_path, buffer.file.full_path)
         return false;
-
-    if buffer_id == console_buffer_id {
-    }
 
     // Save the file BEFORE making a new buffer so find_or_create_buffer can find it
     if buffer_id != console_buffer_id && config.settings.strip_trailing_whitespace_on_save

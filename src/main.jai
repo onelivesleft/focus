@@ -95,8 +95,6 @@ main :: () {
         }
     }
 
-    args := get_command_line_arguments();
-
     if args.count >= 2 {
         session_initialized := false;
         for < i: args.count - 1..1 {
@@ -1017,6 +1015,7 @@ active_global_widget: enum {
     open_project_dialog;
     unsaved_buffers_dialog;
     icon_search_dialog;
+    //save_file_dialog;
     confirm_overwrite_dialog;
 } = .editors;
 

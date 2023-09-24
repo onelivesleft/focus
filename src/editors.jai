@@ -1762,9 +1762,9 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
         session_notify_modified_buffer(editor.buffer_id);
     }
 
-    if buffer.readonly return;
+    if buffer.flags & .readonly  return;
 
-    if !save_new_file && buffer.has_file {
+    if !save_new_file && buffer.flags & .has_file {
         // Just save the file normally
         save_buffer_to_disk(buffer, editor.buffer_id);
         return;

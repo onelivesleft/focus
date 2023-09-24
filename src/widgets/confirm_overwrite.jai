@@ -32,7 +32,7 @@ confirm_overwrite_dialog_proceed :: () {
 
     if #complete mode == {
         case .save_as;  save_buffer_to_new_file_on_disk(buffer, buffer_id, path);
-        case .save;     save_buffer_to_disk(buffer, buffer_id, path);
+        case .save;     save_buffer_to_disk(buffer, buffer_id);
     }
 
     close_confirm_overwrite_dialog();

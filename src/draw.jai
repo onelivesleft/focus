@@ -107,7 +107,7 @@ draw_frame :: () {
 
     if active_global_widget == {
         case .open_file_dialog;         draw_open_file_dialog();
-        case .save_file_dialog;         draw_save_file_dialog();
+        //case .save_file_dialog;         draw_save_file_dialog();
         case .delete_file_dialog;       draw_delete_file_dialog();
         case .finder;                   draw_finder();
         case .go_to_line_dialog;        draw_go_to_line_dialog(active_pane_rect);
@@ -1589,6 +1589,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                             && build_error.coords.col == coords.col
                                 cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
                         }
+                    }
+                }
+
                 case .breakpoint;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 square_rect := make_rect(screen_pos.x - 4, screen_pos.y, 4, line_height);
@@ -2310,6 +2313,7 @@ draw_splitter :: (splitter_rect: Rect, split_x: float, ui_id: Ui_Id) {
     draw_rect(rect, color);
 }
 
+/*
 draw_save_file_dialog :: () {
     using save_file_dialog;
     using font_data;
@@ -2349,6 +2353,7 @@ draw_save_file_dialog :: () {
     input_id := get_ui_id_from_loc(parent_id = ui_id);
     draw_text_input(*save_file_dialog.input, input_rect, ui_id = input_id, active = true, label = "Path");
 }
+*/
 
 draw_open_file_dialog :: () {
     using open_file_dialog;
@@ -3309,6 +3314,7 @@ draw_unsaved_buffers_dialog :: () {
 }
 
 draw_confirm_overwrite_dialog :: () {
+    using font_data;
     ui_id := Ui_Id.confirm_overwrite;
 
     additional_message := "Please confirm that you want to overwrite the following file:";
