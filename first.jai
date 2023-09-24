@@ -31,6 +31,7 @@ build :: () {
     // options.arithmetic_overflow_check = .FATAL; Try uncommenting this line in 0.1.072. Doesn't work correctly on 0.1.071.
     build_dir := "build_debug";
     options.output_executable_name = "focus";
+    dev_build := false;
 
     for arg: args {
         if arg == {
@@ -44,6 +45,11 @@ build :: () {
             options.arithmetic_overflow_check = .OFF;
             include_profiling = false;
           case "debug";
+          case "dev";
+            include_profiling = true;
+            build_dir = ".";
+            options.output_executable_name = "focus_dev";
+            dev_build = true;
           case "no_output";
             no_output = true;
             include_profiling = false;
@@ -59,7 +65,8 @@ build :: () {
         options.output_path = build_dir;
         make_directory_if_it_does_not_exist(build_dir);
 
-        if !optimized then options.output_executable_name = sprint("%_debug", options.output_executable_name);
+        if !optimized && !dev_build
+            options.output_executable_name = sprint("%_debug", options.output_executable_name);
 
         #if OS == .WINDOWS {
             slash :: "\\";
