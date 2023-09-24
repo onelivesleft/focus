@@ -115,6 +115,7 @@ draw_frame :: () {
         case .unsaved_buffers_dialog;   draw_unsaved_buffers_dialog();
         case .confirm_overwrite_dialog; draw_confirm_overwrite_dialog();
         case .commands_dialog;          draw_commands_dialog();
+        case .icon_search_dialog;       draw_icon_search_dialog();
     }
 
     ficus_draw_ui();
