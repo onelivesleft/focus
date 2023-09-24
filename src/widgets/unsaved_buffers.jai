@@ -33,6 +33,7 @@ close_unsaved_buffers_dialog :: () {
 
 unsaved_buffers_save_all :: () {
     errors_when_saving := false;
+
     for buffer_id : unsaved_buffers_dialog.modified_buffers {
         buffer := *open_buffers[buffer_id];
         if buffer.flags & .ignore  continue;

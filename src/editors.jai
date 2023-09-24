@@ -133,7 +133,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
     // We want to remember where cursors were before we do any edits
     if buffer.edits.count == 0 {
         array_resize(*buffer.cursors, editor.cursors.count);
-        for * cursor, i : buffer.cursors { <<cursor = editor.cursors[i].state; }
+        for * cursor, i : buffer.cursors { cursor.* = editor.cursors[i]; }
     }
 
     keep_selection := false;
@@ -177,7 +177,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .scroll_viewport_down_fast;        smooth_scroll(editor, direction = .down, fast = true);  activate_hold_action(action, event);
         case .scroll_viewport_left;             smooth_scroll(editor, direction = .left, fast = true);  activate_hold_action(action, event);
         case .scroll_viewport_right;            smooth_scroll(editor, direction = .right, fast = true); activate_hold_action(action, event);
-        case .select_all;                       select_all                          (editor, buffer); keep_selection = true;
+        case .swap_selections;                  swap_selections                     (editor, buffer);         keep_selection = true;
+        case .select_all;                       select_all                          (editor, buffer);         keep_selection = true;
         case .create_cursor_above;              create_cursor                       (editor, buffer, .above); keep_selection = true;
         case .create_cursor_below;              create_cursor                       (editor, buffer, .below); keep_selection = true;
         case .create_cursors_around;            create_cursors_around               (editor, buffer); keep_selection = true;
@@ -335,14 +336,14 @@ active_editor_type_char :: (char: u32) {
     if buffer.edits.count == 0 {
         // We want to remember where cursors were before we do any edits
         array_resize(*buffer.cursors, editor.cursors.count);
-        for * cursor, i : buffer.cursors { <<cursor = editor.cursors[i].state; }
+        for * cursor, i : buffer.cursors { cursor.* = editor.cursors[i]; }
     }
 
     offset_delta: s32 = 0;
     buf_len := cast(s32) buffer.bytes.count;
 
-    all_have_selection := all_cursors_have_selection(editor);
-    is_balanceable     := is_balanceable_char(char);
+    should_surround_selection     := config.settings.auto_surround_with_brackets_and_quotes && all_cursors_have_selection(editor) && is_balanceable_char(char);
+    should_insert_closing_bracket := config.settings.auto_close_brackets && all_cursors_can_auto_insert_closing_bracket(editor, buffer) && is_auto_closeable_char(char);
 
     for * cursor : editor.cursors {
         new_len := cast(s32) buffer.bytes.count;
@@ -353,13 +354,19 @@ active_editor_type_char :: (char: u32) {
         cursor.pos += offset_delta;
         cursor.sel += offset_delta;
 
-        if config.settings.auto_surround_with_brackets_and_quotes && all_have_selection && is_balanceable {
+        if should_surround_selection {
             selection := get_selection(cursor);
             insert_char_at_offset(buffer, selection.end  , convert_utf32_to_utf8(get_balancing_char(char)));
             insert_char_at_offset(buffer, selection.start, utf8_char);
 
             cursor.pos = selection.end   + 1;
             cursor.sel = selection.start + 1;
+        } else if should_insert_closing_bracket {
+            insert_char_at_offset(buffer, cursor.pos, convert_utf32_to_utf8(get_balancing_char(char)));
+            insert_char_at_offset(buffer, cursor.pos, utf8_char);
+
+            cursor.pos = next_char_offset(buffer.bytes, cursor.pos);
+            cursor.sel = cursor.pos;
         } else {
             if has_selection(cursor) {
                 selection := get_selection(cursor);
@@ -840,6 +847,36 @@ all_cursors_have_selection ::  (using editor: Editor) -> bool {
     return true;
 }
 
+all_cursors_can_auto_insert_closing_bracket :: (using editor: Editor, buffer: Buffer) -> bool {
+    for editor.cursors {
+        if has_selection(it) return false;
+        ch := get_char_at_offset(buffer, it.pos);
+
+        if !is_whitespace_char(xx ch) && !(is_non_word_char(ch) && !is_auto_closeable_char(ch)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+all_cursors_can_auto_delete_closing_bracket :: (using editor: Editor, buffer: Buffer) -> bool {
+    closing: u32; // Make sure all cursors have the same type of closing bracket
+
+    for editor.cursors {
+        if it.pos - 1 < 0 || has_selection(it) return false;
+
+        ch_prev := get_char_at_offset(buffer, it.pos - 1);
+        ch_curr := get_char_at_offset(buffer, it.pos);
+
+        if !is_auto_closeable_char(ch_prev) return false;
+
+        if !closing then closing = get_balancing_char(ch_prev);
+
+        if ch_curr != closing return false;
+    }
+    return true;
+}
+
 new_edit_group :: (buffer: *Buffer, editor: *Editor) {
     if buffer.edits.count == 0 return;
 
@@ -849,7 +886,7 @@ new_edit_group :: (buffer: *Buffer, editor: *Editor) {
 
     // Remember cursor state
     array_resize(*buffer.cursors, editor.cursors.count);
-    for * cursor, i : buffer.cursors { <<cursor = editor.cursors[i].state; }
+    for * cursor, i : buffer.cursors { cursor.* = editor.cursors[i]; }
 }
 
 close_editor :: (position: enum { current; other; left; right; }) {
@@ -939,7 +976,7 @@ open_search_bar :: (using editor: *Editor, buffer: Buffer, requested_mode: Searc
     search_point_offset = get_selection(cursors[main_cursor]).start;
 
     if remember_cursor_position {
-        original_cursor_position = cursors[main_cursor].state;
+        original_cursor_position = cursors[main_cursor];
         jumped = false;
     }
 
@@ -954,7 +991,7 @@ close_search_bar :: inline (editor: *Editor, jump_to_original_cursor := false, j
 
     if jump_to_original_cursor && jumped {
         cursor := leave_only_original_cursor(editor);
-        cursor.state = original_cursor_position;
+        cursor.* = original_cursor_position;
         editor.scroll_to_cursor = .yes;
     }
 
@@ -1340,12 +1377,12 @@ viewport_glue_to_point :: (editor: *Editor, buffer: Buffer) -> changed: bool {
     return top != old_top;
 }
 
-restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor.State) {
+restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor) {
     if cursor_state.count == 0 return;  // the first undo doesn't have any remembered cursors
 
     array_resize(*cursors, cursor_state.count);
     for * cursor, i : cursors {
-        cursor.state = cursor_state[i];
+        cursor.* = cursor_state[i];
         cursor.col_wanted = -1;
     }
     if main_cursor >= cursors.count then main_cursor = cursors.count - 1;  // maybe we should remember it too
@@ -1725,40 +1762,22 @@ save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
         session_notify_modified_buffer(editor.buffer_id);
     }
 
-    // @cleanup: revisit and fix code duplication
-    #if OS != .WINDOWS {
-        if !buffer.readonly {
-            if save_new_file {
-                show_save_file_dialog(buffer, editor.buffer_id, save_new_file);
-            } else {
-                if !buffer.has_file {
-                    show_save_file_dialog(buffer, editor.buffer_id, save_new_file);
-                } else {
-                    using buffer;
+    if buffer.readonly return;
 
-                    if config.settings.strip_trailing_whitespace_on_save then strip_trailing_whitespace(buffer, editor.buffer_id);
+    if !save_new_file && buffer.has_file {
+        // Just save the file normally
+        save_buffer_to_disk(buffer, editor.buffer_id);
+        return;
+    }
 
-                    success := write_entire_file(file.full_path, to_string(bytes));
-                    if success {
-                        modified = false;
-                        modified_on_disk = false;
-                        deleted = false;
+    // We have to select a path for the file
+    if config.settings.prefer_system_file_dialogs && OS == .WINDOWS {
+        file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
+        if !file_path || !success return;
 
-                    meow_hash = calculate_hash(bytes);
-
-                        error_when_saving = false;
-                        crlf = false;
-                    } else {
-                        error_when_saving = true;
-                    }
-                    remember_last_modtime_and_size(buffer);
-                    update_window_title(open_editors[editors.active].buffer_id);
-                }
-            }
-        }
+        save_buffer_to_new_file_on_disk(buffer, editor.buffer_id, file_path);
     } else {
-        if save_new_file then save_buffer_to_new_file_on_disk(buffer, editor.buffer_id);
-        else                  save_buffer_to_disk(buffer, editor.buffer_id);
+        show_open_file_dialog(.save_as, buffer, editor.buffer_id);
     }
 }
 
@@ -2436,12 +2455,16 @@ delete_selection :: (editor: *Editor, buffer: *Buffer) {
 }
 
 delete_left_char :: (editor: *Editor, buffer: *Buffer) {
+    should_delete_closing_bracket := config.settings.auto_close_brackets && all_cursors_can_auto_delete_closing_bracket(editor, buffer);
+
     // NOTE: we don't have to worry about a cursor with no selection being immediately next
     //       to the non-cursor end of another cursor's selection (thanks to organise_cursors),
     //       so it should be safe to delete at least one character to the left of every cursor if there is one
     range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false, allocator = temp);
     for cursor : editor.cursors {
-        if has_selection(cursor) {
+        if should_delete_closing_bracket {
+            range_per_cursor[it_index] = .{ start = cursor.pos - 1, end = cursor.pos + 1 };
+        } else if has_selection(cursor) {
             range_per_cursor[it_index] = get_selection(cursor);
         } else if cursor.pos == 0 {
             range_per_cursor[it_index] = Offset_Range.{};
@@ -2865,6 +2888,35 @@ add_cursors_to_line_starts :: (editor: *Editor, buffer: Buffer) {
 add_cursors_to_line_ends :: (editor: *Editor, buffer: Buffer) {
     add_cursors_to_line_starts(editor, buffer);
     move_cursors_end(editor, buffer);
+}
+
+swap_selections :: (using editor: *Editor, buffer: *Buffer) {
+    if cursors.count != 2 return;
+
+    c1, c2 := *cursors[0], *cursors[1];
+
+    string0     := copy_temporary_string(get_selected_string(c1, buffer));
+    string1     := copy_temporary_string(get_selected_string(c2, buffer));
+
+    string_dif  := string0.count - string1.count;
+
+    selection0  := get_selection(c1);
+    selection1  := get_selection(c2);
+
+    pos_offset0 := selection0.start - c1.pos;
+    sel_offset0 := selection0.start - c1.sel;
+
+    pos_offset1 := selection1.start - c2.pos;
+    sel_offset1 := selection1.start - c2.sel;
+
+    replace_range(buffer, selection1, string0);
+    replace_range(buffer, selection0, string1);
+
+    c1.pos = selection0.start - pos_offset1;
+    c1.sel = selection0.start - sel_offset1;
+
+    c2.pos = selection1.start - pos_offset0 - xx string_dif;
+    c2.sel = selection1.start - sel_offset0 - xx string_dif;
 }
 
 select_all :: (editor: *Editor, buffer: Buffer) {
@@ -3666,6 +3718,8 @@ Editor :: struct {
     new_cursor_just_created_using_mouse := false;  // useful to know in order to handle select-by-drag and select-word with the new cursor
     last_cursor_created_using_mouse_at: Time;
 
+    initial_middle_mouse_coords: Coords; // used for creating cursors while dragging middle mouse button
+
     scroll_to_cursor: enum u8 { no; yes; yes_new_editor; }  // trigger a scroll so that the cursor is in the center vertically
 
     highlights: [..] Text_Highlight;
@@ -3741,7 +3795,7 @@ Search_Bar :: struct {
     regex_search: bool;
     regex_is_valid: bool;
 
-    original_cursor_position: Cursor.State;  // remember main cursor position so we can go back to it on Esc
+    original_cursor_position: Cursor;  // remember main cursor position so we can go back to it on Esc
     jumped := false;
 
     per_page := 10;

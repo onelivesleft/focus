@@ -104,6 +104,17 @@ get_char_at_offset :: (using buffer: Buffer, offset: s32) -> u32 {
     return char;
 }
 
+get_char_at_coords :: (editor: Editor, buffer: Buffer, coords: Coords) -> u32 {
+    closest_offset := coords_to_offset(editor, buffer, coords);
+    closest_coords := offset_to_coords(editor, buffer, closest_offset);
+
+    if coords.line != closest_coords.line  || coords.col != closest_coords.col {
+        return 0;
+    }
+
+    return get_char_at_offset(buffer, closest_offset);
+}
+
 get_char_at_offset_as_string :: (using buffer: Buffer, offset: s32) -> string {
     if offset >= bytes.count return "";
     char: string = ---;
@@ -588,8 +599,8 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
     if buffer_id != console_buffer_id && config.settings.strip_trailing_whitespace_on_save
         strip_trailing_whitespace(buffer, buffer_id);
 
-    success = write_entire_file(file_path, to_string(buffer.bytes));
-    if !success then return false;
+    success := write_entire_file(file_path, to_string(buffer.bytes));
+    if !success return false;
 
     new_id, created := find_or_create_buffer(file_path);
     new_buffer := *open_buffers[new_id];
@@ -600,6 +611,10 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64) -> saved: b
         if editor.buffer_id == buffer_id && it_index != editors.floating {
             editor.buffer_id = new_id;
             editor.scroll_to_cursor = .yes;
+
+            assert(buffer.num_editors_open >= 1);
+            buffer.num_editors_open -= 1;
+
             for * cursor : editor.cursors { put_cursor_in_valid_spot(cursor, new_buffer); }
             organise_cursors(editor);
         }
@@ -1005,7 +1020,7 @@ refresh_buffer_from_disk :: (path: string) {
 
             new_edit_group(buffer, editor);
             array_resize(*buffer.cursors, editor.cursors.count);
-            for * cursor, i : buffer.cursors { <<cursor = editor.cursors[i].state; }
+            for * cursor, i : buffer.cursors { cursor.* = editor.cursors[i]; }
         }
 
         // Reload its contents
@@ -1243,14 +1258,14 @@ Buffer :: struct {
     undos: [..] Edit_Group;
     redos: [..] Edit_Group;
     edits: [..] Edit;  // current edits, not in a group yet
-    cursors: [..] Cursor.State;  // cursor state before any current edits were made
+    cursors: [..] Cursor;  // cursor state before any current edits were made
     edit_notifications: [..] Edit_Notification;
 
     lang := Language.Plain_Text;
 
     Edit_Group :: struct {
         edits: [] Edit;
-        cursors: [] Cursor.State;
+        cursors: [] Cursor;
     }
 
     // All strings in this struct are owned
@@ -1288,9 +1303,9 @@ Buffer :: struct {
 }
 
 Cursor :: struct {
-    using state: State;
-
-    State :: struct { pos, sel: s32; col_wanted: s32 = -1; }
+    pos: s32;
+    sel: s32;
+    col_wanted: s32 = -1;
 }
 
 #assert size_of(Cursor) == (2 + 1) * size_of(s32);  // make sure no padding accidentally gets added
