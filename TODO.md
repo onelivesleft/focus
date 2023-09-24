@@ -1,11 +1,14 @@
 # Mine
 
-
-- [ ] Change "floating_area" "floating editor" to "console"
-
+- [ ] Make focus_dev include iprof, other builds not
+- [ ] Multicursor iterator
 - [ ] Parse jai error polymorph info: "C:" is not at start of string is why it isn't working
+- [x] Status bar
+- [.] Fix console header / line wrap
+- [x] Add way to get/set window location automatically. (ficus: window_location? and window_location)
 
 - [.] output window
+    - [ ] Single line mode (show last header)
     - [ ] input box
     - [x] Fix build animation
     - [x] Decorations: ^, Error?, link button?
@@ -27,17 +30,27 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
+    - [x] bugs
+        - [x] clear all stacks on stop / start
+        - [x] >= crash
+    - [.] debugger
+        - [.] breakpoints
+            - [x] draw
+            - [.] functional
+            - [ ] ficus_clear_breakpoints
+            - [ ] break on error
+    - [.] output display
+        - [x] data stacks
+        - [x] colors
+        - [ ] execution stack
+        - [ ] execution queue
+        - [ ] global vars
     - [x] state machine : run over multiple frames
     - [.] strings
     - [.] global vars
         - [ ] (persistent)
     - [ ] eval dialog
     - [ ] do something about memory pool
-    - [.] debugger
-        - [.] breakpoints
-            - [x] draw
-            - [.] functional
-            - [ ] ficus_clear_breakpoints
     - [ ] jump to error
     - [ ] all the words
     - [ ] local vars
@@ -73,6 +86,8 @@
     - [x] Test project [[script]]
     - [x] herestrings in ficus
     - [x] ficus herestrings (in config for instance)
+
+- [ ] Change "floating_area" "floating editor" to "console"
 
 - [.] Custom title bar
     - [x] Move by dragging

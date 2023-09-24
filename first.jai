@@ -4,7 +4,7 @@ RELEASE_DATE :: #run -> string {
     return calendar_to_string(current_time);
 }
 
-include_profiling := true;
+include_profiling := false;
 include_profiling_modules := true;
 no_output := false;
 
@@ -46,6 +46,7 @@ build :: () {
           case "debug";
           case "no_output";
             no_output = true;
+            include_profiling = false;
           case "windows7";
             windows7 = true;
             options.output_executable_name = "focus_windows7";
@@ -68,7 +69,7 @@ build :: () {
             slash :: "/";
             exe :: "";
         }
-        output_path := tprint("%1%2%3", options.output_path, options.output_executable_name, exe);
+        output_path := tprint("%1%2%3%4%5", #filepath, options.output_path, slash, options.output_executable_name, exe);
         handle, exists := file_open(output_path);
         if exists {
             file_close(*handle);

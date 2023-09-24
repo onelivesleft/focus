@@ -117,6 +117,8 @@ draw_frame :: () {
         case .icon_search_dialog;      draw_icon_search_dialog();
     }
 
+    ficus_draw_ui();
+
     user_message_rect := ifx console_is_at_bottom_right()
                          then ifx editors.floating == editors.active
                               then ifx floating_editor_on_left
@@ -1004,7 +1006,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             start := offset_to_line(editor, buffer, region.start_offset);
             if region.inclusive  start -= 1;
-            if start > visible_lines_end  break; // @TODO this should work because regions are sorted by if regions are now wonky switch this back to continue
+            if start > visible_lines_end  break; // @TODO this should work because regions are sorted but if regions are now wonky switch this back to continue
 
             start_is_visible := start >= visible_lines_start;
             start = max(start, visible_lines_start);
@@ -1012,6 +1014,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             end   = min(end,   visible_lines_end);
             if region.inclusive && start == end
                 start = end - 1;
+
+            if line_wrap_is_active(editor) && start == end && end > 0 {
+                wrapped_end := offset_to_real_line(buffer, end - 1);
+                wrapped_diff := wrapped_end - end;
+                start -= wrapped_diff;
+            }
 
             gutter_width := ifx end > drawn_gutter_up_to
                             then line_number_panel_width
@@ -1831,6 +1839,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     }
 
+    status_bar_rect : Rect = ---;
+    footer_color := Colors.BACKGROUND_BRIGHT;
+
     // Draw footer
     if !MINIMAL_FOOTER || show_filename {
         outer_footer_rect := footer_rect;
@@ -1843,12 +1854,15 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
         );
 
-        footer_color := Colors.BACKGROUND_BRIGHT;
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
             outer_footer_rect.y -= char_x_advance / 2;
             _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
             outer_footer_rect.w = new_pen.x - pen.x + text_offset.x * 2;
-            outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
+            #if HIDE_SCROLLBARS
+                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - char_x_advance;
+            else
+                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
+            status_bar_rect = outer_footer_rect;
             footer_rect = shrink_x(outer_footer_rect, text_offset.x);
             pen = make_vector2(
                 footer_rect.x,
@@ -1910,6 +1924,46 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 Input.window_region_override = .TITLE_BAR;
         }
     }
+
+    // Draw status bar
+    #if MINIMAL_FOOTER {{
+        using status_bar;
+        if message_string || left_icon || right_icon {
+            text_width := Simp.prepare_text(font_ui_bold, message_string);
+            width := text_width + text_offset.x * 2;
+            if left_icon   width += font_ui.character_height + text_offset.x;
+            if right_icon  width += font_ui.character_height + text_offset.x;
+            status_bar_rect.x -= width + text_offset.x;
+            status_bar_rect.w = width;
+            inner_rect := shrink_x(status_bar_rect, text_offset.x);
+            pen := make_vector2(
+                inner_rect.x,
+                inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+            );
+
+            push_scissor(status_bar_rect);
+            defer pop_scissor();
+            draw_cool_rect(status_bar_rect, footer_color, 1.0 - shader_value);
+
+            push_scissor(inner_rect);
+            defer pop_scissor();
+            if left_icon {
+                draw_icon(left_icon, pen, Colors.UI_DEFAULT, .default);
+                pen.x += font_ui.character_height + text_offset.x;
+            }
+            Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+            pen.x += text_width + text_offset.x - 1;
+            if right_icon {
+                draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
+            }
+
+            status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
+            maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .PRESSABLE);
+
+            if mouse_pointer_is_within(status_bar_rect) && is_hovering_over(status_bar_ui_id)
+                Input.window_region_override = .TITLE_BAR;
+        }
+    }}
 
     // Draw console buttons if appropriate
     if is_console_ui_enabled {
@@ -2979,8 +3033,12 @@ draw_icon_search_dialog :: () {
             icon, found := table_find(icon_table, entry.name);
             if found {
                 icon_char := convert_utf32_to_utf8(xx icon);
-                if entry_index == selected
-                    os_clipboard_set_text(tprint("\\u%", formatInt(cast(u32)icon, base=16)));
+                if entry_index == selected {
+                    text := tprint("\\u%", formatInt(cast(u32)icon, base=16, minimum_digits=4));
+                    if text.count > 5
+                        text = tprint("\\U%", formatInt(cast(u32)icon, base=16, minimum_digits=8));
+                    os_clipboard_set_text(text);
+                }
                 icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
                 //icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
                 Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
@@ -3864,6 +3922,45 @@ draw_icon :: (icon: string, position: Vector2, color: Color, size : enum {defaul
     Simp.draw_prepared_text(font, xx position.x, xx position.y, color = color);
 }
 
+draw_icon_text_rect :: (rect: Rect, background_color: Color, foreground_color: Color, left_icon: string, text: string, right_icon: string) {
+    outer_padding := 4.0;
+    inner_padding := 10.0;
+    inner_rect := shrink_x(rect, outer_padding);
+    pen := make_vector2(
+        inner_rect.x,
+        inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+    );
+    icon_width := font_ui.character_height + inner_padding;
+    if left_icon {
+        inner_rect.x += icon_width;
+        inner_rect.w -= icon_width;
+    }
+    if right_icon {
+        inner_rect.w -= icon_width;
+    }
+
+    push_scissor(rect);
+    defer pop_scissor();
+    draw_cool_rect(rect, background_color, 0.5);
+
+    if left_icon {
+        draw_icon(left_icon, pen, foreground_color, .default);
+        pen.x += font_ui.character_height + inner_padding;
+    }
+
+    if text {
+        push_scissor(inner_rect);
+        Simp.prepare_text(font_ui_bold, text);
+        Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = foreground_color);
+        pop_scissor();
+    }
+
+    if right_icon {
+        pen.x += inner_rect.w + inner_padding - 1;
+        draw_icon(right_icon, pen, foreground_color, .default);
+    }
+}
+
 draw_top_shadow :: (using rect: Rect, size: float = 10.0) {
     Simp.set_shader_for_color(enable_blend = true);
     s := Colors.SHADOW_DARK;
@@ -3978,10 +4075,11 @@ get_floating_area :: (rect: Rect) -> Rect {
 
         case .Single; #through;
         case .Double;
+        using font_data;
         floating_area = shrink(rect, 10);
-        height := ifx floating_area_position & .tall then rect.h - editor_top_margin - 20 else rect.h / 3 - 20;
+        height := ifx floating_area_position & .tall then rect.h - editor_top_margin - 10 else rect.h / 3 - char_x_advance;
         if floating_area_position & .tall {
-            floating_area.y += (floating_area.h - height) / 2 - 10;
+            floating_area.y += (floating_area.h - height) / 2 - char_x_advance;
         }
         else if floating_area_position & .top {
             if floating_area_position & .bottom
@@ -4126,6 +4224,8 @@ Ui_Id :: enum s64 {
     footer_left         :: -16;
     footer_right        :: -17;
     profiler            :: -18;
+    status_bar_left     :: -19;
+    status_bar_right    :: -20;
 
     // The rest will be derived from loc
 }
@@ -4146,3 +4246,4 @@ scissor_stack: [..] Rect;
 NUM_LINES_OF_CODE :: #run #location().line_number;
 
 GOLDEN_RATIO :: 1.6180339;
+

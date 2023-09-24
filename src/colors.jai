@@ -61,6 +61,13 @@ Color_Values :: struct {
     UI_ERROR_BRIGHT         := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
     UI_SUCCESS              := Color.{ r = 0.10, g = 0.50, b = 0.10, a = 1.0 };
 
+    UI_BACKGROUND_0         := Color.{ r = 0.250, g = 0.131, b = 0.202 };
+    UI_BACKGROUND_1         := Color.{ r = 0.202, g = 0.250, b = 0.131 };
+    UI_BACKGROUND_2         := Color.{ r = 0.250, g = 0.202, b = 0.131 };
+    UI_BACKGROUND_3         := Color.{ r = 0.131, g = 0.250, b = 0.202 };
+    UI_BACKGROUND_4         := Color.{ r = 0.131, g = 0.202, b = 0.250 };
+    UI_BACKGROUND_5         := Color.{ r = 0.202, g = 0.131, b = 0.250 };
+
     CODE_DEFAULT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     CODE_COMMENT            := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
     CODE_TYPE               := Color.{ r = 0.51, g = 0.67, b = 0.64, a = 1.0 };

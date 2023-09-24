@@ -4,33 +4,33 @@
 # control flow
 
 if:
-    [execute_code_if] 2 expect_then_execute
+    [apply_code_if] 2 expect_then_apply
 
 if_else:
-    [execute_code_if_else] 3 expect_then_execute
+    [apply_code_if_else] 3 expect_then_apply
 
-execute_code_while:
+apply_code_while:
     code'swap code'peek
-    execute code'push
+    apply code'push
     [
         jump_target
-        code'swap code'peek execute
-        code'swap code'copy [jump] code'push execute_code_if
-    ] code'push execute_code_if
+        code'swap code'peek apply
+        code'swap code'copy [jump] code'push apply_code_if
+    ] code'push apply_code_if
     code'discard code'discard
 
 while:
-    [execute_code_while] 2 expect_then_execute
+    [apply_code_while] 2 expect_then_apply
 
 times:
     swap code'push(body) number? code'push(count) code'peek
     [ 0 > ] code'push
     [
         jump_target
-        code'swap code'peek execute
+        code'swap code'peek apply
         code'swap 1 code'push code'- code'peek
-        0 > code'push [jump] code'push execute_code_if
-    ]  code'push execute_code_if
+        0 > code'push [jump] code'push apply_code_if
+    ]  code'push apply_code_if
     code'discard code'discard
 
 map:
@@ -40,7 +40,7 @@ map:
     while [temp'stack_count? temp'pop] [
         temp'pop
         stash'peek
-        execute
+        apply
     ]
     stash'discard
 
@@ -51,7 +51,7 @@ filter:
     while [temp'stack_count? temp'pop] [
         temp'pop
         copy
-        if [stash'peek execute not] [pop]
+        if [stash'peek apply not] [pop]
     ]
     stash'discard
 
@@ -63,7 +63,7 @@ reduce:
     while [temp'stack_count? temp'pop] [
         temp'pop
         stash'peek
-        execute
+        apply
     ]
     stash'discard
 

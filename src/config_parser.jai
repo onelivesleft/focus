@@ -174,6 +174,13 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "ui_error_bright";                    return *config.colors.UI_ERROR_BRIGHT;
         case "ui_success";                         return *config.colors.UI_SUCCESS;
 
+        case "ui_background_0";                    return *config.colors.UI_BACKGROUND_0;
+        case "ui_background_1";                    return *config.colors.UI_BACKGROUND_1;
+        case "ui_background_2";                    return *config.colors.UI_BACKGROUND_2;
+        case "ui_background_3";                    return *config.colors.UI_BACKGROUND_3;
+        case "ui_background_4";                    return *config.colors.UI_BACKGROUND_4;
+        case "ui_background_5";                    return *config.colors.UI_BACKGROUND_5;
+
         case "code_default";                       return *config.colors.CODE_DEFAULT;
         case "code_comment";                       return *config.colors.CODE_COMMENT;
         case "code_type";                          return *config.colors.CODE_TYPE;

@@ -190,6 +190,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_definition;               jump_to_definition                  (editor, buffer); keep_selection = true;
         case .parse_file;                       parse_file                          (editor, buffer);
         case .ficus_run_current;                ficus_execute_editor(editor, buffer);
+        case .ficus_run_current_or_continue;    ficus_execute_editor_or_continue(editor, buffer);
+        case .ficus_debug_current_or_step;      ficus_execute_editor_or_step(editor, buffer);
         case .ficus_run_current_verbose;        ficus_execute_editor(editor, buffer, output=.verbose);
         case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_pause();
         case .ficus_toggle_breakpoint;          ficus_toggle_breakpoint(editor, buffer);
@@ -3680,6 +3682,16 @@ Editor :: struct {
 
     paste_animations: [..] Paste_Animation;
 
+    status_bar : struct {
+        display_duration : Time : 5.0;
+        fade_duration : Time : 1.0;
+        last_set_at: Time;
+        message_buffer: [80] u8;
+        message_string: string;
+        left_icon: string;
+        right_icon: string;
+    }
+
     whitespace_collapse_width := 0.0;
     shader_value := 0.0;
 }
@@ -4126,6 +4138,34 @@ line_col :: (pos: s32) -> string #expand {
 
 open_floating :: (editor: *Editor, buffer: *Buffer) {
     editors_open_buffer(editor.buffer_id, .floating);
+}
+
+clear_status_bar :: (editor: *Editor) {
+    using editor.status_bar;
+    message_string.data = message_buffer.data;
+    message_string.count = 0;
+    left_icon = "";
+    right_icon = "";
+}
+
+clear_status_bars :: () {
+    for * editor: open_editors
+        clear_status_bar(editor);
+}
+
+add_status_part :: (editor: *Editor, new_left_icon := "", text := "", new_right_icon := "") {
+    using editor.status_bar;
+    if text {
+        if message_string  {
+            message_buffer[message_string.count] = #char " ";
+            message_string.count += 1;
+        }
+        assert(text.count + message_string.count < message_buffer.count, "Tried to add status text but it's too long: max length of status text is %", message_buffer.count);
+        memcpy(message_buffer.data + message_string.count, text.data, text.count);
+        message_string.count += text.count;
+    }
+    if new_left_icon  left_icon = new_left_icon;
+    if new_right_icon  right_icon = new_right_icon;
 }
 
 #scope_file

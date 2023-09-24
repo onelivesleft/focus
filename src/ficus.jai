@@ -26,6 +26,13 @@ Stack_Item :: struct {
 }
 
 init_ficus :: () {
+    main_stack_color = *Colors.UI_BACKGROUND_0;
+    user_stack_colors[0] = *Colors.UI_BACKGROUND_1;
+    user_stack_colors[1] = *Colors.UI_BACKGROUND_2;
+    user_stack_colors[2] = *Colors.UI_BACKGROUND_3;
+    user_stack_colors[3] = *Colors.UI_BACKGROUND_4;
+    user_stack_colors[4] = *Colors.UI_BACKGROUND_5;
+
     ficus_execute_string(baked_words_string, .baked, .silent, null);
     #insert -> string {
         b : String_Builder;
@@ -46,9 +53,39 @@ ficus_reset_space :: (space: Space) {
     }
 }
 
+is_ficus_running :: inline () -> bool {
+    return ficus_execution_stack || ficus_scripts_to_execute;
+}
+
+is_ficus_paused :: inline () -> bool {
+    return ficus_machine_state >= .paused;
+}
+
 ficus_update :: () {
-    if !ficus_execution_stack && !ficus_scripts_to_execute
-    || ficus_machine_state == .paused
+    if !is_ficus_running()
+        return;
+
+    if editors.active >= 0 {
+        editor := *open_editors[editors.active];
+        ficus_icon :: "\uf06c";
+        play_icon :: "\uf04b";
+        pause_icon :: "\uf04c";
+        if !is_ficus_debugging {
+            if #complete ficus_machine_state == {
+                case .running; #through;
+                case .continue_running; #through;
+                case .step;
+                    add_status_part(editor, ficus_icon, "Ficus", play_icon);
+
+                case .paused; #through;
+                case .pause_request; #through;
+                case .pause_just_happened;
+                    add_status_part(editor, ficus_icon, "Ficus", pause_icon);
+            }
+        }
+    }
+
+    if ficus_machine_state == .paused
         return;
 
     if !ficus_execution_stack {
@@ -58,7 +95,39 @@ ficus_update :: () {
 
     for instruction_count: 1 .. max_instructions_per_frame {
         state, error := execute_one_frame();
-        if state != .active {
+        if state == .active {
+            if ficus_machine_state == .pause_just_happened && ficus_execution_stack {
+                container, stored_within := ficus_stored_string(about_to_execute_word);
+                if stored_within == {
+                    case .baked;
+                    open_baked_words_buffer();
+                    editor := *open_editors[editors.active];
+                    jump_to_offset(editor, xx (about_to_execute_word.data - container.data));
+                    ficus_machine_state = .paused;
+
+                    case .global;
+                    jump_to_file_offset(global_words_filename, global_words_buffer_offset + xx (about_to_execute_word.data));
+                    ficus_machine_state = .paused;
+
+                    case .project;
+                    jump_to_file_offset(project_words_filename, project_words_buffer_offset + xx (about_to_execute_word.data));
+                    ficus_machine_state = .paused;
+
+                    case .user;
+                    jump_to_file_offset(user_words_filename, xx (about_to_execute_word.data - container.data));
+                    ficus_machine_state = .paused;
+
+                    case;
+                    console_log(tprint("<%> Internal: %", ficus_execution_stack.count, about_to_execute_word));
+                    ficus_machine_state = .paused;
+                }
+                break;
+            }
+
+            if ficus_machine_state == .step  ficus_machine_state = .pause_request;
+            if ficus_machine_state == .continue_running  ficus_machine_state = .running;
+        }
+        else {
             array_reset(*ficus_execution_stack);
             finished := *ficus_scripts_to_execute[0];
             if finished.callback  finished.callback(error);
@@ -80,58 +149,106 @@ ficus_update :: () {
                 execute_string(item.script, *main_stack, item.space, item.output);
             }
             else {
+                ficus_halt();
                 break;
             }
         }
+    }
+}
 
-        if ficus_machine_state == .pause_just_happened && ficus_execution_stack {
-            container, stored_within := ficus_stored_string(about_to_execute_word);
-            if stored_within == {
-                case .baked;
-                open_baked_words_buffer();
-                editor := *open_editors[editors.active];
-                jump_to_offset(editor, xx (about_to_execute_word.data - container.data));
-                ficus_machine_state = .paused;
+ficus_draw_ui :: () {
+    if !is_ficus_running() || !is_ficus_debugging
+        return;
 
-                case .global;
-                //console_log(tprint("<%> % ~%", ficus_execution_stack.count, about_to_execute_word, stored_within));
-                jump_to_file_offset(global_words_filename, global_words_buffer_offset + xx (about_to_execute_word.data));
-                ficus_machine_state = .paused;
+    using font_data;
+    position := make_vector2(char_x_advance, char_x_advance);
+    stack_width :: 140.0;
+    stack_margin :: 2;
+    border_size :: 2;
 
-                case .project;
-                //console_log(tprint("<%> % ~%", ficus_execution_stack.count, about_to_execute_word, stored_within));
-                jump_to_file_offset(project_words_filename, project_words_buffer_offset + xx (about_to_execute_word.data));
-                ficus_machine_state = .paused;
+    stack_icon :: "\uf1c0";
+    ficus_icon :: "\uf06c";
+    play_icon :: "\uf04b";
+    pause_icon :: "\uf04c";
 
-                case .user;
-                //console_log(tprint("<%> % ~%", ficus_execution_stack.count, about_to_execute_word, stored_within));
-                jump_to_file_offset(user_words_filename, xx (about_to_execute_word.data - container.data));
-                ficus_machine_state = .paused;
-
-                case;
-                console_log(tprint("<%> Internal: %", ficus_execution_stack.count, about_to_execute_word));
-                ficus_machine_state = .paused;
-                // don't pause in internal instructions, stay .step and go again!
-            }
-            break;
+    // data stacks
+    draw_stack :: (stack: *[..] Stack_Item, title: string, position: Vector2, color: Color, left_icon := stack_icon, right_icon := "") {
+        using font_data;
+        rect := Rect.{position.x, position.y, stack_width, font_ui_line_height};
+        border := expand(rect, border_size);
+        draw_cool_rect(border, with_alpha(Colors.UI_DEFAULT, 0.5), 0.5);
+        draw_icon_text_rect(rect, color, Colors.UI_DEFAULT, left_icon, title, right_icon);
+        rect.y += rect.h + stack_margin + border_size;
+        if stack.count == 0 {
+            rect.h *= 0.25;
+            draw_icon_text_rect(rect, color, Colors.UI_DEFAULT, "", "", "");
         }
+        else {
+            for stack.* {
+                h := draw_stack_item_rect(rect, color, Colors.UI_DEFAULT, it);
+                rect.y += h + stack_margin;
+            }
+        }
+    }
 
-        if ficus_machine_state == .step  ficus_machine_state = .pause_request;
-        if ficus_machine_state == .continue_running  ficus_machine_state = .running;
+    draw_stack(*main_stack, "Ficus", position, main_stack_color, stack_icon, ifx is_ficus_paused() then pause_icon else play_icon);
+    for 0 .. user_stack_count - 1 {
+        position.x += stack_width + stack_margin + border_size * 2;
+        draw_stack(*user_stacks[it], user_stack_names[it], position, user_stack_colors[it % user_stack_colors.count]);
+    }
+
+    // execution stack
+
+    // execution queue
+}
+
+draw_stack_item_rect :: (rect: Rect, background_color: Color, foreground_color: Color, item: Stack_Item) -> height: float {
+    left_icon : string = ---;
+    if #complete item.type == {
+        case .word;        left_icon = "\u0077";
+        case .text;        left_icon = "\uf10d";
+        case .sequence;    left_icon = "";
+        case .int_number;  left_icon = "\uf129";
+        case .number;      left_icon = "\ue184";
+        case .boolean;     left_icon = ifx item.bool_value then "\uf205" else "\uf204";
+        case .error;       left_icon = "\uf188";
+        case .separator;   left_icon = ""; // drawn different
+        case .type;        left_icon = "\U0001f3f7";
+    }
+    if item.type == .separator {
+        r := rect;
+        r.h = 2;
+        draw_icon_text_rect(r, with_alpha(foreground_color, 0.5), foreground_color, "", "", "");
+        return r.h;
+    }
+    else {
+        draw_icon_text_rect(rect, background_color, foreground_color, left_icon, to_display_string(item), "");
+        return rect.h;
     }
 }
 
 ficus_run :: () {
+    is_ficus_debugging = false;
     ficus_machine_state = .continue_running;
 }
 
 ficus_step :: () {
+    is_ficus_debugging = true;
     ficus_machine_state = .step;
 }
 
 ficus_pause :: () {
+    is_ficus_debugging = true;
     ficus_machine_state = .pause_request;
 }
+
+ficus_halt :: () {
+    is_ficus_debugging = false;
+    array_reset(*ficus_execution_stack);
+    array_reset(*ficus_scripts_to_execute);
+    reset_environment();
+}
+
 
 ficus_breakpoints : [..] Ficus_Breakpoint;
 
@@ -196,10 +313,26 @@ ficus_toggle_breakpoint :: (editor: *Editor, using buffer: *Buffer) {
 }
 
 ficus_execute_editor :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
-    #assert !ends_with(loc.fully_pathed_filename, "ficus.jai"), "This procedure is an API endpoint for ficus, it should not be used internally";
     ficus_set_user_words_string(cast(string) buffer.bytes, buffer.file.full_path, buffer.id);
     array_add(*ficus_scripts_to_execute, .{user_words_string, "", .user, output, ficus_execute_editor_finished_callback});
     ficus_machine_state = .running;
+}
+
+ficus_execute_editor_or_continue :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
+    if is_ficus_running()
+        ficus_run();
+    else
+        ficus_execute_editor(editor, buffer, output);
+}
+
+ficus_execute_editor_or_step :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
+    if is_ficus_running() {
+        ficus_step();
+    }
+    else {
+        ficus_execute_editor(editor, buffer, output);
+        ficus_pause();
+    }
 }
 
 ficus_execute_string :: (_script: string, space := Space.user, output := Volume.default, callback: #type (string) = null, $event := "", $loc := #caller_location) {
@@ -340,8 +473,6 @@ ficus_finished_project_config_callback :: (error: string) {
 
 #scope_file
 
-DEBUG_FICUS :: false;
-
 max_stack_size :: 4096;
 max_user_stacks :: 64;
 max_instructions_per_frame :: 81920;
@@ -383,10 +514,13 @@ ficus_execution_stack : [..] Ficus_Frame;
 main_stack: [..] Stack_Item;
 user_stacks: [max_user_stacks] [..] Stack_Item;
 user_stack_names: [max_user_stacks] string;
+user_stack_count := 0;
+main_stack_color : *Color;
+user_stack_colors : [5] *Color;
 
 move_tokens_to_expect_stack_count := 0;
 
-flags : enum_flags {
+ficus_global_flags : enum_flags {
     already_opened_project;
     displayed_header;
     break_next_jump;
@@ -395,12 +529,14 @@ flags : enum_flags {
 ficus_machine_state : enum {
     running;
     continue_running;
+    // <= .continue_running -> Running,  >= .paused -> Paused
     paused;
     pause_request;
     pause_just_happened;
     step;
 }
 
+is_ficus_debugging := false;
 
 about_to_execute_word := "";
 
@@ -447,15 +583,17 @@ ficus_execute_editor_finished_callback :: (error: string) { }
 
 reset_environment :: () {
     assert(ficus_execution_stack.count == 0);
-    flags = 0;
+    ficus_global_flags = 0;
+    user_stack_count = 0;
     move_tokens_to_expect_stack_count = 0;
+    clear_all_stacks();
 }
 
 console_log :: (s: string, word := "") {
     leader := "";
-    if !(flags & .displayed_header) {
+    if !(ficus_global_flags & .displayed_header) {
         print_console_header(tprint("[FICUS] %", frame_time));
-        flags |= .displayed_header;
+        ficus_global_flags |= .displayed_header;
     }
     if word
         print_to_console(tprint("(%) {%}: %\n", main_stack.count, word, s));
@@ -463,16 +601,11 @@ console_log :: (s: string, word := "") {
         print_to_console(tprint("(%): %\n", main_stack.count, s));
 }
 
-execute_string :: (s: string, stack : *[..] Stack_Item, space := Space.user, output := Volume.default) {
+execute_string :: (s: string, stack : *[..] Stack_Item, space: Space, output: Volume) {
     if space == .none  return;
 
     if ficus_execution_stack.count == 0
         reset_environment();
-
-    #if DEBUG_FICUS {
-        for 1 .. ficus_execution_stack.count print(" ");
-        print("%\n", s);
-    }
 
     frame := array_add(*ficus_execution_stack);
     frame.token.type = .eol;
@@ -489,13 +622,8 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
 
     using frame := *ficus_execution_stack[stack_depth - 1];
 
-    if stack_depth > max_stack_depth {
-        #if DEBUG_FICUS {
-            for 1 .. stack_depth print(" ");
-            print("EXCEEDED STACK DEPTH\n");
-        }
+    if stack_depth > max_stack_depth
         return .errored, tprint("Exceeded program stack depth limit (%)", max_stack_depth);
-    }
 
     ERRORS := output >= .errors;
     DEFAULT := output >= .default;
@@ -523,13 +651,13 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
     stored_tokenizer := tokenizer;
 
     pause_check :: () #expand {
-        should_pause := ficus_machine_state == .pause_request;
+        token_string : string = ---;
+        token_string.data = buf.data + token.start;
+        token_string.count = token.len;
+        host_string, space := ficus_stored_string(token_string);
+        should_pause := ficus_machine_state == .pause_request && space;
         if !should_pause && ficus_breakpoints && ficus_machine_state != .step && ficus_machine_state != .continue_running {
             // @TODO @Speed cache breakpoints per frame
-            token_string : string = ---;
-            token_string.data = buf.data + token.start;
-            token_string.count = token.len;
-            host_string, space := ficus_stored_string(token_string);
             if space == .user {
                 if user_words_buffer_id == -1  return;
                 path := open_buffers[user_words_buffer_id].file.full_path;
@@ -623,7 +751,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
             if move_tokens_to_expect_stack_count && added_token_to_stack {
                 move_tokens_to_expect_stack_count -= 1;
                 if !move_tokens_to_expect_stack_count {
-                    execute_string("execute", stack, space, output);
+                    execute_word("apply", frame, true);
                     return .active, "";
                 }
             }
@@ -656,7 +784,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
                     definition : string = ---;
                     definition.data = definition_start;
                     definition.count = definition_end - definition_start;
-                    word.* = unique_string(definition);
+                    word.* = definition;
 
                     if VERBOSE  console_log(tprint("Added word [%] with text: [%]", word_name, trim(word.*)), word_name);
 
@@ -711,6 +839,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
             // following sections should not break: they are no-ops, so we should go again
 
             case .begin_sequence;
+                pause_check();
                 sequence_start = token.start + 1;
                 sequence_depth = 1;
                 sequence_is_empty = true;
@@ -732,7 +861,6 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
 
     if error {
         if ERRORS  console_log(error, token_string);
-        clear_all_stacks();
         return .errored, error;
     }
 
@@ -750,11 +878,6 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
 
 execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false) -> error: string {
     assert(!contains(word_name, #char "'")); // at this point the word should be resolved and not contain a stack reference
-
-    #if DEBUG_FICUS {
-        for 1 .. ficus_execution_stack.count + 1  print(" ");
-        print("%\n", word_name);
-    }
 
     using frame;
 
@@ -885,6 +1008,9 @@ intrinsics :: #code if word_name == {
     case "<text>";
         push_type(.text, stack);
 
+    case "<word>";
+        push_type(.word, stack);
+
     case "<boolean>";
         push_type(.boolean, stack);
 
@@ -921,7 +1047,7 @@ intrinsics :: #code if word_name == {
     case "sequence?";
         if peek().type != .sequence  return tprint("Type-checked for a sequence, found a %", peek().type);
 
-    case "<type>?";
+    case "type?";
         push_type(.type, stack);
 
     case "type";
@@ -929,8 +1055,8 @@ intrinsics :: #code if word_name == {
         push_type(item.type, stack);
 
     case "cast";
-        item := pop();
         type := pop(.type);
+        item := pop();
         item.type = xx type.int_value;
         push(item, stack);
 
@@ -1080,7 +1206,7 @@ intrinsics :: #code if word_name == {
         }
 
     case "break";
-        flags |= .break_next_jump;
+        ficus_global_flags |= .break_next_jump;
 
     case "jump_target";
         if VERBOSE  console_log(tprint("Pushed jump target [%]", token.start));
@@ -1088,8 +1214,8 @@ intrinsics :: #code if word_name == {
 
     case "jump";
         if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
-        if flags & .break_next_jump {
-            flags &= ~.break_next_jump;
+        if ficus_global_flags & .break_next_jump {
+            ficus_global_flags &= ~.break_next_jump;
             pop(*jump_stack);
         }
         else {
@@ -1100,7 +1226,7 @@ intrinsics :: #code if word_name == {
         if !jump_stack.count  return tprint("Tried to % but the jump_stack is empty", word_name);
         pop(*jump_stack);
 
-    case "expect_then_execute";
+    case "expect_then_apply";
         if stack.count < 2
             return tprint("% needs (word, count) but the stack only has % items", word_name, stack.count);
         count := pop(.int_number).int_value;
@@ -1108,31 +1234,31 @@ intrinsics :: #code if word_name == {
             return tprint("Illegal value for %: %", word_name, count);
         move_tokens_to_expect_stack_count = count;
 
-    case "execute";
+    case "apply";
         item := pop();
         if is_executable(item)
             execute_string(item.string_value, stack, space, output);
         else
             push(item, stack);
 
-    case "execute_code_if";
+    case "apply_code_if";
         // code stack is <condition> <then_body>
-        execute_string("code'swap code'pop execute execute_code_if_true", stack, space, output);
+        execute_string("code'swap code'pop apply apply_code_if_true", stack, space, output);
 
-    case "execute_code_if_true";
+    case "apply_code_if_true";
         code_stack := get_stack("code");
         then_body := pop(code_stack);
         value := pop();
-        if to_bool(value)
-            execute_string("execute", stack, space, output);
-        else
-            pop();
+        if to_bool(value) {
+            push(then_body, stack);
+            execute_string("apply", stack, space, output);
+        }
 
-    case "execute_code_if_else";
+    case "apply_code_if_else";
         // code stack is <condition> <then_body> <else_body>
-        execute_string("code'pop code'swap code'push code'swap code'pop execute execute_code_if_else_true", stack, space, output); // execute condition
+        execute_string("code'pop code'swap code'push code'swap code'pop apply apply_code_if_else_true", stack, space, output); // execute condition
 
-    case "execute_code_if_else_true";
+    case "apply_code_if_else_true";
         code_stack := get_stack("code");
         else_body := pop(code_stack);
         then_body := pop(code_stack);
@@ -1141,7 +1267,7 @@ intrinsics :: #code if word_name == {
             push(then_body, stack);
         else
             push(else_body, stack);
-        execute_string("execute", stack, space, output);
+        execute_string("apply", stack, space, output);
 
     case "debug_print_stack";
         if DEFAULT {
@@ -1289,17 +1415,29 @@ intrinsics :: #code if word_name == {
 
     // Focus settings
 
-    case "console_position";
+    case "console_location";
         floating_area_position = xx pop(.int_number).int_value;
-    case "console_position?";
+    case "console_location?";
         push(cast(int)floating_area_position, stack);
+
+    case "window_location";
+        height := pop(.int_number);
+        width := pop(.int_number);
+        y := pop(.int_number);
+        x := pop(.int_number);
+        platform_set_window_location(xx x.int_value, xx y.int_value, xx width.int_value, xx height.int_value);
+    case "window_location?";
+        push(window_x, stack);
+        push(window_y, stack);
+        push(window_width, stack);
+        push(window_height, stack);
 
     // Focus commands
 
     case "open_project";
         item := pop(.text);
         success: bool;
-        if flags & .already_opened_project
+        if ficus_global_flags & .already_opened_project
             success = false;
         else
             success = open_project(to_string(item));
@@ -1391,18 +1529,16 @@ get_word :: (word_name: string) -> string, found: bool {
 }
 
 get_stack :: (stack_name: string) -> *[..] Stack_Item {
-    for user_stack_names
-        if it == stack_name
-            return *user_stacks[it_index];
+    for 0 .. user_stack_count - 1
+        if user_stack_names[it] == stack_name
+            return *user_stacks[it];
 
-    for user_stack_names {
-        if it == "" {
-            user_stack_names[it_index] = unique_string(stack_name);
-            return *user_stacks[it_index];
-        }
-    }
+    if user_stack_count >= max_user_stacks  return null; // out of user stacks
 
-    return null;
+    index := user_stack_count;
+    user_stack_count += 1;
+    user_stack_names[index] = unique_string(stack_name);
+    return *user_stacks[index];
 }
 
 word_cache : Table(string, bool);
@@ -1442,37 +1578,11 @@ based_on_string :: (item: Stack_Item) -> bool {
 }
 
 pop_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {
-    #if DEBUG_FICUS {
-        if stack == *main_stack {
-            print("<<< {%} popped (%)\n", to_string(item), stack.count);
-        }
-        else {
-            for * user_stacks {
-                if it == stack {
-                    print("<<< {%} popped from {%}(%)\n", to_string(item), user_stack_names[it_index], stack.count);
-                    return;
-                }
-            }
-            print(">>> {%} popped from {unknown}{%}\n", to_string(item), stack.count);
-        }
-    }
+    // @TODO probably remove this entirely
 }
 
 push_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {
-    #if DEBUG_FICUS {
-        if stack == *main_stack {
-            print(">>> {%} pushed (%)\n", to_string(item), stack.count);
-        }
-        else {
-            for * user_stacks {
-                if it == stack {
-                    print(">>> {%} pushed onto {%}(%)\n", to_string(item), user_stack_names[it_index], stack.count);
-                    return;
-                }
-            }
-            print(">>> {%} pushed onto {unknown}(%)\n", to_string(item), stack.count);
-        }
-    }
+    // @TODO probably remove this entirely
 }
 
 push :: (item: Stack_Item, stack: *[..] Stack_Item) {

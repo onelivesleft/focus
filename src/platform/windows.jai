@@ -73,6 +73,14 @@ platform_create_window :: () {
     platform_set_border_color();
 }
 
+platform_set_window_location :: (x: s32, y: s32, w: s32, h: s32) {
+    window_x = x;
+    window_y = y;
+    SetWindowPos(window, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED);
+    window_width, window_height = Simp.get_render_dimensions(window);
+    screen = make_rect(0, 0, window_width, window_height);
+}
+
 platform_set_window_sizable :: (sizable: bool) {
     if sizable
         SetWindowLongW(window, GWL_STYLE, normal_style | cast(s32)(WS_THICKFRAME));
