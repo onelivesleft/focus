@@ -66,10 +66,12 @@ normal_style : s32;
 
 platform_create_window :: () {
     window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
-    old_style := cast(s32) GetWindowLongW(window, GWL_STYLE);
-    normal_style = old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME);
-    SetWindowLongW(window, GWL_STYLE, xx normal_style);
-    SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+    #if REMOVE_TITLE_BAR {
+        old_style := cast(s32) GetWindowLongW(window, GWL_STYLE);
+        normal_style = old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME);
+        SetWindowLongW(window, GWL_STYLE, xx normal_style);
+        SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+    }
     platform_set_border_color();
 }
 

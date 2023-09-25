@@ -4,12 +4,16 @@ DEBUG_CHANGE_COLOR :: true;
 DEBUG_SMALL_WINDOW :: true;
 DEBUG_SHOW_COLOR :: true;
 
-EYE_TRACKING :: true;
+// Set these all to false for default Focus style
 FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
 HIDE_SCROLLBARS :: true;
+REMOVE_TITLE_BAR :: true;
+
 SKIP_CUTSCENES :: true;
 AUTO_JUMP_TO_ERROR :: true;
+
+EYE_TRACKING :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
 BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;

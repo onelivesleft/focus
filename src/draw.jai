@@ -1074,7 +1074,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         scope_background := Colors.BACKGROUND;
         scope_background_ends_at := 0;
         pop_scissor();
-        push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x, rect.h));
+        #if HIDE_SCROLLBARS
+            push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x, rect.h));
+        else
+            push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x - scrollbar_size, rect.h));
+
         drawn_gutter_up_to := -1;
         for region: buffer.regions {
             if region.start_offset < 0 || region.start_offset > buffer.bytes.count
@@ -2027,10 +2031,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             );
         }
 
-        push_scissor(rect);
-        defer pop_scissor();
-
-        draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
+        #if MINIMAL_FOOTER {
+            push_scissor(rect);
+            defer pop_scissor();
+            draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
+        }
+        else {
+            draw_rect(outer_footer_rect, footer_color);
+        }
 
         push_scissor(footer_rect);
         defer pop_scissor();
@@ -2039,7 +2047,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         width, pen = draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true);
 
         // Draw line and column numbers
-        #if !(MINIMAL_FOOTER && FOOTER_AT_TOP) {
+        #if !MINIMAL_FOOTER {
             cut_rect := footer_rect;
             cut_rect.x = pen.x + padding;
             cut_rect.w = footer_rect.x + footer_rect.w - cut_rect.x;
@@ -2070,16 +2078,14 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             trans := footer_color;
             trans.a = 0;
             Simp.set_shader_for_color(enable_blend = true);
-            draw_rect_raw(fadeout_rect, bottom_left = footer_color, bottom_right = trans, top_left = footer_color, top_right = trans);
+            draw_rect_raw(fadeout_rect, bottom_left = trans, top_left = trans, bottom_right = footer_color, top_right = footer_color);
         }
 
-        #if MINIMAL_FOOTER {
-            footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
-            maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
+        footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
+        maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
 
-            if mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id)
-                Input.window_region_override = .TITLE_BAR;
-        }
+        if mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id)
+            Input.window_region_override = .TITLE_BAR;
     }
 
     // Draw status bar
@@ -2134,7 +2140,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }}
 
     // Draw console buttons if appropriate
-    if is_console_ui_enabled {
+    if is_console_ui_enabled && buffer_id == console_buffer_id {
         // anchor: top bottom center
         // height: tall normal
         // width: narrow normal
@@ -4361,6 +4367,11 @@ get_floating_area :: (rect: Rect) -> Rect {
             width := floating_area.w * 0.666;
             floating_area.x += floating_area.w - width;
             floating_area.w = width;
+        }
+        #if !FOOTER_AT_TOP {
+            h := footer_height + ifx floating_area_position & .tall then 10;
+            floating_area.y += h;
+            floating_area.h -= h;
         }
     }
     return floating_area;
