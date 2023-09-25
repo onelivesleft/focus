@@ -77,12 +77,14 @@ build :: () {
             exe :: "";
         }
         output_path := tprint("%1%2%3%4%5", #filepath, options.output_path, slash, options.output_executable_name, exe);
-        handle, exists := file_open(output_path);
-        if exists {
-            file_close(*handle);
-            if !file_delete(output_path) {
-                print("Could not write to output executable: %\n", output_path, to_standard_error = true);
-                exit(1);
+        if !dev_build {
+            handle, exists := file_open(output_path);
+            if exists {
+                file_close(*handle);
+                if !file_delete(output_path) {
+                    print("Could not write to output executable: %\n", output_path, to_standard_error = true);
+                    exit(1);
+                }
             }
         }
     }

@@ -163,8 +163,8 @@ draw_frame :: () {
                 if click_result.result
                     iprof_click(click_result);
 
-                play_icon :: "";
-                lock_icon :: "🔒";
+                play_icon :: "\uf04b";
+                lock_icon :: "\U0001f512";
                 icon := ifx iprof_pause_recording then lock_icon else play_icon;
                 position := Vector2.{iprof_rect.x + iprof_rect.w - 116,
                                      iprof_rect.y + iprof_rect.h + 1 - (font_icons_tiny_size * dpi_scale + iprof_config.line_spacing) / 2};
@@ -182,13 +182,13 @@ draw_frame :: () {
                 button_rect.h = button_rect.w;
                 button_rect.x -= button_rect.w - 3;
                 button_rect.y += iprof_rect.h - button_rect.h + 2;
-                close_icon :: "🗙";
+                close_icon :: "\U0001f5d9";
                 if draw_button(font_icons, close_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DEFAULT, iprof_ui_id, button_rect, .left, 1, 4)
                     iprof_active = false;
 
                 button_rect.x += 1;
                 button_rect.y -= button_rect.h - 2;
-                graph_icon :: "";
+                graph_icon :: "\uf201";
                 if draw_button(font_icons, graph_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DEFAULT, iprof_ui_id, button_rect, .left, 0, 0)
                     iprof_show_graph = !iprof_show_graph;
 
@@ -1237,7 +1237,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 case .breakpoint;
                 screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
                 thickness :: 2;
-                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * position.end + thickness + 1, thickness);
+                len := position.end - position.start;
+                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
                 draw_rect(outline, secondary_color);
                 outline.y += line_height - thickness;
                 draw_rect(outline, secondary_color);
@@ -1246,6 +1247,26 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 outline.y -= outline.h;
                 outline.w = thickness;
                 draw_rect(outline, secondary_color);
+
+                case .instruction_pointer;
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                thickness :: 2;
+                len := position.end - position.start;
+                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
+                w := outline.w;
+                draw_rect(outline, color);
+                outline.y += line_height - thickness;
+                draw_rect(outline, color);
+                outline.x += w - thickness;
+                outline.w = thickness;
+                outline.h = line_height - thickness * 2;
+                outline.y -= outline.h;
+                draw_rect(outline, color);
+                outline.x -= w;
+                outline.h += 2 * thickness;
+                outline.y -= thickness;
+                draw_rect(outline, color);
+
 
                 case .build_error;
                 coords := offset_to_coords(editor, buffer, position.start);
@@ -2049,7 +2070,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             trans := footer_color;
             trans.a = 0;
             Simp.set_shader_for_color(enable_blend = true);
-            draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
+            draw_rect_raw(fadeout_rect, bottom_left = footer_color, bottom_right = trans, top_left = footer_color, top_right = trans);
         }
 
         #if MINIMAL_FOOTER {
@@ -2090,7 +2111,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
             pen.x += text_width + text_offset.x - 1;
             if right_icon {
-                draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
+                if is_ficus_running() && !is_ficus_paused() { // @TODO Generalise animated icons and remove this shim
+                    play_icon :: "\uf04b";
+                    count := cast(s32)floor(frame_time * 2) % 3;
+                    pen.x -= font_icons_size * dpi_scale * 0.125 * count;
+                    for 0 .. count {
+                        draw_icon(play_icon, pen, Colors.UI_DEFAULT, .default);
+                        pen.x += font_icons_size * dpi_scale * 0.25;
+                    }
+                }
+                else {
+                    draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
+                }
             }
 
             status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
@@ -3178,7 +3210,7 @@ draw_icon_search_dialog :: () {
                 icon_char := convert_utf32_to_utf8(xx icon);
                 if entry_index == selected {
                     text := tprint("\\u%", formatInt(cast(u32)icon, base=16, minimum_digits=4));
-                    if text.count > 5
+                    if text.count > 6
                         text = tprint("\\U%", formatInt(cast(u32)icon, base=16, minimum_digits=8));
                     os_clipboard_set_text(text);
                 }

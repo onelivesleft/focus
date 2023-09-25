@@ -1,11 +1,8 @@
 # Mine
 
-- [ ] Make focus_dev include iprof, other builds not
 - [ ] Multicursor iterator
 - [ ] Parse jai error polymorph info: "C:" is not at start of string is why it isn't working
-- [x] Status bar
 - [.] Fix console header / line wrap
-- [x] Add way to get/set window location automatically. (ficus: window_location? and window_location)
 
 - [.] output window
     - [ ] Single line mode (show last header)
@@ -30,6 +27,9 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
+    - [ ] fix breakpoints on non-user buffers
+    - [ ] multiple instances
+    - [ ] debug eval to manipulate stack on error
     - [x] bugs
         - [x] clear all stacks on stop / start
         - [x] >= crash
@@ -37,11 +37,14 @@
         - [.] breakpoints
             - [x] draw
             - [.] functional
+            - [x] decorate current instruction
             - [ ] ficus_clear_breakpoints
-            - [ ] break on error
+            - [x] break on error
+            - [ ] decorate error / add build_error for error
     - [.] output display
         - [x] data stacks
         - [x] colors
+        - [?] jump stack
         - [ ] execution stack
         - [ ] execution queue
         - [ ] global vars
@@ -179,6 +182,9 @@
     - [ ] instance per search, and allow calls to override (like stupid goto definition)
     - [ ] Fix? could not find "buffer string" when shuch lines exist
 
+- [x] Make focus_dev include iprof, other builds not
+- [x] Status bar
+- [x] Add way to get/set window location automatically. (ficus: window_location? and window_location)
 - [x] FIX run build immediately after launching; crash while decorating errors
 - [x] Fix delete actions copying!
 - [x] Check output exe is writable in first.jai

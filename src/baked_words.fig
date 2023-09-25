@@ -36,7 +36,7 @@ times:
 map:
     stash'push
     temp'clear
-    while [exhausted? not] [temp'push]
+    while [spent? not] [temp'push]
     while [temp'stack_count? temp'pop] [
         temp'pop
         stash'peek
@@ -47,7 +47,7 @@ map:
 filter:
     stash'push
     temp'clear
-    while [exhausted? not] [temp'push]
+    while [spent? not] [temp'push]
     while [temp'stack_count? temp'pop] [
         temp'pop
         copy
@@ -58,7 +58,7 @@ filter:
 reduce:
     stash'push
     temp'clear
-    while [exhausted? not] [temp'push]
+    while [spent? not] [temp'push]
     temp'pop
     while [temp'stack_count? temp'pop] [
         temp'pop
@@ -73,7 +73,7 @@ reduce:
 
 # stack manipulation
 
-exhausted?:
+spent?:
     if_else [stack_count? 0 =]
             [true]
             [if_else [copy type <separator> =]

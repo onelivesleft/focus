@@ -76,8 +76,8 @@ main :: () {
         window_width = 1542;
         window_height = 1041;
         if DEBUG && debug_small_window {
-            window_width = window_width * 2 / 3;
-            window_height = window_height * 2 / 3;
+            window_width = window_width * 3 / 4;
+            window_height = window_height * 3 / 4;
         }
     }
     else {
@@ -1207,8 +1207,9 @@ background_highlight:           18262FFF
 background_light:               1A2831FF
 background_bright:              21333FFF
 background_region:              0000004F
-background_region_private:      2A1618FF
+background_region_private:      1A1618FF
 background_region_public:       0B0B18FF
+background_cursor_row:          FFFFFF0F
 
 selection_active:               1C4449FF
 selection_inactive:             1C44497F
@@ -1222,13 +1223,22 @@ cursor:                         26B2B2FF
 cursor_inactive:                196666FF
 paste_animation:                1C4449FF
 splitter:                       21333FFF
-splitter_hover:                 1C4449FF
+splitter_hover:                 1C44497F
 letter_highlight:               599999FF
 list_cursor_lite:               33CCCC19
 list_cursor:                    33CCCC4C
 shadow_dark:                    0E161C7F
 shadow_transparent:             0E161C00
 text_input_label:               3B4450FF
+collapsed_area_marker:          E67D74FF
+
+console_background:             050505EF
+console_text:                   BFC9DBFF
+console_error:                  FF5555FF
+console_header_background:      FFFF774F
+console_header_success:         55FF554F
+console_header_error:           FF55554F
+console_header_text:            000000FF     #DFE9FBFF
 
 ui_default:                     BFC9DBFF
 ui_dim:                         87919DAF

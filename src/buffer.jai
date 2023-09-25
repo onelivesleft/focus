@@ -470,6 +470,9 @@ recalculate_colors :: (buffer: *Buffer) {
     for ficus_breakpoints
         if it.buffer_id == buffer.id
             add_breakpoint_decoration(buffer, it.offset_from_buffer_start, it.len);
+
+    if ficus_instruction_pointer.buffer_id == buffer.id
+        add_instruction_pointer_decoration(buffer, ficus_instruction_pointer.offset_from_buffer_start, ficus_instruction_pointer.len);
 }
 
 tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */ {
@@ -1374,6 +1377,7 @@ Decoration :: struct {
         color_square;
         build_error;
         breakpoint;
+        instruction_pointer;
         horizontal_rule;
         source_location;
     }
@@ -1413,9 +1417,23 @@ add_build_error_decoration :: (using buffer: *Buffer, position: s32, index: s32)
 add_breakpoint_decoration :: (using buffer: *Buffer, position: s32, len: s32) {
     array_add(*decorations, Decoration.{
         type = .breakpoint,
-        position = .{position, len},
+        position = .{position, position + len},
         color = Colors.UI_ERROR,
         secondary_color = with_alpha(Colors.UI_ERROR, 0.5)
+    });
+}
+
+add_instruction_pointer_decoration :: (using buffer: *Buffer, position: s32, len: s32) {
+    for * decorations {
+        if it.type == .instruction_pointer {
+            it.position = .{position, position + len};
+            return;
+        }
+    }
+    array_add(*decorations, Decoration.{
+        type = .instruction_pointer,
+        position = .{position, position + len},
+        color = with_alpha(Colors.UI_WARNING, 0.75)
     });
 }
 
