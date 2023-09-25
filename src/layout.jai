@@ -204,3 +204,12 @@ Rect :: struct {
 operator == :: (r1: Rect, r2: Rect) -> bool {
     return r1.x == r2.x && r1.y == r2.y && r1.w == r2.w && r1.h == r2.h;
 }
+
+lerp :: (a: Rect, b: Rect, t: float) -> Rect {
+    r : Rect = ---;
+    r.x = lerp(a.x, b.x, t);
+    r.y = lerp(a.y, b.y, t);
+    r.w = lerp(a.w, b.w, t);
+    r.h = lerp(a.h, b.h, t);
+    return r;
+}

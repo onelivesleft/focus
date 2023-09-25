@@ -200,6 +200,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
         Colors.BACKGROUND_LIGHT =     Color.{ r = 0.102, g = 0.195, b = 0.158 };
         Colors.BACKGROUND_BRIGHT =    Color.{ r = 0.131, g = 0.25,  b = 0.202 };
     }
+    Loaded_Colors = Colors;
     CODE_COLOR_MAP = refresh_code_color_map();
     platform_set_border_color();
 
@@ -383,7 +384,7 @@ Settings :: struct {
     dark_titlebar                       := false;  // TODO: fix the issues with window resize first
     colored_titlebar                    := true;
     hide_mouse_when_typing              := true;
-    highlight_line_with_cursor          := false;
+    highlight_line_with_cursor          := true;
     ignore_whitespace_in_finder         := false;
     ignore_whitespace_in_search_bar     := false;
     collapse_leading_whitespace         := false;
@@ -393,6 +394,9 @@ Settings :: struct {
     auto_surround_with_brackets_and_quotes := false;
     auto_close_brackets                    := false;
     prefer_system_file_dialogs             := false;
+    zen_mode_blend_percent                 := 90;
+    zen_mode_minimal                       := false;
+    zen_mode_width_in_chars                := 80;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

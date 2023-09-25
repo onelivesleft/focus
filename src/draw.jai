@@ -3,6 +3,7 @@ editor_top_margin := 0.0;
 simp_initialized := false;
 #if IPROF  iprof_active := false;
 floating_editor_on_left := false;
+main_cursor_rect : Rect;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -12,6 +13,12 @@ draw_frame :: () {
     if !is_valid(screen) || screen.w < MIN_WINDOW_WIDTH || screen.h < MIN_WINDOW_HEIGHT return;
 
     maybe_set_hot_or_active(.none, screen, .NORMAL);
+
+    if zen_mode {
+        t := fmod_cycling(xx frame_time * 0.01, 2.0);
+        if t > 1.0  t = 2.0 - t;
+        draw_cool_rect(screen, with_alpha(Colors.ZEN_MARGINS, zen_mode_t), t);
+    }
 
     // Check whether we need to deactivate elements before drawing
     if (!mouse.left.is_down || mouse.left.just_released) && (!mouse.middle.is_down || mouse.middle.just_released) then ui.active = .none;
@@ -546,9 +553,27 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         footer_rect, rect := cut_bottom(main_area, footer_height);
     }
     max_width := cast(float) config.settings.max_editor_width * dpi_scale;
+    if zen_mode {
+        zen_max_width := cast(float) config.settings.zen_mode_width_in_chars * dpi_scale * char_x_advance;
+        if changed_zen_mode_at {
+            if max_width <= 0  max_width = main_area.w;
+            max_width = lerp(max_width, zen_max_width, zen_mode_t);
+        }
+        else {
+            max_width = zen_max_width;
+        }
+    }
     if max_width > 0 && rect.w > max_width {
         rect.x += (rect.w - max_width) / 2;
         rect.w = max_width;
+    }
+
+    not_zen_mode :: () -> bool #expand {
+        return !zen_mode || `buffer_id == console_buffer_id;
+    }
+
+    not_minimal_zen_mode :: () -> bool #expand {
+        return !zen_mode || !config.settings.zen_mode_minimal || `buffer_id == console_buffer_id;
     }
 
     using editor := *open_editors[editor_id];
@@ -886,7 +911,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if left_target != viewport.scroll_x.target then start_animation(*viewport.scroll_x, viewport.left, left_target);
                 if top_target  != viewport.scroll_y.target then start_animation(*viewport.scroll_y, viewport.top,  top_target);
             }
-        } else if scroll_to_cursor != .no {
+        } else if scroll_to_cursor != .no || zen_mode {
             using editor.viewport;
 
             // Use the target editor width (not current width) when a new editor is appearing
@@ -898,7 +923,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             top_target           := clamp(cast(s32) (cursor_pos_from_top  - rect.h / 2),  0, max_y_scroll);
             if left_target != scroll_x.target then start_animation(*viewport.scroll_x, viewport.left, left_target);
             if top_target != scroll_y.target then start_animation(*viewport.scroll_y, viewport.top, top_target);
-
 
             scroll_to_cursor = .no;
 
@@ -1071,238 +1095,243 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if buffer.flags & .needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing (@TODO move this back to just before text?)
 
         // Draw regions
-        scope_background := Colors.BACKGROUND;
-        scope_background_ends_at := 0;
-        pop_scissor();
-        #if HIDE_SCROLLBARS
-            push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x, rect.h));
-        else
-            push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x - scrollbar_size, rect.h));
+        if not_minimal_zen_mode() {
+            scope_background := Colors.BACKGROUND;
+            scope_background_ends_at := 0;
+            pop_scissor();
+            #if HIDE_SCROLLBARS
+                push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x, rect.h));
+            else
+                push_scissor(make_rect(left_x, rect.y, rect.x + rect.w - left_x - scrollbar_size, rect.h));
 
-        drawn_gutter_up_to := -1;
-        for region: buffer.regions {
-            if region.start_offset < 0 || region.start_offset > buffer.bytes.count
-            || region.end_offset < 0 || region.end_offset > buffer.bytes.count
-                continue;
+            drawn_gutter_up_to := -1;
+            for region: buffer.regions {
+                if region.start_offset < 0 || region.start_offset > buffer.bytes.count
+                || region.end_offset < 0 || region.end_offset > buffer.bytes.count
+                    continue;
 
-            end := offset_to_line(editor, buffer, region.end_offset);
-            if !region.inclusive  end -= 1;
-            if end < visible_lines_start  continue;
+                end := offset_to_line(editor, buffer, region.end_offset);
+                if !region.inclusive  end -= 1;
+                if end < visible_lines_start  continue;
 
-            start := offset_to_line(editor, buffer, region.start_offset);
-            if region.inclusive  start -= 1;
-            if start > visible_lines_end  break; // @TODO this should work because regions are sorted but if regions are now wonky switch this back to continue
+                start := offset_to_line(editor, buffer, region.start_offset);
+                if region.inclusive  start -= 1;
+                if start > visible_lines_end  break; // @TODO this should work because regions are sorted but if regions are now wonky switch this back to continue
 
-            start_is_visible := start >= visible_lines_start;
-            start = max(start, visible_lines_start);
-            end_is_visible := end <= visible_lines_end;
-            end   = min(end,   visible_lines_end);
-            if region.inclusive && start == end
-                start = end - 1;
+                start_is_visible := start >= visible_lines_start;
+                start = max(start, visible_lines_start);
+                end_is_visible := end <= visible_lines_end;
+                end   = min(end,   visible_lines_end);
+                if region.inclusive && start == end
+                    start = end - 1;
 
-            if line_wrap_is_active(editor) && start == end && end > 0 {
-                wrapped_end := offset_to_real_line(buffer, end - 1);
-                wrapped_diff := wrapped_end - end;
-                start -= wrapped_diff;
-            }
+                if line_wrap_is_active(editor) && start == end && end > 0 {
+                    wrapped_end := offset_to_real_line(buffer, end - 1);
+                    wrapped_diff := wrapped_end - end;
+                    start -= wrapped_diff;
+                }
 
-            gutter_width := ifx end > drawn_gutter_up_to
-                            then line_number_panel_width
-                            else 0;
-            region_rect := make_rect(
-                rect.x - gutter_width, text_origin.y - end * line_height,
-                rect.x + rect.w - (rect.x - gutter_width), line_height * (end - start)
-            );
-            drawn_gutter_up_to = max(drawn_gutter_up_to, end);
+                gutter_width := ifx end > drawn_gutter_up_to
+                                then line_number_panel_width
+                                else 0;
+                region_rect := make_rect(
+                    rect.x - gutter_width, text_origin.y - end * line_height,
+                    rect.x + rect.w - (rect.x - gutter_width), line_height * (end - start)
+                );
+                drawn_gutter_up_to = max(drawn_gutter_up_to, end);
 
-            if region.depth == 0 { // "inserting" code
-                bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
-                draw_cool_rect(region_rect, bg, shader_value);
-                if gutter_width {
-                    region_rect.w = gutter_width;
+                if region.depth == 0 { // "inserting" code
+                    bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
+                    draw_cool_rect(region_rect, bg, shader_value);
+                    if gutter_width {
+                        region_rect.w = gutter_width;
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
+                        region_rect.x += gutter_width;
+                    }
+                    region_rect.w = char_x_advance;
                     draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
-                    region_rect.x += gutter_width;
-                }
-                region_rect.w = char_x_advance;
-                draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
-                region_rect.x += char_x_advance;
-                fade_char_count :: 8;
-                for 1 .. fade_char_count {
-                    alpha := lerp(Colors.BACKGROUND_REGION.a, 0, it / cast(float)fade_char_count);
-                    color := with_alpha(Colors.BACKGROUND_REGION, alpha);
-                    draw_cool_rect(region_rect, xx color, shader_value);
                     region_rect.x += char_x_advance;
+                    fade_char_count :: 8;
+                    for 1 .. fade_char_count {
+                        alpha := lerp(Colors.BACKGROUND_REGION.a, 0, it / cast(float)fade_char_count);
+                        color := with_alpha(Colors.BACKGROUND_REGION, alpha);
+                        draw_cool_rect(region_rect, xx color, shader_value);
+                        region_rect.x += char_x_advance;
+                    }
                 }
-            }
-            else if region.type == .scope_file {
-                if ui_id != .editor_floating {
-                    at_end_of_file := end >= max_lines;
-                    if at_end_of_file || !end_is_visible  {
-                        region_rect.h += region_rect.y;
-                        region_rect.y = 0;
+                else if region.type == .scope_file {
+                    if ui_id != .editor_floating {
+                        at_end_of_file := end >= max_lines;
+                        if at_end_of_file || !end_is_visible  {
+                            region_rect.h += region_rect.y;
+                            region_rect.y = 0;
+                        }
+                        if start_is_visible {
+                            header_rect, remainder_rect := cut_top(region_rect, line_height);
+                            scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                        }
+                        else {
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                        }
+                        if !at_end_of_file && end_is_visible {
+                            // Draw trailing rectangle to right of next scope tab
+                            region_rect.y -= line_height;
+                            region_rect.h = line_height;
+                            scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                            width := char_x_advance * (scope_line_count + 1);
+                            region_rect.x += width;
+                            region_rect.w -= width;
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                        }
+                        scope_background = Colors.BACKGROUND_REGION_PRIVATE;
+                        scope_background_ends_at = end;
                     }
-                    if start_is_visible {
-                        header_rect, remainder_rect := cut_top(region_rect, line_height);
-                        scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                        draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                        draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                    }
-                    else {
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                    }
-                    if !at_end_of_file && end_is_visible {
-                        // Draw trailing rectangle to right of next scope tab
-                        region_rect.y -= line_height;
-                        region_rect.h = line_height;
-                        scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
-                        width := char_x_advance * (scope_line_count + 1);
-                        region_rect.x += width;
-                        region_rect.w -= width;
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                    }
-                    scope_background = Colors.BACKGROUND_REGION_PRIVATE;
-                    scope_background_ends_at = end;
                 }
-            }
-            else if region.type == .scope_module {
-                if ui_id != .editor_floating {
-                    at_end_of_file := end >= max_lines;
-                    if at_end_of_file || !end_is_visible {
-                        region_rect.h += region_rect.y;
-                        region_rect.y = 0;
+                else if region.type == .scope_module {
+                    if ui_id != .editor_floating {
+                        at_end_of_file := end >= max_lines;
+                        if at_end_of_file || !end_is_visible {
+                            region_rect.h += region_rect.y;
+                            region_rect.y = 0;
+                        }
+                        if start_is_visible {
+                            header_rect, remainder_rect := cut_top(region_rect, line_height);
+                            scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                        }
+                        else {
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                        }
+                        if !at_end_of_file && end_is_visible {
+                            // Draw trailing rectangle to right of next scope tab
+                            region_rect.y -= line_height;
+                            region_rect.h = line_height;
+                            scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
+                            width := line_number_panel_width + char_x_advance * (scope_line_count + 1);
+                            region_rect.x += width;
+                            region_rect.w -= width;
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                        }
+                        scope_background = Colors.BACKGROUND_REGION_PUBLIC;
+                        scope_background_ends_at = end;
                     }
-                    if start_is_visible {
-                        header_rect, remainder_rect := cut_top(region_rect, line_height);
-                        scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                        draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                        draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                    }
-                    else {
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                    }
-                    if !at_end_of_file && end_is_visible {
-                        // Draw trailing rectangle to right of next scope tab
-                        region_rect.y -= line_height;
-                        region_rect.h = line_height;
-                        scope_line_count := get_line_start_offset(editor, buffer, end + 2) - get_line_start_offset(editor, buffer, end + 1);
-                        width := line_number_panel_width + char_x_advance * (scope_line_count + 1);
-                        region_rect.x += width;
-                        region_rect.w -= width;
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                    }
-                    scope_background = Colors.BACKGROUND_REGION_PUBLIC;
-                    scope_background_ends_at = end;
                 }
-            }
-            else if region.type >= .console_header && region.type <= .console_header_error {
-                color := ifx region.type == .console_header
-                         then Colors.CONSOLE_HEADER_BACKGROUND
-                         else ifx region.type == .console_header_success
-                              then Colors.CONSOLE_HEADER_SUCCESS
-                              else Colors.CONSOLE_HEADER_ERROR;
-                draw_rect(shrink_x(region_rect, 1), color);
-                if build_task_running && build_task_region_id == region.id {
-                    animation_rate :: 0.44;
-                    icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
-                    position := cut_right(region_rect, region_rect.h).xy;
-                    position.x -= 2;
-                    use_small_icons := cast(s64)region_rect.h <= font_icons_size + 4;
-                    position.y += (region_rect.h - ifx use_small_icons then font_icons_small_size else font_icons_size) * 0.5 + 2;
-                    draw_icon(build_icons[icon_index], position, Colors.CONSOLE_HEADER_TEXT, ifx use_small_icons then .small else .default);
+                else if region.type >= .console_header && region.type <= .console_header_error {
+                    color := ifx region.type == .console_header
+                             then Colors.CONSOLE_HEADER_BACKGROUND
+                             else ifx region.type == .console_header_success
+                                  then Colors.CONSOLE_HEADER_SUCCESS
+                                  else Colors.CONSOLE_HEADER_ERROR;
+                    draw_rect(shrink_x(region_rect, 1), color);
+                    if build_task_running && build_task_region_id == region.id {
+                        animation_rate :: 0.44;
+                        icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
+                        position := cut_right(region_rect, region_rect.h).xy;
+                        position.x -= 2;
+                        use_small_icons := cast(s64)region_rect.h <= font_icons_size + 4;
+                        position.y += (region_rect.h - ifx use_small_icons then font_icons_small_size else font_icons_size) * 0.5 + 2;
+                        draw_icon(build_icons[icon_index], position, Colors.CONSOLE_HEADER_TEXT, ifx use_small_icons then .small else .default);
+                    }
                 }
-            }
-            else {
-                draw_rect(region_rect, Colors.BACKGROUND_REGION);
+                else {
+                    draw_rect(region_rect, Colors.BACKGROUND_REGION);
+                }
             }
         }
+
         push_scissor(rect);
         defer pop_scissor();
 
         // Decorations first pass: decorations drawn below text
-        previous_build_error_line := -1;
-        for decoration: buffer.decorations {
-            using decoration;
+        if not_minimal_zen_mode() {
+            previous_build_error_line := -1;
+            for decoration: buffer.decorations {
+                using decoration;
 
-            if visible_offset_range.end < position.start
-            || visible_offset_range.start > position.end
-                continue;
+                if visible_offset_range.end < position.start
+                || visible_offset_range.start > position.end
+                    continue;
 
-            if #complete type == {
-                case .color_square;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                square_rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
-                square_rect = shrink(square_rect, 4);
-                if color.a < 1.0 {
-                    draw_rect(square_rect, with_alpha(color, 1.0));
-                    square_rect.x += line_height - 6;
-                }
-                draw_rect(square_rect, color);
+                if #complete type == {
+                    case .color_square;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    square_rect := make_rect(screen_pos.x, screen_pos.y, line_height, line_height);
+                    square_rect = shrink(square_rect, 4);
+                    if color.a < 1.0 {
+                        draw_rect(square_rect, with_alpha(color, 1.0));
+                        square_rect.x += line_height - 6;
+                    }
+                    draw_rect(square_rect, color);
 
-                case .breakpoint;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                thickness :: 2;
-                len := position.end - position.start;
-                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
-                draw_rect(outline, secondary_color);
-                outline.y += line_height - thickness;
-                draw_rect(outline, secondary_color);
-                outline.x += outline.w - thickness;
-                outline.h = line_height - thickness * 2;
-                outline.y -= outline.h;
-                outline.w = thickness;
-                draw_rect(outline, secondary_color);
+                    case .breakpoint;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    thickness :: 2;
+                    len := position.end - position.start;
+                    outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
+                    draw_rect(outline, secondary_color);
+                    outline.y += line_height - thickness;
+                    draw_rect(outline, secondary_color);
+                    outline.x += outline.w - thickness;
+                    outline.h = line_height - thickness * 2;
+                    outline.y -= outline.h;
+                    outline.w = thickness;
+                    draw_rect(outline, secondary_color);
 
-                case .instruction_pointer;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                thickness :: 2;
-                len := position.end - position.start;
-                outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
-                w := outline.w;
-                draw_rect(outline, color);
-                outline.y += line_height - thickness;
-                draw_rect(outline, color);
-                outline.x += w - thickness;
-                outline.w = thickness;
-                outline.h = line_height - thickness * 2;
-                outline.y -= outline.h;
-                draw_rect(outline, color);
-                outline.x -= w;
-                outline.h += 2 * thickness;
-                outline.y -= thickness;
-                draw_rect(outline, color);
+                    case .instruction_pointer;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    thickness :: 2;
+                    len := position.end - position.start;
+                    outline := make_rect(screen_pos.x, screen_pos.y, char_x_advance * len + thickness + 1, thickness);
+                    w := outline.w;
+                    draw_rect(outline, color);
+                    outline.y += line_height - thickness;
+                    draw_rect(outline, color);
+                    outline.x += w - thickness;
+                    outline.w = thickness;
+                    outline.h = line_height - thickness * 2;
+                    outline.y -= outline.h;
+                    draw_rect(outline, color);
+                    outline.x -= w;
+                    outline.h += 2 * thickness;
+                    outline.y -= thickness;
+                    draw_rect(outline, color);
 
 
-                case .build_error;
-                coords := offset_to_coords(editor, buffer, position.start);
-                if previous_build_error_line == coords.line  continue;
-                previous_build_error_line = coords.line;
-                screen_pos := get_cursor_screen_pos(text_origin, coords);
-                scrollbar_margin := #ifx HIDE_SCROLLBARS 0; else scrollbar_size;
-                line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_margin, line_height);
-                draw_rect(line_rect, color);
+                    case .build_error;
+                    coords := offset_to_coords(editor, buffer, position.start);
+                    if previous_build_error_line == coords.line  continue;
+                    previous_build_error_line = coords.line;
+                    screen_pos := get_cursor_screen_pos(text_origin, coords);
+                    scrollbar_margin := #ifx HIDE_SCROLLBARS 0; else scrollbar_size;
+                    line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_margin, line_height);
+                    draw_rect(line_rect, color);
 
-                case .horizontal_rule;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
-                draw_rect(hr_rect, color);
+                    case .horizontal_rule;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    hr_rect := make_rect(rect.x + char_x_advance * 5, screen_pos.y + line_height / 2 - 2, rect.w - scrollbar_size - char_x_advance * 6, 3);
+                    draw_rect(hr_rect, color);
 
-                case .source_location;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                button_rect := make_rect(screen_pos.x - char_x_advance, screen_pos.y, line_height, line_height);
-                icon :: "\uf14c";
-                button_id := get_ui_id_from_loc(parent_id = ui_id) + xx position.start; // I guess
-                maybe_set_hot_or_active(button_id, button_rect, .NORMAL);
-                if draw_button(font_icons_small, icon, .{a=0.0}, Colors.UI_DEFAULT, button_id, button_rect, .icon, 0, 0) {
-                    if target_buffer_index >= 0 && target_buffer_index < open_buffers.count {
-                        target_buffer := *open_buffers[target_buffer_index];
-                        jump_to_file_offset(target_buffer.file.full_path, target_buffer_position);
+                    case .source_location;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    button_rect := make_rect(screen_pos.x - char_x_advance, screen_pos.y, line_height, line_height);
+                    icon :: "\uf14c";
+                    button_id := get_ui_id_from_loc(parent_id = ui_id) + xx position.start; // I guess
+                    maybe_set_hot_or_active(button_id, button_rect, .NORMAL);
+                    if draw_button(font_icons_small, icon, .{a=0.0}, Colors.UI_DEFAULT, button_id, button_rect, .icon, 0, 0) {
+                        if target_buffer_index >= 0 && target_buffer_index < open_buffers.count {
+                            target_buffer := *open_buffers[target_buffer_index];
+                            jump_to_file_offset(target_buffer.file.full_path, target_buffer_position);
+                        }
                     }
                 }
             }
         }
 
         // Draw scrollbar marks
-        if !line_wrap_is_active(editor) {
+        if !line_wrap_is_active(editor) && not_minimal_zen_mode() {
             Simp.set_shader_for_color(enable_blend = true);
 
             marks_rect := cut_right(rect, scrollbar_size);
@@ -1355,7 +1384,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw selection highlights
-        if !search_bar_is_open(editor) {
+        if !search_bar_is_open(editor) && not_minimal_zen_mode() {
             for highlights {
                 start, end := it.offset, it.offset + it.count;
                 if end   < visible_offset_range.start continue;
@@ -1412,28 +1441,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     color := ifx cursors_active then Colors.SELECTION_ACTIVE else Colors.SELECTION_INACTIVE;
                     draw_range(selection, editor, buffer, visible_lines_start, visible_lines_end, text_origin, color);
                 }
-                else if cursors_active && config.settings.highlight_line_with_cursor {
-                    // Draw current line highlight
-                    coords := cursor_coords[it_index];
-                    line_start_offset := get_line_start_offset(editor, buffer, coords.pos.line);
-                    line_start_coords := offset_to_coords(editor, buffer, line_start_offset);
-
-                    // @Note: modified from hidden_chars_on_the_left below, get the x offset if we are scrolled horizontally
-                    x_offset := max((viewport.left / char_x_advance) - 1, 0);
-
-                    line_rect := Rect.{
-                        x = text_origin.x + (x_offset * char_x_advance),
-                        y = text_origin.y - coords.pos.line * line_height,
-                        w = rect.w - scrollbar_size - ifx x_offset == 0 then char_x_advance,   // @Note: text_origin.x is 1 char_x_advance in, so if we can see the beginning of the line, shorten the rect
-                        h = line_height,
-                    };
-                    draw_rect(line_rect, Colors.BACKGROUND_BRIGHT);
-                }
             }
         }
 
         // Draw search results
-        if search_bar_is_open(editor) {
+        if search_bar_is_open(editor) && not_minimal_zen_mode() {
             for search_bar.results {
                 start, end := it.offset, it.offset + it.count;
                 if end   < visible_offset_range.start continue;
@@ -1480,21 +1492,17 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw cursor row highlight
-        if editors.active == editor_id && cursors.count == 1 {
+        if editors.active == editor_id && cursors.count == 1 && config.settings.highlight_line_with_cursor && not_zen_mode() {
             cursor := cursors[main_cursor];
             if !has_selection(cursor) && cursor.pos >= visible_offset_range.start && cursor.pos <= visible_offset_range.end {
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[main_cursor].pos);
-                //screen_pos.x -= rect.x;
                 fade_width := rect.w / 2;
                 left_rect := make_rect(rect.x, screen_pos.y, screen_pos.x - rect.x, line_height);
-                //cursor_left_rect := make_rect(screen_pos.x - fade_width, screen_pos.y, fade_width, line_height);
                 cursor_right_rect := make_rect(screen_pos.x, screen_pos.y, fade_width, line_height);
-                //left_rect := make_rect(rect.x, screen_pos.y, screen_pos.x - fade_width - rect.x, line_height);
                 right_rect := make_rect(screen_pos.x + fade_width, screen_pos.y, rect.x + rect.w - screen_pos.x + fade_width - scrollbar_size, line_height);
                 faded := with_alpha(Colors.BACKGROUND_CURSOR_ROW, 4.0/255);
                 Simp.set_shader_for_color(enable_blend = true);
                 draw_rect(left_rect, Colors.BACKGROUND_CURSOR_ROW);
-                //draw_rect_raw(cursor_left_rect, faded, faded, Colors.BACKGROUND_CURSOR_ROW, Colors.BACKGROUND_CURSOR_ROW);
                 draw_rect_raw(cursor_right_rect, Colors.BACKGROUND_CURSOR_ROW, Colors.BACKGROUND_CURSOR_ROW, faded, faded);
                 draw_rect(right_rect, faded);
             }
@@ -1524,7 +1532,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
 
         // Draw continuation markers for wrapped lines
-        if line_wrap_is_active(editor) && !actually_show_line_numbers {
+        if line_wrap_is_active(editor) && !actually_show_line_numbers && !zen_mode {
             Simp.set_shader_for_rects();
 
             radius   := char_x_advance / 4;
@@ -1558,7 +1566,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     cursor_rect.y += offscreen_cursor_shrink_margin;
                     cursor_rect.h -= offscreen_cursor_shrink_margin * 2;
                 }
-                draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                if it_index == main_cursor {
+                    draw_rounded_rect(lerp(main_cursor_rect, cursor_rect, 0.5), Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                    main_cursor_rect = cursor_rect;
+                }
+                else {
+                    draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                }
 
                 // Draw the letter on top for better visibility
                 if config.settings.cursor_as_block {
@@ -1571,7 +1585,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw whitespace collapse marker
-        if whitespace_collapse_width > 0 {
+        if whitespace_collapse_width > 0 && not_zen_mode() {
             marker_width := char_x_advance * 4;
             marker_height :: 2;
             foreground_color := Colors.CODE_DEFAULT;
@@ -1596,37 +1610,39 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Decorations second pass: decorations drawn above text
-        for decoration: buffer.decorations {
-            using decoration;
-            if visible_offset_range.end < position.start
-            || visible_offset_range.start > position.end
-                continue;
+        if not_minimal_zen_mode() {
+            for decoration: buffer.decorations {
+                using decoration;
+                if visible_offset_range.end < position.start
+                || visible_offset_range.start > position.end
+                    continue;
 
-            if type == {
-                case .build_error;
-                if build_error_index < build_errors.count {
-                    cursor := cursors[main_cursor];
-                    if cursor.pos == position.start {
-                        coords := cursor_coords[main_cursor].pos;
-                        cursor_position := get_cursor_screen_pos(text_origin, coords);
-                        for build_error: build_errors {
-                            if build_error.decorated_buffer_id == buffer_id
-                            && build_error.coords.line == coords.line
-                            && build_error.coords.col == coords.col
-                                cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
+                if type == {
+                    case .build_error;
+                    if build_error_index < build_errors.count {
+                        cursor := cursors[main_cursor];
+                        if cursor.pos == position.start {
+                            coords := cursor_coords[main_cursor].pos;
+                            cursor_position := get_cursor_screen_pos(text_origin, coords);
+                            for build_error: build_errors {
+                                if build_error.decorated_buffer_id == buffer_id
+                                && build_error.coords.line == coords.line
+                                && build_error.coords.col == coords.col
+                                    cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
+                            }
                         }
                     }
-                }
 
-                case .breakpoint;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                square_rect := make_rect(screen_pos.x - 4, screen_pos.y, 4, line_height);
-                draw_rect(square_rect, color);
+                    case .breakpoint;
+                    screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
+                    square_rect := make_rect(screen_pos.x - 4, screen_pos.y, 4, line_height);
+                    draw_rect(square_rect, color);
+                }
             }
         }
 
         // Draw whitespace collapse marker
-        if whitespace_collapse_width > 0 {
+        if whitespace_collapse_width > 0 && !zen_mode {
             marker_width := char_x_advance * 4;
             marker_height :: 2;
             foreground_color := Colors.CODE_DEFAULT;
@@ -1647,42 +1663,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 draw_rect_raw(marker, foreground_color, foreground_color, background_color, background_color);
                 marker.x += marker_width;
                 measure += marker_width;
-            }
-        }
-
-        // Decorations second pass: decorations drawn above text
-        for decoration: buffer.decorations {
-            using decoration;
-            if visible_offset_range.end < position.start
-            || visible_offset_range.start > position.end
-                continue;
-
-            if type == {
-                case .build_error;
-                if build_error_index < build_errors.count {
-                    cursor := cursors[main_cursor];
-                    if cursor.pos == position.start {
-                        coords := cursor_coords[main_cursor].pos;
-                        cursor_position := get_cursor_screen_pos(text_origin, coords);
-                        for build_error: build_errors {
-                            if build_error.decorated_buffer_id == buffer_id
-                            && build_error.coords.line == coords.line
-                            && build_error.coords.col == coords.col
-                                cursor_position.y -= draw_error_message(xx it_index, rect, cursor_position);
-                        }
-                    }
-                }
-
-                case .breakpoint;
-                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, position.start));
-                square_rect := make_rect(screen_pos.x - 4, screen_pos.y, 4, line_height);
-                draw_rect(square_rect, color);
             }
         }
     }
 
     // Draw line numbers
-    if line_number_panel.w > 0 {
+    if line_number_panel.w > 0 && not_zen_mode() {
         push_scissor(line_number_panel);
         defer pop_scissor();
 
@@ -2004,7 +1990,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     footer_color := Colors.BACKGROUND_BRIGHT;
 
     // Draw footer
-    if !MINIMAL_FOOTER || show_filename {
+    if !MINIMAL_FOOTER || (show_filename && not_zen_mode()) {
         outer_footer_rect := footer_rect;
         footer_rect = shrink_x(outer_footer_rect, text_offset.x);
 
@@ -2089,55 +2075,57 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
 
     // Draw status bar
-    #if MINIMAL_FOOTER {{
-        using status_bar;
-        if message_string || left_icon || right_icon {
-            text_width := Simp.prepare_text(font_ui_bold, message_string);
-            width := text_width + text_offset.x * 2;
-            if left_icon   width += font_ui.character_height + text_offset.x;
-            if right_icon  width += font_ui.character_height + text_offset.x;
-            status_bar_rect.x -= width + text_offset.x;
-            status_bar_rect.w = width;
-            inner_rect := shrink_x(status_bar_rect, text_offset.x);
-            pen := make_vector2(
-                inner_rect.x,
-                inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+    #if MINIMAL_FOOTER {
+        if not_zen_mode() {
+            using status_bar;
+            if message_string || left_icon || right_icon {
+                text_width := Simp.prepare_text(font_ui_bold, message_string);
+                width := text_width + text_offset.x * 2;
+                if left_icon   width += font_ui.character_height + text_offset.x;
+                if right_icon  width += font_ui.character_height + text_offset.x;
+                status_bar_rect.x -= width + text_offset.x;
+                status_bar_rect.w = width;
+                inner_rect := shrink_x(status_bar_rect, text_offset.x);
+                pen := make_vector2(
+                    inner_rect.x,
+                    inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+                );
 
-            push_scissor(status_bar_rect);
-            defer pop_scissor();
-            draw_cool_rect(status_bar_rect, footer_color, 1.0 - shader_value);
+                push_scissor(status_bar_rect);
+                defer pop_scissor();
+                draw_cool_rect(status_bar_rect, footer_color, 1.0 - shader_value);
 
-            push_scissor(inner_rect);
-            defer pop_scissor();
-            if left_icon {
-                draw_icon(left_icon, pen, Colors.UI_DEFAULT, .default);
-                pen.x += font_ui.character_height + text_offset.x;
-            }
-            Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
-            pen.x += text_width + text_offset.x - 1;
-            if right_icon {
-                if is_ficus_running() && !is_ficus_paused() { // @TODO Generalise animated icons and remove this shim
-                    play_icon :: "\uf04b";
-                    count := cast(s32)floor(frame_time * 2) % 3;
-                    pen.x -= font_icons_size * dpi_scale * 0.125 * count;
-                    for 0 .. count {
-                        draw_icon(play_icon, pen, Colors.UI_DEFAULT, .default);
-                        pen.x += font_icons_size * dpi_scale * 0.25;
+                push_scissor(inner_rect);
+                defer pop_scissor();
+                if left_icon {
+                    draw_icon(left_icon, pen, Colors.UI_DEFAULT, .default);
+                    pen.x += font_ui.character_height + text_offset.x;
+                }
+                Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+                pen.x += text_width + text_offset.x - 1;
+                if right_icon {
+                    if is_ficus_running() && !is_ficus_paused() { // @TODO Generalise animated icons and remove this shim
+                        play_icon :: "\uf04b";
+                        count := cast(s32)floor(frame_time * 2) % 3;
+                        pen.x -= font_icons_size * dpi_scale * 0.125 * count;
+                        for 0 .. count {
+                            draw_icon(play_icon, pen, Colors.UI_DEFAULT, .default);
+                            pen.x += font_icons_size * dpi_scale * 0.25;
+                        }
+                    }
+                    else {
+                        draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
                     }
                 }
-                else {
-                    draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
-                }
+
+                status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
+                maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .PRESSABLE);
+
+                if mouse_pointer_is_within(status_bar_rect) && is_hovering_over(status_bar_ui_id)
+                    Input.window_region_override = .TITLE_BAR;
             }
-
-            status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
-            maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .PRESSABLE);
-
-            if mouse_pointer_is_within(status_bar_rect) && is_hovering_over(status_bar_ui_id)
-                Input.window_region_override = .TITLE_BAR;
         }
-    }}
+    }
 
     // Draw console buttons if appropriate
     if is_console_ui_enabled && buffer_id == console_buffer_id {

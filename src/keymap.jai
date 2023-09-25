@@ -334,6 +334,7 @@ ACTIONS_COMMON :: string.[
     "clear_build_errors",
     "toggle_show_keystrokes",
     "toggle_show_filename",
+    "toggle_zen_mode",
     "toggle_collapse_leading_whitespace",
     "toggle_profiling",
     "jump_to_commented_source_location",

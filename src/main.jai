@@ -21,6 +21,11 @@ TOAST_BUILD_RESULT :: false;
 
 show_keystrokes := false;
 show_filename := true;
+zen_mode := false;
+changed_zen_mode_at: Time;
+zen_mode_transition_duration :: 0.1;
+transitioning_to_zen_mode := false;
+zen_mode_t := 0.0;
 
 executable_name: string;
 
@@ -80,6 +85,8 @@ main :: () {
         window_width = 1542;
         window_height = 1041;
         if DEBUG && debug_small_window {
+            window_x += 100;
+            window_y += 100;
             window_width = window_width * 3 / 4;
             window_height = window_height * 3 / 4;
         }
@@ -383,8 +390,17 @@ main :: () {
             should_quit = false;
         }
 
-
         refresh_open_buffers();
+
+        if changed_zen_mode_at {
+            zen_mode_t = cast(float)((frame_time - changed_zen_mode_at) / zen_mode_transition_duration);
+            if zen_mode_t >= 1.0 {
+                zen_mode = transitioning_to_zen_mode;
+                changed_zen_mode_at = 0;
+            }
+            if !transitioning_to_zen_mode  zen_mode_t = 1.0 - zen_mode_t;
+            update_colors_for_zen_mode(zen_mode_t);
+        }
 
         draw_frame();
 
@@ -478,6 +494,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
         case .toggle_show_filename;                             toggle_show_filename();                             return true;
+        case .toggle_zen_mode;                                  toggle_zen_mode();                                  return true;
         case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
 
@@ -780,6 +797,26 @@ toggle_show_filename :: () {
     show_filename = !show_filename;
     add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), dismiss_in_seconds = 2);
 }
+
+toggle_zen_mode :: () {
+    if changed_zen_mode_at {
+        zen_mode_t = 1.0 - zen_mode_t;
+        time_to_go := zen_mode_transition_duration * zen_mode_t;
+        time_spent := zen_mode_transition_duration - time_to_go;
+        changed_zen_mode_at = xx (frame_time - xx time_spent);
+        transitioning_to_zen_mode = !transitioning_to_zen_mode;
+    }
+    else {
+        transitioning_to_zen_mode = !zen_mode;
+        zen_mode = true;
+        changed_zen_mode_at = frame_time;
+        zen_mode_t = 0;
+    }
+}
+
+refresh_zen_mode :: () {
+    update_colors_for_zen_mode(1.0);
+} @OnConfigRefresh
 
 toggle_collapse_leading_whitespace :: () {
     config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;

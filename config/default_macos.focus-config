@@ -59,10 +59,11 @@ line_wrap_is_on_by_default:             false
 show_line_numbers:                      false
 scroll_to_cursor_line_offset            1
 hide_mouse_when_typing:                 true
-highlight_line_with_cursor:             false
+highlight_line_with_cursor:             true
 draw_indent_guides:                     false
 auto_surround_with_brackets_and_quotes: false
 auto_close_brackets:                    false
+zen_mode_blend_percent                  90
 
 
 [[keymap]]

@@ -52,6 +52,12 @@ Color_Values :: struct {
     CONSOLE_HEADER_ERROR    := Color.{ r = 0.50, g = 0.00, b = 0.00, a = 1.0 };
     CONSOLE_HEADER_TEXT     := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
 
+    ZEN_FOREGROUND          := Color.{r = 0.6,      g = 0.6,      b = 0.666667, a = 0.686275};
+    ZEN_BACKGROUND          := Color.{r = 0.058824, g = 0.027451, b = 0,        a = 0.498039};
+    ZEN_MARGINS             := Color.{r = 0.011765, g = 0.011765, b = 0.011765, a = 1};
+    ZEN_COMMENT             := Color.{r = 0.266667, g = 0.266667, b = 0.266667, a = 1};
+    ZEN_CURSOR              := Color.{r = 1,        g = 1,        b = 1,        a = 0.666667};
+
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
     UI_NEUTRAL              := Color.{ r = 0.3, g = 0.3, b = 0.3, a = 1.0 };
@@ -89,6 +95,7 @@ operator + :: (a: Color, b: Color) -> Color {
 }
 
 Colors: Color_Values;  // a hack to avoid replacing a lot of code
+Loaded_Colors: Color_Values;
 
 Code_Color :: enum u8 {
     DEFAULT;
@@ -288,6 +295,12 @@ convert_active_buffer_to_colors :: () {
     do("console_header_background",      "statusBar.background", op=.brighten, bake=true);
     do("console_error",                  "inputValidation.errorBackground");
     append(*builder, "\n");
+    do("zen_foreground",                 "source", "variable.other", "editor.foreground", foreground=true);
+    do("zen_background",                 "editor.background");
+    do("zen_margins",                    "sideBar.background", bake=true);
+    do("zen_cursor",                     "editorCursor.foreground");
+    do("zen_comment",                    "comment", "comment.line", "comment.block", foreground=true);
+    append(*builder, "\n");
     do("ui_default",                     "button.foreground", "menu.foreground");
     do("ui_dim",                         "inputValidation.infoBackground", op=.darken);
     do("ui_neutral",                     "inputValidation.infoBackground");
@@ -321,4 +334,86 @@ convert_active_buffer_to_colors :: () {
     cursor.col_wanted = 0;
     editor.cursor_moved = .jumped;
     cursor.sel = xx output.count;
+}
+
+update_colors_for_zen_mode :: (t: float) {
+    raw_t := t;
+    if zen_mode
+        t *= cast(float)config.settings.zen_mode_blend_percent / 100.0;
+    else
+        t = 0;
+
+    using Colors;
+    BACKGROUND =                lerp(Loaded_Colors.BACKGROUND,                ZEN_BACKGROUND, t);
+    BACKGROUND_DARK =           lerp(Loaded_Colors.BACKGROUND_DARK,           ZEN_BACKGROUND, t);
+    BACKGROUND_HIGHLIGHT =      lerp(Loaded_Colors.BACKGROUND_HIGHLIGHT,      ZEN_BACKGROUND, t);
+    BACKGROUND_LIGHT =          lerp(Loaded_Colors.BACKGROUND_LIGHT,          ZEN_BACKGROUND, t);
+    BACKGROUND_BRIGHT =         lerp(Loaded_Colors.BACKGROUND_BRIGHT,         ZEN_BACKGROUND, t);
+    BACKGROUND_REGION =         lerp(Loaded_Colors.BACKGROUND_REGION,         ZEN_BACKGROUND, t);
+    BACKGROUND_REGION_PRIVATE = lerp(Loaded_Colors.BACKGROUND_REGION_PRIVATE, ZEN_BACKGROUND, t);
+    BACKGROUND_REGION_PUBLIC =  lerp(Loaded_Colors.BACKGROUND_REGION_PUBLIC,  ZEN_BACKGROUND, t);
+    BACKGROUND_CURSOR_ROW =     lerp(Loaded_Colors.BACKGROUND_CURSOR_ROW,     ZEN_BACKGROUND, t);
+
+    //SELECTION_ACTIVE =          lerp(Loaded_Colors.SELECTION_ACTIVE,          ZEN_, t);
+    //SELECTION_INACTIVE =        lerp(Loaded_Colors.SELECTION_INACTIVE,        ZEN_, t);
+    //SELECTION_HIGHLIGHT =       lerp(Loaded_Colors.SELECTION_HIGHLIGHT,       ZEN_, t);
+    //SEARCH_RESULT_ACTIVE =      lerp(Loaded_Colors.SEARCH_RESULT_ACTIVE,      ZEN_, t);
+    //SEARCH_RESULT_INACTIVE =    lerp(Loaded_Colors.SEARCH_RESULT_INACTIVE,    ZEN_, t);
+    //SCROLLBAR =                 lerp(Loaded_Colors.SCROLLBAR,                 ZEN_, t);
+    //SCROLLBAR_HOVER =           lerp(Loaded_Colors.SCROLLBAR_HOVER,           ZEN_, t);
+    //SCROLLBAR_BACKGROUND =      lerp(Loaded_Colors.SCROLLBAR_BACKGROUND,      ZEN_, t);
+
+    CURSOR =                    lerp(Loaded_Colors.CURSOR,                    ZEN_CURSOR, raw_t * ifx zen_mode then 1.0 else 0.0);
+
+    //CURSOR_INACTIVE =           lerp(Loaded_Colors.CURSOR_INACTIVE,           ZEN_, t);
+    //PASTE_ANIMATION =           lerp(Loaded_Colors.PASTE_ANIMATION,           ZEN_, t);
+    //SPLITTER =                  lerp(Loaded_Colors.SPLITTER,                  ZEN_, t);
+    //SPLITTER_HOVER =            lerp(Loaded_Colors.SPLITTER_HOVER,            ZEN_, t);
+    //LETTER_HIGHLIGHT =          lerp(Loaded_Colors.LETTER_HIGHLIGHT,          ZEN_, t);
+    //LIST_CURSOR_LITE =          lerp(Loaded_Colors.LIST_CURSOR_LITE,          ZEN_, t);
+    //LIST_CURSOR =               lerp(Loaded_Colors.LIST_CURSOR,               ZEN_, t);
+    //SHADOW_DARK =               lerp(Loaded_Colors.SHADOW_DARK,               ZEN_, t);
+    //SHADOW_TRANSPARENT =        lerp(Loaded_Colors.SHADOW_TRANSPARENT,        ZEN_, t);
+    //TEXT_INPUT_LABEL =          lerp(Loaded_Colors.TEXT_INPUT_LABEL,          ZEN_, t);
+    //MOTIF =                     lerp(Loaded_Colors.MOTIF,                     ZEN_, t);
+    //COLLAPSED_AREA_MARKER =     lerp(Loaded_Colors.COLLAPSED_AREA_MARKER,     ZEN_, t);
+    //GUTTER =                    lerp(Loaded_Colors.GUTTER,                    ZEN_, t);
+    //CONSOLE_BACKGROUND =        lerp(Loaded_Colors.CONSOLE_BACKGROUND,        ZEN_, t);
+    //CONSOLE_TEXT =              lerp(Loaded_Colors.CONSOLE_TEXT,              ZEN_, t);
+    //CONSOLE_ERROR =             lerp(Loaded_Colors.CONSOLE_ERROR,             ZEN_, t);
+    //CONSOLE_HEADER_BACKGROUND = lerp(Loaded_Colors.CONSOLE_HEADER_BACKGROUND, ZEN_, t);
+    //CONSOLE_HEADER_SUCCESS =    lerp(Loaded_Colors.CONSOLE_HEADER_SUCCESS,    ZEN_, t);
+    //CONSOLE_HEADER_ERROR =      lerp(Loaded_Colors.CONSOLE_HEADER_ERROR,      ZEN_, t);
+    //CONSOLE_HEADER_TEXT =       lerp(Loaded_Colors.CONSOLE_HEADER_TEXT,       ZEN_, t);
+    //UI_DEFAULT =                lerp(Loaded_Colors.UI_DEFAULT,                ZEN_, t);
+    //UI_DIM =                    lerp(Loaded_Colors.UI_DIM,                    ZEN_, t);
+    //UI_NEUTRAL =                lerp(Loaded_Colors.UI_NEUTRAL,                ZEN_, t);
+    //UI_WARNING =                lerp(Loaded_Colors.UI_WARNING,                ZEN_, t);
+    //UI_WARNING_DIM =            lerp(Loaded_Colors.UI_WARNING_DIM,            ZEN_, t);
+    //UI_ERROR =                  lerp(Loaded_Colors.UI_ERROR,                  ZEN_, t);
+    //UI_ERROR_BRIGHT =           lerp(Loaded_Colors.UI_ERROR_BRIGHT,           ZEN_, t);
+    //UI_SUCCESS =                lerp(Loaded_Colors.UI_SUCCESS,                ZEN_, t);
+    //UI_BACKGROUND_0 =           lerp( Loaded_Colors.UI_BACKGROUND_0,          ZEN_, t);
+    //UI_BACKGROUND_1 =           lerp( Loaded_Colors.UI_BACKGROUND_1,          ZEN_, t);
+    //UI_BACKGROUND_2 =           lerp( Loaded_Colors.UI_BACKGROUND_2,          ZEN_, t);
+    //UI_BACKGROUND_3 =           lerp( Loaded_Colors.UI_BACKGROUND_3,          ZEN_, t);
+    //UI_BACKGROUND_4 =           lerp( Loaded_Colors.UI_BACKGROUND_4,          ZEN_, t);
+    //UI_BACKGROUND_5 =           lerp( Loaded_Colors.UI_BACKGROUND_5,          ZEN_, t);
+
+    CODE_DEFAULT =              lerp(Loaded_Colors.CODE_DEFAULT,              ZEN_FOREGROUND, t);
+    CODE_COMMENT =              lerp(Loaded_Colors.CODE_COMMENT,              ZEN_COMMENT, t);
+    CODE_TYPE =                 lerp(Loaded_Colors.CODE_TYPE,                 ZEN_FOREGROUND, t);
+    CODE_FUNCTION =             lerp(Loaded_Colors.CODE_FUNCTION,             ZEN_FOREGROUND, t);
+    CODE_PUNCTUATION =          lerp(Loaded_Colors.CODE_PUNCTUATION,          ZEN_FOREGROUND, t);
+    CODE_OPERATION =            lerp(Loaded_Colors.CODE_OPERATION,            ZEN_FOREGROUND, t);
+    CODE_STRING =               lerp(Loaded_Colors.CODE_STRING,               ZEN_FOREGROUND, t);
+    CODE_VALUE =                lerp(Loaded_Colors.CODE_VALUE,                ZEN_FOREGROUND, t);
+    CODE_HIGHLIGHT =            lerp(Loaded_Colors.CODE_HIGHLIGHT,            ZEN_FOREGROUND, t);
+    CODE_ERROR =                lerp(Loaded_Colors.CODE_ERROR,                ZEN_FOREGROUND, t);
+    CODE_JUMP =                 lerp(Loaded_Colors.CODE_JUMP,                 ZEN_FOREGROUND, t);
+    CODE_DIRECTIVE =            lerp(Loaded_Colors.CODE_DIRECTIVE,            ZEN_FOREGROUND, t);
+    CODE_KEYWORD =              lerp(Loaded_Colors.CODE_KEYWORD,              ZEN_FOREGROUND, t);
+    CODE_FORMAT_ITEM =          lerp(Loaded_Colors.CODE_FORMAT_ITEM,          ZEN_FOREGROUND, t);
+
+    CODE_COLOR_MAP = refresh_code_color_map();
 }

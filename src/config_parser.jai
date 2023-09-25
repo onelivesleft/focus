@@ -157,6 +157,12 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "collapsed_area_marker";              return *config.colors.COLLAPSED_AREA_MARKER;
         case "gutter";                             return *config.colors.GUTTER;
 
+        case "zen_foreground";                     return *config.colors.ZEN_FOREGROUND;
+        case "zen_background";                     return *config.colors.ZEN_BACKGROUND;
+        case "zen_margins";                        return *config.colors.ZEN_MARGINS;
+        case "zen_cursor";                         return *config.colors.ZEN_CURSOR;
+        case "zen_comment";                        return *config.colors.ZEN_COMMENT;
+
         case "console_background";                 return *config.colors.CONSOLE_BACKGROUND;
         case "console_text";                       return *config.colors.CONSOLE_TEXT;
         case "console_header_background";          return *config.colors.CONSOLE_HEADER_BACKGROUND;
