@@ -11,7 +11,7 @@ add_directory_to_workspace :: (path: string, index := -1) {
 
     if !is_directory(full_path) || !success {
         error_msg := tprint("Couldn't add % to workspace. Directory doesn't exist or is invalid.", path);
-        add_user_error(error_msg, dismiss_in_seconds = 10);
+        add_user_error(error_msg, duration_in_seconds = 10);
         log_error(error_msg);
         return;
     }
@@ -25,7 +25,7 @@ add_directory_to_workspace :: (path: string, index := -1) {
     if in_project {
         error_msg := tprint("Directory % is already in the project. Found existing directory %", dir.path, project_dir.path);
         log_error(error_msg);
-        add_user_warning(error_msg, dismiss_in_seconds = 10);
+        add_user_warning(error_msg, duration_in_seconds = 10);
         return;
     }
 
@@ -213,7 +213,7 @@ hard_reload_workspace :: () {
     reopen_visible_editors(old_editor_state);
     start_initial_workspace_scan();
 
-    add_success_message("Workspace has been reloaded", dismiss_in_seconds=3);
+    add_success_message("Workspace has been reloaded", duration_in_seconds=3);
 }
 
 remember_visible_editors_and_buffers :: () -> Visible_Editor_State {

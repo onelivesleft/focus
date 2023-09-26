@@ -38,7 +38,9 @@ main :: () {
         // context.allocator = OA.get_overwriting_allocator();
     }
 
+    // Set these up directly because we want to guarantee they're gtg before any other system starts
     console_allocator = create_heap(context.default_allocator);
+    user_message_allocator = create_heap(context.default_allocator);
     ficus_allocator.proc = flat_pool_allocator_proc;
     ficus_allocator.data = *ficus_pool;
 
@@ -296,7 +298,7 @@ main :: () {
                     if show_keystrokes && event.key_pressed {
                         name := key_code_name(event.key_code);
                         if starts_with(name, "(enum")  name = "";
-                        add_success_message(tprint("% <%>", name, cast(int)event.key_code), dismiss_in_seconds = 2);
+                        add_success_message(tprint("% <%>", name, cast(int)event.key_code), duration_in_seconds = 2, icon = "\uf11c");
                     }
 
                     // Double shift click
@@ -391,41 +393,12 @@ main :: () {
         }
 
         refresh_open_buffers();
-
-        if changed_zen_mode_at {
-            zen_mode_t = cast(float)((frame_time - changed_zen_mode_at) / zen_mode_transition_duration);
-            if zen_mode_t >= 1.0 {
-                zen_mode = transitioning_to_zen_mode;
-                changed_zen_mode_at = 0;
-            }
-            if !transitioning_to_zen_mode  zen_mode_t = 1.0 - zen_mode_t;
-            update_colors_for_zen_mode(zen_mode_t);
-        }
+        update_user_messages();
+        update_zen_mode();
 
         draw_frame();
 
-        pointer_end_frame();
-
-        // TODO:
-        // maybe_save_editor_state_into_session();
-
-        maybe_save_editor_history();
-
-        if should_reload_workspace {
-            hard_reload_workspace();
-            should_reload_workspace = false;
-            redraw_requested = true;
-            platform_apply_config(*config.platform);
-        }
-
-        reset_temporary_storage();
-
-        // #if DEBUG FrameMark();
-
-        if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
-            // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
-            sleep_milliseconds(2);
-        }
+        end_frame_cleanup();
     }
 
     #if EYE_TRACKING {
@@ -436,6 +409,31 @@ main :: () {
     // report := make_leak_report();
     // log_leak_report(report);
 
+}
+
+end_frame_cleanup :: () {
+    pointer_end_frame();
+
+    // TODO:
+    // maybe_save_editor_state_into_session();
+
+    maybe_save_editor_history();
+
+    if should_reload_workspace {
+        hard_reload_workspace();
+        should_reload_workspace = false;
+        redraw_requested = true;
+        platform_apply_config(*config.platform);
+    }
+
+    reset_temporary_storage();
+
+    // #if DEBUG FrameMark();
+
+    if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
+        // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
+        sleep_milliseconds(2);
+    }
 }
 
 debug_change_color := DEBUG_CHANGE_COLOR;
@@ -699,7 +697,7 @@ increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), dismiss_in_seconds = 2);
+        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2);
     }
 }
 
@@ -707,21 +705,21 @@ decrease_font_size :: () {
     if (font_size - 1) >= MIN_FONT_SIZE {
         font_size -= 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), dismiss_in_seconds = 2);
+        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2);
     }
 }
 
 increase_console_font_size :: () {
     if (font_console_size + 1) <= MAX_FONT_SIZE {
         set_console_font_size(font_console_size + 1);
-        add_success_message(tprint("Console font size: %", font_console_size), dismiss_in_seconds = 2);
+        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2);
     }
 }
 
 decrease_console_font_size :: () {
     if (font_console_size - 1) >= MIN_FONT_SIZE {
         set_console_font_size(font_console_size - 1);
-        add_success_message(tprint("Console font size: %", font_console_size), dismiss_in_seconds = 2);
+        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2);
     }
 }
 
@@ -790,12 +788,24 @@ update_window_size :: (w: s64, h: s64) {
 
 toggle_show_keystrokes :: () {
     show_keystrokes = !show_keystrokes;
-    add_success_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), dismiss_in_seconds = 2);
+    add_success_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), duration_in_seconds = 2, icon = "\uf11c");
 }
 
 toggle_show_filename :: () {
     show_filename = !show_filename;
-    add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), dismiss_in_seconds = 2);
+    add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
+}
+
+update_zen_mode :: () {
+    if changed_zen_mode_at {
+        zen_mode_t = cast(float)((frame_time - changed_zen_mode_at) / zen_mode_transition_duration);
+        if zen_mode_t >= 1.0 {
+            zen_mode = transitioning_to_zen_mode;
+            changed_zen_mode_at = 0;
+        }
+        if !transitioning_to_zen_mode  zen_mode_t = 1.0 - zen_mode_t;
+        update_colors_for_zen_mode(zen_mode_t);
+    }
 }
 
 toggle_zen_mode :: () {
@@ -820,7 +830,7 @@ refresh_zen_mode :: () {
 
 toggle_collapse_leading_whitespace :: () {
     config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;
-    add_success_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), dismiss_in_seconds = 2);
+    add_success_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), duration_in_seconds = 2);
 }
 
 toggle_profiling :: () {
@@ -828,7 +838,7 @@ toggle_profiling :: () {
         iprof_active = !iprof_active;
     }
     else {
-        add_user_error("Profiling is not available in this build of Focus", dismiss_in_seconds = 2);
+        add_user_error("Profiling is not available in this build of Focus", duration_in_seconds = 2);
     }
 }
 

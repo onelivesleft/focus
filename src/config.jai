@@ -47,19 +47,19 @@ refresh_config :: (path: string) {
         success, changed, there_were_warnings := load_global_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
-            add_success_message("Global config changes have been applied", dismiss_in_seconds = 3);
+            add_success_message("Global config changes have been applied", duration_in_seconds = 3);
         }
         if current_project_name {
             success, changed, there_were_warnings = load_project_config(.refresh, current_project_name);
             if success && changed && !there_were_warnings {
-                add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3);
+                add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3);
             }
         }
     } else if platform_path_equals(path, project_config_path) {
         success, changed, there_were_warnings := load_project_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
-            add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3);
+            add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3);
         }
     } else {
         log_error("Attempted to refresh config from file %, but it is not a global config or a current project config", path);
@@ -101,7 +101,7 @@ is_our_config_file :: (path: string) -> bool {
 
 close_project :: () {
     if !project_config_path {
-        add_user_warning("No project is currently active.", dismiss_in_seconds = 5);
+        add_user_warning("No project is currently active.", duration_in_seconds = 5);
         return;
     }
 
@@ -114,7 +114,7 @@ close_project :: () {
         }
         project_config_path = "";
     } else {
-        add_user_error("Couldn't close project because the global config failed to load", dismiss_in_seconds = 10);
+        add_user_error("Couldn't close project because the global config failed to load", duration_in_seconds = 10);
     }
 }
 
@@ -178,8 +178,8 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
         return false, false, false;
     }
     if warnings {
-        add_user_warning(tprint("Config file % loaded with warnings", file_path), dismiss_in_seconds = 60);
-        for warnings add_user_error(it, dismiss_in_seconds = 60);
+        add_user_warning(tprint("Config file % loaded with warnings", file_path), duration_in_seconds = 60);
+        for warnings add_user_error(it, duration_in_seconds = 60);
     }
 
     // Maybe update hash if changed
@@ -397,6 +397,7 @@ Settings :: struct {
     zen_mode_blend_percent                 := 90;
     zen_mode_minimal                       := false;
     zen_mode_width_in_chars                := 80;
+    show_console_on_build                  := true;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

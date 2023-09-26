@@ -3,7 +3,9 @@ editor_top_margin := 0.0;
 simp_initialized := false;
 #if IPROF  iprof_active := false;
 floating_editor_on_left := false;
-main_cursor_rect : Rect;
+main_cursor_rect: Rect;
+right_file_rect: Rect;
+left_file_rect: Rect;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -383,69 +385,104 @@ draw_welcome_screen :: (main_area: Rect) {
 draw_user_messages :: (main_area: Rect, footer_height: float) {
     using font_data;
 
-    user_messages := get_user_messages(frame_time);
+    user_messages := get_user_messages();
     if !user_messages return;
 
     ui_id := get_ui_id_from_loc();
 
-    margin  := floor(12 * dpi_scale);
-    padding := floor( 8 * dpi_scale);
-
-    message_rect_src := shrink(main_area, margin);
-    if !is_valid(message_rect_src) return;
-
-    message_rect_src.y += footer_height;
+    message_rect : Rect = ---;
+    message_rect = right_file_rect;
 
     for * user_messages {
-        if it.dismissed continue;
-        if !it.message  continue;
+        text_width := Simp.get_text_width(font_ui_bold, it.text);
+        width := text_width + char_x_advance * 2;
+        if it.icon   width += font_ui.character_height + char_x_advance;
+        message_rect.x -= width + char_x_advance;
+        message_rect.w = width;
+        if (left_file_rect.x + left_file_rect.w >= message_rect.x  && left_file_rect.x + left_file_rect.w < message_rect.x + message_rect.w)
+        || (left_file_rect.x >= message_rect.x && left_file_rect.x < message_rect.x + message_rect.w)
+        || (message_rect.x >= left_file_rect.x && message_rect.x < left_file_rect.x + left_file_rect.w)
+        message_rect.x = left_file_rect.x - message_rect.w - char_x_advance;
+        it.rect = message_rect;
 
-        // Figure out message height
-        lines := temp_strings.split(it.message, cast(u8) #char "\n");
+        if it.start_time && frame_time < it.start_time + it.current_state_duration && it.state != .staying {
+            t := cast(float)((frame_time - it.start_time) / it.current_state_duration);
+            t = t * t;
+            if it.state == {
+                case .arriving;
+                it.rect.x = lerp(screen.w, it.rect.x, t);
 
-        max_seen_width := 0;
-        for line : lines {
-            line_width := Simp.get_text_width(font_ui, line);
-            max_seen_width = max(line_width, max_seen_width);
+                case .departing;
+                it.rect.y = lerp(it.rect.y, screen.h, t);
+            }
         }
-        message_height := lines.count * font_ui_line_height + 2 * padding;
 
-        message_rect := message_rect_src;
-        message_rect.h = message_height;
-        message_rect.w = max_seen_width + 2 * padding;
-        if !console_is_at_bottom_right()
-            message_rect.x += message_rect_src.w - message_rect.w;
+    }
 
-        maybe_set_hot_or_active(ui_id, message_rect, .PRESSABLE);
-
-        is_hovering := mouse_pointer_is_within(message_rect) && is_hovering_over(ui_id);
-        if is_hovering && mouse.left.just_pressed {
-            it.dismissed = true;
-            redraw_requested = true;
-        }
+    for < * user_messages {
+        Simp.prepare_text(font_ui_bold, it.text);
+        inner_rect := shrink_x(it.rect, char_x_advance);
+        pen := make_vector2(
+            inner_rect.x,
+            inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+        );
 
         color: Color = ---;
         if #complete it.level == {
             case .error;    color = Colors.UI_ERROR;
             case .warning;  color = Colors.UI_WARNING_DIM;
+            case .neutral;  color = Colors.UI_NEUTRAL;
             case .success;  color = Colors.UI_SUCCESS;
         }
 
-        if !is_hovering  color = with_alpha(color, 0.9);
-        draw_cool_rect(message_rect, color, 0.5);
-
-        text_color := Colors.UI_DEFAULT;
-        pen_x := cast(s64) (message_rect.x + padding);
-        pen_y := cast(s64) (message_rect.y + message_rect.h - padding) - font_ui.character_height;
-
-        y := pen_y;
-        for line : lines {
-            x := pen_x;
-            Simp.draw_text(font_ui, x, y, line, text_color);
-            y -= xx font_ui_line_height;
+        push_scissor(it.rect);
+        defer pop_scissor();
+        if it.flash_time {
+            if frame_time > it.flash_time + User_Message.flash_duration {
+                it.flash_time = 0;
+            }
+            else {
+                t := cast(float)((frame_time - it.flash_time) / User_Message.flash_duration);
+                t *= t;
+                color = brighten(color, 1.0 - t);
+            }
         }
+        draw_cool_rect(it.rect, color, 0.5);
 
-        message_rect_src.y += message_height + margin;
+        push_scissor(inner_rect);
+        defer pop_scissor();
+        if it.icon {
+            icon : string = ---;
+            if it.origin == .build {
+                if #complete it.level == {
+                    case .success;
+                    icon = "\uf00c";
+
+                    case .error;
+                    icon = "\uf780";
+
+                    case .warning;
+                    icon = "\uf071";
+
+                    case .neutral;
+                    animation_rate :: 0.44;
+                    icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
+                    icon = to_string(*convert_utf32_to_utf8(xx build_icons[icon_index]));
+                }
+            }
+            else {
+                icon = it.icon;
+            }
+            draw_icon(icon, pen, Colors.UI_DEFAULT, .default);
+            pen.x += font_ui.character_height + char_x_advance;
+        }
+        Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+
+        user_message_ui_id := get_ui_id_from_loc(parent_id = Ui_Id.user_messages) + xx it_index;
+        maybe_set_hot_or_active(user_message_ui_id, it.rect, .PRESSABLE);
+
+        if mouse_pointer_is_within(it.rect) && is_hovering_over(user_message_ui_id) && mouse.left.just_pressed
+            it.dismissed = true;
     }
 }
 
@@ -548,9 +585,22 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
     else #if FOOTER_AT_TOP {
         footer_rect, rect := cut_top(main_area, footer_height);
+        if editor_id != editors.floating {
+            left_file_rect = footer_rect;
+            left_file_rect.x += left_file_rect.w;
+            left_file_rect.y -= char_x_advance;
+            status_bar_rect, right_file_rect = left_file_rect;
+        }
     }
     else {
         footer_rect, rect := cut_bottom(main_area, footer_height);
+        if editor_id != editors.floating {
+            left_file_rect, _ := cut_top(main_area, footer_height);
+            left_file_rect.x += left_file_rect.w;
+            left_file_rect.y -= char_x_advance;
+            status_bar_rect, right_file_rect = left_file_rect;
+        }
+
     }
     max_width := cast(float) config.settings.max_editor_width * dpi_scale;
     if zen_mode {
@@ -1990,7 +2040,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     footer_color := Colors.BACKGROUND_BRIGHT;
 
     // Draw footer
-    if !MINIMAL_FOOTER || (show_filename && not_zen_mode()) {
+    if !MINIMAL_FOOTER || (show_filename && not_zen_mode() && editor_id != editors.floating) {
         outer_footer_rect := footer_rect;
         footer_rect = shrink_x(outer_footer_rect, text_offset.x);
 
@@ -2021,6 +2071,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             push_scissor(rect);
             defer pop_scissor();
             draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
+            if #complete editors.layout == {
+                case .None;
+                left_file_rect, _ := cut_top(main_area, footer_height);
+                left_file_rect.x += left_file_rect.w;
+                left_file_rect.y -= char_x_advance;
+                right_file_rect = left_file_rect;
+
+                case .Single;
+                left_file_rect, right_file_rect = outer_footer_rect;
+
+                case .Double;
+                if editor_id == editors.left  left_file_rect = outer_footer_rect;
+                else                          right_file_rect = outer_footer_rect;
+            }
         }
         else {
             draw_rect(outer_footer_rect, footer_color);
@@ -4495,6 +4559,7 @@ Ui_Id :: enum s64 {
     status_bar_left     :: -19;
     status_bar_right    :: -20;
     confirm_overwrite   :: -21;
+    user_messages       :: -22;
 
     // The rest will be derived from loc
 }

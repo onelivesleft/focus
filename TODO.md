@@ -1,5 +1,20 @@
 # Mine
 
+- [ ] Color warning error line as warning instead of error
+
+- [.] User Messages
+    - [x] neutral message
+    - [x] Move to top
+    - [x] Unique
+    - [x] pizazz
+        - [x] flash
+    - [?] make work when not MINIMAL_FOOTER
+
+- [.] Zen
+    - [x] Zen theme
+    - [ ] make margins draggable
+    - [ ] mouse wheel scroll
+
 - [ ] Multicursor iterator
 - [ ] Parse jai error polymorph info: "C:" is not at start of string is why it isn't working
 - [.] Fix console header / line wrap
@@ -147,8 +162,6 @@
 
 - [?] FIX command runner!!!
 
-- [ ] Zen
-    - [ ] Zen theme
 - [.] Developer tool show scope at cursor
 - [ ] Create project from folder
 - [ ] search broken? possibly same problem as memory crash?

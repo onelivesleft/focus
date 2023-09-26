@@ -26,19 +26,19 @@ init_console_buffer :: () {
     editors.floating = -1;
 }
 
-print_to_console :: inline (output: string) {
-    print_to_console(output, false, Language.Plain_Text);
+print_to_console :: inline (output: string, remain_closed := false) {
+    print_to_console(output, false, Language.Plain_Text, remain_closed = remain_closed);
 }
 
-print_to_console :: inline (output: string, lang: Language, is_error := false) {
-    print_to_console(output, false, lang, is_error);
+print_to_console :: inline (output: string, lang: Language, is_error := false, remain_closed := false) {
+    print_to_console(output, false, lang, is_error, remain_closed = remain_closed);
 }
 
-print_to_console :: inline (output: string, append_newline: bool) {
-    print_to_console(output, true, Language.Plain_Text);
+print_to_console :: inline (output: string, append_newline: bool, remain_closed := false) {
+    print_to_console(output, true, Language.Plain_Text, remain_closed = remain_closed);
 }
 
-print_to_console :: (output: string, append_newline: bool, lang: Language, is_error := false, $do_lock := true) {
+print_to_console :: (output: string, append_newline: bool, lang: Language, is_error := false, $do_lock := true, remain_closed := false) {
     #if do_lock {
         lock(*console_mutex);
         defer unlock(*console_mutex);
@@ -58,6 +58,7 @@ print_to_console :: (output: string, append_newline: bool, lang: Language, is_er
     if !editor {
         show_console(false);
         editor = *open_editors[editors.floating];
+        if remain_closed  hide_console();
     }
     cursor := leave_only_original_cursor(editor);
     cursor.pos = xx buffer.bytes.count;
@@ -85,7 +86,7 @@ editor_showing_console :: () -> *Editor {
     return null;
 }
 
-print_console_header :: (s: string, leading_newline := true, is_error := false) -> Offset_Range, region_id: int {
+print_console_header :: (s: string, leading_newline := true, is_error := false, remain_closed := false) -> Offset_Range, region_id: int {
     lock(*console_mutex);
     defer unlock(*console_mutex);
 
@@ -94,10 +95,10 @@ print_console_header :: (s: string, leading_newline := true, is_error := false) 
 
     if leading_newline {
         if !ends_with_empty_line(buffer)
-            print_to_console("\n");
+            print_to_console("\n", remain_closed=remain_closed);
      }
     start := cast(s32) buffer.bytes.count;
-    print_to_console(s, true, .Plain_Text, false);
+    print_to_console(s, true, .Plain_Text, false, remain_closed=remain_closed);
     end := cast(s32) buffer.bytes.count - 1;
     memset(buffer.colors.data + start, xx Code_Color.CONSOLE_HEADER_TEXT, end - start);
     id := add_buffer_region(buffer, start, end, true, 1, ifx is_error then .console_header_error else .console_header);
@@ -166,8 +167,6 @@ build :: () {
         case .scales;        build_icons = scales_icons;
     }
 
-    clear_user_messages(.build);
-
     save_all(null, null, false, false);
 
     task := New(Console_Task, allocator=console_allocator);
@@ -198,7 +197,9 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
     remove_delayed_action(hide_console);
 
-    build_task_header, build_task_region_id = print_console_header(tprint("[BUILD] %", task.title));
+    build_text := tprint("[BUILD] %", task.title);
+    build_task_header, build_task_region_id = print_console_header(build_text, remain_closed=!config.settings.show_console_on_build);
+    add_user_neutral(build_text, duration_in_seconds = -1, icon = to_string(*convert_utf32_to_utf8(xx build_icons[0])), origin = .build);
 
     successful := true;
     output: string;
@@ -238,11 +239,11 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
         #if HIDE_CONSOLE_ON_SUCCESS
             if !console_was_open  add_delayed_action(hide_console, duration);
-        set_build_header(success=true);
-        print_to_console(tprint("Success: % seconds\n", frame_time - start_time));
+        set_build_header(ifx build_errors then .warning else .success);
+        print_to_console(tprint("Success: % seconds\n", frame_time - start_time), remain_closed=!config.settings.show_console_on_build);
     }
     else {
-        set_build_header(success=false);
+        set_build_header(.error);
         if build_errors {
             #if TOAST_BUILD_RESULT {
                 build_error := build_errors[0];
@@ -264,27 +265,29 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 
 on_output :: (s: string) {
     if !silence_stdout
-        print_to_console(s, .Jai);
+        print_to_console(s, .Jai, remain_closed=!config.settings.show_console_on_build);
 }
 
 on_error :: (s: string) {
     is_first_error := build_errors.count == 0;
-    print_to_console(s, .Jai, is_error = true);
+    print_to_console(s, .Jai, is_error = true, remain_closed=!config.settings.show_console_on_build);
     if build_errors && is_first_error {
-        set_build_header(success=false);
+        set_build_header(.error);
         #if BUILD_SILENCE_STDOUT_AFTER_ERROR
             silence_stdout = true;
         #if AUTO_JUMP_TO_ERROR  jump_to_error();
     }
 }
 
-set_build_header :: (success: bool) {
+set_build_header :: (result: User_Message.Level) {
     buffer := *open_buffers[console_buffer_id];
     region := get_buffer_region(buffer, build_task_region_id);
     if region {
-        region.type = ifx success then .console_header_success
-                                  else .console_header_error;
+        region.type = ifx result != .error
+                      then .console_header_success
+                      else .console_header_error;
     }
+    set_user_build_message(result);
 }
 
 clear_build_errors :: () {
