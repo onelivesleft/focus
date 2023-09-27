@@ -1,6 +1,6 @@
 # Mine
 
-- [ ] Check out markdown on release build
+- [x] Check out markdown on release build
 
 - [.] User Messages
     - [x] neutral message
@@ -10,7 +10,7 @@
         - [x] flash
     - [?] make work when not MINIMAL_FOOTER
     - [ ] split on \n / words, show extra on hover
-    - [ ] ficus command
+    - [x] ficus command
     - [x] fix not moving past status bar
 
 - [.] Zen
@@ -46,6 +46,7 @@
 
 - [.] Ficus
     - [ ] toggle events enabled
+    - [ ] error message for pop(.type)
     - [.] events:
         - [x] on_load - when config file is loaded (global/project)
         - [ ] on_editor [needs editor_path?, editor_language?] - when editor is switched-to

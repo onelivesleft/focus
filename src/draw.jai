@@ -3280,9 +3280,9 @@ draw_icon_search_dialog :: () {
             if found {
                 icon_char := convert_utf32_to_utf8(xx icon);
                 if entry_index == selected {
-                    text := tprint("\\u%", formatInt(cast(u32)icon, base=16, minimum_digits=4));
+                    text := tprint("%\\u%", to_string(*icon_char), formatInt(cast(u32)icon, base=16, minimum_digits=4));
                     if text.count > 6
-                        text = tprint("\\U%", formatInt(cast(u32)icon, base=16, minimum_digits=8));
+                        text = tprint("%\\U%", to_string(*icon_char), formatInt(cast(u32)icon, base=16, minimum_digits=8));
                     os_clipboard_set_text(text);
                 }
                 icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));

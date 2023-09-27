@@ -1666,6 +1666,37 @@ intrinsics :: #code if word_name == {
         }
         push("", stack);
 
+    case "zen_mode?";
+        push(zen_mode, stack);
+
+    case "zen_mode!";
+        value := pop(.boolean);
+        set_zen_mode(value.bool_value);
+
+    case "toast";
+        seconds := pop(.number);
+        message := pop(.text);
+        icon := pop(.text);
+        add_user_neutral(message.string_value, xx seconds.value, icon.string_value, .ficus);
+
+    case "toast_success";
+        seconds := pop(.number);
+        message := pop(.text);
+        icon := pop(.text);
+        add_success_message(message.string_value, xx seconds.value, icon.string_value, .ficus);
+
+    case "toast_warning";
+        seconds := pop(.number);
+        message := pop(.text);
+        icon := pop(.text);
+        add_user_warning(message.string_value, xx seconds.value, icon.string_value, .ficus);
+
+    case "toast_error";
+        seconds := pop(.number);
+        message := pop(.text);
+        icon := pop(.text);
+        add_user_error(message.string_value, xx seconds.value, icon.string_value, .ficus);
+
     // nada
     case;
         found_intrinsic = false;

@@ -689,10 +689,8 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
 show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
     cursor := cursors[main_cursor];
     coords := offset_to_coords(editor, buffer, cursor.pos);
-    message := tprint("\nRow: %  Col: %  Pos: %\n", coords.line + 1, coords.col + 1, cursor.pos);
-    if editors.floating == -1
-        add_delayed_action(hide_console, 5.0);
-    print_to_console(message);
+    message := tprint("Row: %  Col: %  Pos: %", coords.line + 1, coords.col + 1, cursor.pos);
+    add_user_neutral(message, duration_in_seconds = 2, icon="\U0000f3c5");
 }
 
 show_file_info :: (using editor: *Editor, buffer: Buffer) {

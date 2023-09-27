@@ -28,7 +28,7 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
     while true {
         prev_token = token;
         if prev_token.type == .eol {
-            if has_item(emphasis_stack) {
+            /*if has_item(emphasis_stack) {
                 end_index := prev_token.start;
                 first_colored : s32 = 0;
                 for 0 .. emphasis_stack.index {
@@ -67,7 +67,7 @@ highlight_md_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, rese
                         if colors.data[i] & 0b1000_0000
                             colors.data[i] &= 0b0111_1111;
                 }
-            }
+            }*/
             init(*tokenizer.emphasis_stack);
             indent = eat_white_space(tokenizer);
             default_token_type_until_newline = .default;

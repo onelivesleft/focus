@@ -1,15 +1,17 @@
 @echo off
 
-if exist focus.exe goto check
+if exist build_release\focus.exe goto check
 goto compile
 
 :check
-for /F "tokens=*" %%# in ('del /Q "focus.exe" 2^>^&1 1^> nul') do (2> nul set =)
+for /F "tokens=*" %%# in ('del /Q "build_release\focus.exe" 2^>^&1 1^> nul') do (2> nul set =)
 if errorlevel 1 goto locked
 
 :compile
 echo Compiling...
 jai first.jai - release
+move build_release\*.* .
+
 goto:eof
 
 :locked

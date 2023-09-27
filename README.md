@@ -17,66 +17,17 @@ In a lot of ways! Some big, some small:
 * Settings `ignore_whitespace_in_finder` & `ignore_whitespace_in_search_bar` - make space behave as a simple wildcard in searches (less useful now Focus has regex)
 * Text is only copied to the clipboard when you use `copy` or `cut` (you don't magically trash your clipboard while deleting text)
 * Config allows you to type a numeric keycode instead of a keycode name.  If you want to bind a key but don't know what it's called, use the `Toggle Show Keystrokes` command to find out it's keycode, and enter the number directly. For example, `Ctrl-96  toggle_console`
-* Output Console
+* `Show Icon Search` command, which lets you search through icons available for drawing in Focus.  Useful for Focus devs, and perhaps if you want to use an icon in a Ficus script.
+* Added `change_case_to_upper`, `change_case_to_lower`, `change_case_to_caps`, `change_case_cycle`.
+* Added `hide_current_buffer` command: equivalent to closing the current tab in other editors.
+* Added "Convert Current Buffer To [colors]" to generate theme from vscode theme json: paste json from your vscode into a buffer then run this command to convert it to a Focus setting equivalent (roughly).
+* Change window title to show project first (so when you look at theOS task bar you have a better idea of what to click on)
+* Improved word jump / select word.
+* Added cursor row highlight (now also present in main fork, but this one is prettier!).  Control color with `background_cursor_row` setting.
+* Adding cursor above/below now skips blank lines.
+* Added `show_cursor_position` command.
+* Added `toggle_show_keystrokes` command.
 
-### Parsing
-* Added Markdown parsing
-* Parsing works on document sections as well as entire documents. i.e. You can embed a Jai string inside a Markdown document code block and have it colored correctly.
-* Documents are given Section delimiters you can easily jump to. These are split into Major (i.e. H1/H2 in Markdown, #scope_ declarations in jai) and Minor (All headers in Markdown, procedure declarations in Jai)
-
-
-### Look & Feel
-* Remove title bar / standard Windows gadgets (behaves more like a fullscreen window).  You can move the window around by dragging the file tab in the top right.  If you're not using a window layout manager (like FancyZones in PowerToys) you can resize by right-clicking it, selecting `Size` and then hitting arrow keys. You can revert back to a normal by turning off some bool constants at the top of `main.jai`
-* You can set the size and position of the window via Ficus script: run `window_location? print` to see the current dimensions (x, y, w, h), and in your `on_load` script use `<x> <y> <w> <h> window_location!`
-* Decorations:
-
-### Jai specific features
-* Simple goto definition - `jump_to_definition`. Requires you to turn on the settings `ignore_whitespace_in_finder` & `ignore_whitespace_in_search_bar`
-* Scope regions: background color is changed depending on whether you are in `#scope_file`, `#scope_module` or `#scope_export`
-* Compile-time regions: background color is changed for various compile time sections of code, to make it easier to see what the generated code looks like.
-
-![Compile-time code regions](imagesa/compile_time_region.png)
-
-
-
-### Ficus
-
-### Build
-
-### Console
-* Floating editor window which shows info / output from operations (such as builds)
-Merge branch 'main' of https://github.com/onelivesleft/focus
-Merge official fork
-Highlight #if "else" as directive
-Better build error decoration, Import Strings instead of String
-Better error parsing
-Show icon while build task is running, Fix console disappearing prematurely, Added Icon Search dialog
-Merge branch 'main' of https://github.com/onelivesleft/focus
-Added change_case_ keybinds,
-Fixed delete_line on bottom row of file
-Fix goto definition
-Added hr to md, fixed build not understanding link error,
-Merge branch 'main' of https://github.com/onelivesleft/focus
-Finish merge
-Regions for #scope_file / #scope_module
-Added section markers to buffers, fix scroll to top of file, added background color per code visibility,  added big step to editor history, added hide_current_buffer ("close tab" equivalent)
-Merge branch 'main' of https://github.com/onelivesleft/focus
-focus config parses inside strings, Added "Convert Current Buffer To [colors]" to generate theme from vscode theme json, ,
-Fixed section move selecting, Added sections to focus_config
-Fix select_word not working when you have one cursor with a selection
-Change window title to show project first
-Rework get_char_type / scan_through_similar_characters (improve word jump / select word)
-Fix jai-embedded focus config
-Fix move_by_word (broken in "Rework get_char_type...")
-Added important/unimportant section distinction, added background_cursor_row config color,
-Add cursor above/below now skips blank lines
-Added align cursors (just before getting it for free from main fork :/ )
-Merge branch 'main' of https://github.com/onelivesleft/focus
-Merge main
-Minimal title bar
-Made cursor row highlight pretty, fixed it in right editor, disable it when selecting, Added action to Show Cursor Position
-HIDE_SCROLLBARS
-Cropped error message toast better, Added `Toggle Show Keystrokes`, Added jump to added string source / jump to comments source location
 Toggle Show Filename
 Update TODO.md
 Update TODO.md
@@ -140,4 +91,36 @@ Ficus: Decorate current instruction, fix jumps.
 Fixed build options at top of main: can now disable them to get back default Focus look
 Zen mode
 (HEAD -> main, origin/main, origin/HEAD) Reworked User Messages
+
+
+
+
+
+### Parsing
+* Added Markdown parsing
+* Parsing works on document sections as well as entire documents. i.e. You can embed a Jai string inside a Markdown document code block and have it colored correctly.
+* Documents are given Section delimiters you can easily jump to. These are split into important (i.e. H1/H2 in Markdown, #scope_ declarations in jai) or regular (All headers in Markdown, procedure declarations in Jai).  Jump between them with `move_up_one_section`, `move_down_one_section`, `move_up_one_important_section`, `move_down_one_important_section`.
+
+### Look & Feel
+* Remove title bar / standard Windows gadgets (behaves more like a fullscreen window).  You can move the window around by dragging the file tab in the top right.  If you're not using a window layout manager (like FancyZones in PowerToys) you can resize by right-clicking it, selecting `Size` and then hitting arrow keys. You can revert back to a normal by turning off some bool constants at the top of `main.jai`
+* You can set the size and position of the window via Ficus script: run `window_location? print` to see the current dimensions (x, y, w, h), and in your `on_load` script use `<x> <y> <w> <h> window_location!`
+* Decorations: graphical elements added within the text, For instance, color squares drawn next to color settings in config files.
+
+### Jai specific features
+* Simple goto definition - `jump_to_definition`. Requires you to turn on the settings `ignore_whitespace_in_finder` & `ignore_whitespace_in_search_bar`
+* Scope regions: background color is changed depending on whether you are in `#scope_file`, `#scope_module` or `#scope_export`
+* Compile-time regions: background color is changed for various compile time sections of code, to make it easier to see what the generated code looks like.
+* Error parsing on build, cycle through errors with `jump_to_error`, `jump_to_previous_error`, clear them by building again or with `clear_build_errors`
+* Added jump to added string source / jump to comments source location
+
+![Compile-time code regions](imagesa/compile_time_region.png)
+
+
+
+### Ficus
+
+### Build
+
+### Console
+* Floating editor window which shows info / output from operations (such as builds)
 

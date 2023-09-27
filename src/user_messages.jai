@@ -141,7 +141,7 @@ User_Message :: struct {
     rect: Rect;
 
     Level :: enum { warning; error; success; neutral; };
-    Origin :: enum { general; build; };
+    Origin :: enum { general; build; ficus; };
 
     arrival_duration : Time : 0.2;
     depart_duration : Time : 0.2;

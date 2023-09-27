@@ -824,6 +824,11 @@ toggle_zen_mode :: () {
     }
 }
 
+set_zen_mode :: (enabled: bool) {
+    if zen_mode != enabled
+        toggle_zen_mode();
+}
+
 refresh_zen_mode :: () {
     update_colors_for_zen_mode(1.0);
 } @OnConfigRefresh
