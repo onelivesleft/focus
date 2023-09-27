@@ -73,7 +73,7 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
         script_string.count = end_of_file_data - script_string.data;
 
     if script_string {
-        event :: #ifx is_initial_load then "on_open"; else "";
+        event :: #ifx is_initial_load then "on_load"; else "";
         callback : type_of(ficus_finished_global_config_callback) = null;
         if space == .global {
             callback = ficus_finished_global_config_callback;

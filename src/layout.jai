@@ -213,3 +213,14 @@ lerp :: (a: Rect, b: Rect, t: float) -> Rect {
     r.h = lerp(a.h, b.h, t);
     return r;
 }
+
+combine :: (a: Rect, b: Rect) -> Rect {
+    r : Rect = ---;
+    r.x = min(a.x, b.x);
+    r.y = min(a.y, b.y);
+    right_edge := max(a.x + a.w, b.x + b.w);
+    r.w = right_edge - r.x;
+    top_edge := max(a.y + a.h, b.y + b.h);
+    r.h = top_edge - r.y;
+    return r;
+}

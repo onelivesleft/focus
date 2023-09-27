@@ -697,7 +697,7 @@ increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2);
+        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
@@ -705,21 +705,21 @@ decrease_font_size :: () {
     if (font_size - 1) >= MIN_FONT_SIZE {
         font_size -= 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2);
+        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
 increase_console_font_size :: () {
     if (font_console_size + 1) <= MAX_FONT_SIZE {
         set_console_font_size(font_console_size + 1);
-        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2);
+        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
 decrease_console_font_size :: () {
     if (font_console_size - 1) >= MIN_FONT_SIZE {
         set_console_font_size(font_console_size - 1);
-        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2);
+        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
@@ -838,7 +838,7 @@ toggle_profiling :: () {
         iprof_active = !iprof_active;
     }
     else {
-        add_user_error("Profiling is not available in this build of Focus", duration_in_seconds = 2);
+        add_user_error("Profiling is not available in this build of Focus", duration_in_seconds = 2, icon="\ue55d");
     }
 }
 

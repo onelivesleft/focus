@@ -1,6 +1,6 @@
 # Mine
 
-- [ ] Color warning error line as warning instead of error
+- [ ] Check out markdown on release build
 
 - [.] User Messages
     - [x] neutral message
@@ -9,6 +9,9 @@
     - [x] pizazz
         - [x] flash
     - [?] make work when not MINIMAL_FOOTER
+    - [ ] split on \n / words, show extra on hover
+    - [ ] ficus command
+    - [x] fix not moving past status bar
 
 - [.] Zen
     - [x] Zen theme
@@ -42,6 +45,15 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
+    - [ ] toggle events enabled
+    - [.] events:
+        - [x] on_load - when config file is loaded (global/project)
+        - [ ] on_editor [needs editor_path?, editor_language?] - when editor is switched-to
+    - [ ] zen_mode? zen_mode!
+    - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
+    - [ ] open_file take project relative path
+    - [ ] open_files
+    - [ ] Add ? versions of !
     - [ ] fix breakpoints on non-user buffers
     - [ ] multiple instances
     - [ ] debug eval to manipulate stack on error
@@ -75,10 +87,7 @@
 
     - [ ] run
     - [ ] view action history
-    - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
-    - [ ] open_file take project relative path
-    - [ ] open_files
-    - [ ] debugging
+    - [x] debugging
     - [.] quote strings on output
         - [ ] (shrink large ones too)
     - [x] build

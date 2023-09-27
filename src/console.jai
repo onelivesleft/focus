@@ -56,9 +56,10 @@ print_to_console :: (output: string, append_newline: bool, lang: Language, is_er
 
     editor := editor_showing_console();
     if !editor {
+        was_closed := editors.floating < 0;
         show_console(false);
         editor = *open_editors[editors.floating];
-        if remain_closed  hide_console();
+        if was_closed && remain_closed  hide_console();
     }
     cursor := leave_only_original_cursor(editor);
     cursor.pos = xx buffer.bytes.count;
@@ -247,7 +248,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
         if build_errors {
             #if TOAST_BUILD_RESULT {
                 build_error := build_errors[0];
-                add_user_error(tprint("%\n% %,%\n%", task.title, build_error.path, build_error.coords.line+1, build_error.coords.col+1, build_error.message), build_error.path, origin=.build);
+                add_user_error(tprint("%\n% %,%\n%", task.title, build_error.path, build_error.coords.line+1, build_error.coords.col+1, build_error.message), origin=.build);
             }
         }
         else if contains(output, "LNK1104") {
@@ -255,7 +256,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
                 _, message := split_into_two(output, "LNK1104: ");
                 _, path := split_into_two(message, "'");
                 path, _ = split_into_two(path, "'");
-                add_user_error(tprint("%\nLinker error\n%", task.title, trim(message)), path, origin=.build);
+                add_user_error(tprint("% - Linker error - %", task.title, trim(message)), origin=.build);
             }
         }
     }

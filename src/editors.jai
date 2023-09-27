@@ -450,13 +450,14 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     path_overwrite_separators(full_path, separator = #char "/");
     if !file_exists(full_path) || !success {
         log_error("Couldn't open file %", path);
-        add_user_error(tprint("Couldn't open file %", path), duration_in_seconds = 60);
+        add_user_error(tprint("Couldn't open file %", path), duration_in_seconds = 60, icon="\ue4eb");
+        print("[%]\n", path);
         return false;
     }
     buffer_id := find_or_create_buffer(full_path);
     if buffer_id < 0 && full_path.count > 248 {
         log_error("Couldn't open file because path is too long for Windows: %\n", full_path);
-        add_user_error("Couldn't open file. Path is too long.");  // not including full path for obvious reasons
+        add_user_error("Couldn't open file. Path is too long.", icon="\ue4eb");  // not including full path for obvious reasons
         return false;
     }
 
@@ -545,7 +546,7 @@ editors_open_project_config :: (placement: Editor_Placement) {
     if project_config_path {
         editors_open_file(project_config_path, placement);
     } else {
-        add_user_warning("No project is active. Please open a project first.", duration_in_seconds = 5);
+        add_user_warning("No project is active. Please open a project first.", duration_in_seconds = 5, icon="\uf071");
     }
 }
 
@@ -681,7 +682,7 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
             should_jump_to_eye_tracker = editors.active;
     }
     else {
-        add_user_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2);
+        add_user_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2, icon="\uf070");
     }
 }
 
@@ -1400,6 +1401,8 @@ make_editor_active :: (editor_id: s64) {
     buffer_id := open_editors[editor_id].buffer_id;
     update_window_title(buffer_id);
     touch_buffer(editor_id, buffer_id);
+    if editor_id != editors.floating
+        ficus_execute_event("on_editor");
 }
 
 make_buffer_active :: (buffer_id: s64) {
@@ -1744,7 +1747,7 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
 
         MAX_CURSORS :: 5000; // @Todo Make it a setting ?
         if cursors.count >= MAX_CURSORS {
-            add_user_warning(tprint("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS));
+            add_user_warning(tprint("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS), icon="\uf071");
             break;
         }
 
@@ -4220,6 +4223,11 @@ add_status_part :: (editor: *Editor, new_left_icon := "", text := "", new_right_
     }
     if new_left_icon  left_icon = new_left_icon;
     if new_right_icon  right_icon = new_right_icon;
+}
+
+is_status_bar_showing :: (editor: *Editor) -> bool {
+    using editor.status_bar;
+    return message_string || left_icon || right_icon;
 }
 
 #scope_file

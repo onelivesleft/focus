@@ -58,6 +58,7 @@ ficus_pause :: () {
 
 ficus_halt :: () {
     is_ficus_debugging = false;
+    ficus_started_running_frame_count = 0;
     array_reset(*ficus_execution_stack);
     array_reset(*ficus_scripts_to_execute);
     reset_environment();
@@ -77,16 +78,21 @@ ficus_instruction_pointer : struct {
     len: s32;
 }
 
+ficus_started_running_frame_count := 0;
+
 ficus_update :: () {
     if !is_ficus_running()
         return;
+
+    if ficus_started_running_frame_count == 0
+        ficus_started_running_frame_count = frame_count;
 
     if editors.active >= 0 {
         editor := *open_editors[editors.active];
         ficus_icon :: "\uf06c";
         play_icon :: "\uf04b";
         pause_icon :: "\uf04c";
-        if !is_ficus_debugging {
+        if !is_ficus_debugging && frame_count > ficus_started_running_frame_count {
             if #complete ficus_machine_state == {
                 case .running; #through;
                 case .continue_running; #through;
@@ -415,6 +421,13 @@ ficus_execute_delayed_string :: (script_pointer: *void) {
     ficus_machine_state = .running;
 }
 
+ficus_execute_event :: ($event: string) {
+    #assert array_find(ficus_events, event);
+    word, found := get_word(event);
+    if found
+        ficus_execute_string(word);
+}
+
 run_build_script :: (mode: enum { Compile; Debug; Release; }) {
     word_name := ifx mode == .Compile
                  then "compile"
@@ -430,7 +443,7 @@ run_build_script :: (mode: enum { Compile; Debug; Release; }) {
 [[script]]
 
 %:
-    "% - %" build_name
+    "% - %" build_name!
     "c:\jai\jai.exe first.jai" build
 focus_config, word_name, current_project_name, mode), .Focus_Config);
         return;
@@ -658,7 +671,7 @@ ficus_scripts_to_execute : [..] struct {
     callback: #type (error: string);
 };
 
-ficus_events :: string.["on_open"];
+ficus_events :: string.["on_load", "on_editor"];
 
 ficus_string_lookup: Table(string, *u8);
 
@@ -977,7 +990,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
 }
 
 
-popped_this_instruction : [..] Stack_Item;
+popped_during_this_execute_word : [..] Stack_Item;
 
 
 execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false) -> error: string {
@@ -990,8 +1003,8 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
     VERBOSE := output >= .verbose;
 
     defer {
-        for < popped_this_instruction  push(it, stack);
-        array_reset(*popped_this_instruction);
+        for < popped_during_this_execute_word  push(it, stack);
+        array_reset(*popped_during_this_execute_word);
     }
 
     pop :: (t: type_of(Stack_Item.type)) -> Stack_Item #expand {
@@ -1015,33 +1028,25 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
         return item;
     }
 
+    return_success :: () #expand {
+        array_reset(*popped_during_this_execute_word);
+        `return "";
+    }
+
     if !intrinsic_only {
         word, found := get_word(word_name);
         if found {
             execute_string(word, stack, space, output);
-            return "";
+            return_success();
         }
 
         handled:, found = try_handle_action_word(word_name);
         if found {
-            if handled  return "";
-            else        return tprint("Error: Tried to perform action [%] but we failed to handle it.", word_name);
-        }
-
-        if word_name.count > 1 && (word_name[word_name.count - 1] == #char "!" || word_name[word_name.count - 1] == #char "?") {
-            variable_name := unique_string(word_name);
-            variable_name.count -= 1;
-            if word_name[word_name.count - 1] == #char "!" {
-                ptr := find_or_add(*global_variables, variable_name);
-                ptr.* = pop();
-                return "";
+            if handled {
+                return_success();
             }
             else {
-                ptr := table_find_pointer(*global_variables, variable_name);
-                if ptr {
-                    push(ptr.*, stack);
-                    return "";
-                }
+                return tprint("Error: Tried to perform action [%] but we failed to handle it.", word_name);
             }
         }
     }
@@ -1072,10 +1077,34 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
         return 0, 0;
     }
 
+    found_intrinsic := true;
+
     #insert,scope() intrinsics;
 
-    array_reset(*popped_this_instruction);
-    return "";
+    if found_intrinsic
+        return_success();
+
+    if !intrinsic_only {
+        if word_name.count > 1 && (word_name[word_name.count - 1] == #char "!" || word_name[word_name.count - 1] == #char "?") {
+            variable_name := unique_string(word_name);
+            variable_name.count -= 1;
+            if word_name[word_name.count - 1] == #char "!" {
+                item := pop();
+                ptr := find_or_add(*global_variables, variable_name);
+                ptr.* = item;
+                return_success();
+            }
+            else {
+                ptr := table_find_pointer(*global_variables, variable_name);
+                if ptr {
+                    push(ptr.*, stack);
+                    return_success();
+                }
+            }
+        }
+    }
+
+    return tprint("Could not find word [%]", word_name);
 }
 
 is_number :: (item: Stack_Item) -> bool {
@@ -1097,6 +1126,7 @@ intrinsics :: #code if word_name == {
     //   Do not start a word with !, as all the focus actions are loaded into words starting with !
     //   (for instance, `!copy` performs ctrl-c, while `copy` duplicates the last item on the stack)
     //   End words with a `?` if they return a value but do not consume any items from the stack
+    //   End words with a `!` if they set something
 
     case "true";
         push(true, stack);
@@ -1518,12 +1548,12 @@ intrinsics :: #code if word_name == {
 
     // Focus settings
 
-    case "console_location";
+    case "console_location!";
         floating_area_position = xx pop(.int_number).int_value;
     case "console_location?";
         push(cast(int)floating_area_position, stack);
 
-    case "window_location";
+    case "window_location!";
         height := pop(.int_number);
         width := pop(.int_number);
         y := pop(.int_number);
@@ -1568,12 +1598,12 @@ intrinsics :: #code if word_name == {
         }
         push(opened, stack);
 
-    case "build_name";
+    case "build_name!";
         name := pop(.text);
         ok := set_build_task_name(name.string_value);
         if !ok  return tprint("Cannot % while a build is already running", word_name);
 
-    case "build_dir";
+    case "build_dir!";
         dir := pop(.text);
         ok := set_build_task_dir(dir.string_value);
         if !ok  return tprint("Cannot % while a build is already running", word_name);
@@ -1592,10 +1622,53 @@ intrinsics :: #code if word_name == {
         stack.count = new_count;
         if has_commands  build();
 
-    // nada
+    case "editor_path?";
+        if editors.active >= 0 {
+            editor := *open_editors[editors.active];
+            if editor.buffer_id >= 0 {
+                buffer := *open_buffers[editor.buffer_id];
+                push(buffer.file.full_path, stack);
+                return_success();
+            }
+        }
+        push("", stack);
 
+    case "editor_filename?";
+        if editors.active >= 0 {
+            editor := *open_editors[editors.active];
+            if editor.buffer_id >= 0 {
+                buffer := *open_buffers[editor.buffer_id];
+                push(buffer.file.name, stack);
+                return_success();
+            }
+        }
+        push("", stack);
+
+    case "editor_folder?";
+        if editors.active >= 0 {
+            editor := *open_editors[editors.active];
+            if editor.buffer_id >= 0 {
+                buffer := *open_buffers[editor.buffer_id];
+                push(buffer.file.path, stack);
+                return_success();
+            }
+        }
+        push("", stack);
+
+    case "editor_language?";
+        if editors.active >= 0 {
+            editor := *open_editors[editors.active];
+            if editor.buffer_id >= 0 {
+                buffer := *open_buffers[editor.buffer_id];
+                push(unique_string(tprint("%", buffer.lang)), stack);
+                return_success();
+            }
+        }
+        push("", stack);
+
+    // nada
     case;
-        return tprint("Could not find word [%]", word_name);
+        found_intrinsic = false;
 }
 
 intrinsic_words :: #insert -> string { // is: string.[]
@@ -1681,7 +1754,7 @@ based_on_string :: (item: Stack_Item) -> bool {
 }
 
 pop_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {
-    array_add(*popped_this_instruction, item);
+    array_add(*popped_during_this_execute_word, item);
 }
 
 push_message :: (item: Stack_Item, stack: *[..] Stack_Item) #expand {

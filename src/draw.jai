@@ -389,9 +389,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
     if !user_messages return;
 
     ui_id := get_ui_id_from_loc();
-
-    message_rect : Rect = ---;
-    message_rect = right_file_rect;
+    message_rect := right_file_rect;
 
     for * user_messages {
         text_width := Simp.get_text_width(font_ui_bold, it.text);
@@ -456,7 +454,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
             if it.origin == .build {
                 if #complete it.level == {
                     case .success;
-                    icon = "\uf00c";
+                    icon = "\uf006";
 
                     case .error;
                     icon = "\uf780";
@@ -2141,8 +2139,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     // Draw status bar
     #if MINIMAL_FOOTER {
         if not_zen_mode() {
-            using status_bar;
-            if message_string || left_icon || right_icon {
+            if is_status_bar_showing(editor) {
+                using status_bar;
                 text_width := Simp.prepare_text(font_ui_bold, message_string);
                 width := text_width + text_offset.x * 2;
                 if left_icon   width += font_ui.character_height + text_offset.x;
@@ -2187,6 +2185,21 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 if mouse_pointer_is_within(status_bar_rect) && is_hovering_over(status_bar_ui_id)
                     Input.window_region_override = .TITLE_BAR;
+
+                if #complete editors.layout == {
+                    case .None;
+                    right_file_rect = combine(right_file_rect, status_bar_rect);
+
+                    case .Single;
+                    right_file_rect = combine(right_file_rect, status_bar_rect);
+
+                    case .Double;
+                    if editors.left == editor_id
+                        left_file_rect = combine(left_file_rect, status_bar_rect);
+                    else
+                        right_file_rect = combine(right_file_rect, status_bar_rect);
+                }
+
             }
         }
     }
