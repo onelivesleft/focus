@@ -1,0 +1,402 @@
+[1]  # Version number. Do not delete.
+
+[[workspace]]
+
+[workspace dirs]
+# These directories will be scanned when a workspace is opened so that search etc. works.
+# Example:
+# C:/projects/my-project
+# C:/jai
+
+[ignore dirs]
+# The workspace scanner will not descend into the dirs that match these names.
+.svn
+.git
+__pycache__
+
+[allow file extensions]
+# These files are explicitly allowed so that the editor doesn't waste time figuring out
+# whether it should ignore these or not (if a file is not explicitly allowed or ignored,
+# it will be read to determine if it's binary or not).
+.jai .c .cpp .h .hpp .cc .cs .txt .md .focus-* .ini .csv .log .sql .py .m .html .xml .plist .js .ts .yml .yaml .toml
+
+[ignore file extensions]
+# Files with the following extensions will not appear in the file open dialog and won't be indexed.
+# It makes sense to add all known binary file extensions here.
+.exe .pdb .ttf .otf .eot .woff *woff? .dll .lib .dylib .so *so.* .a .o .pdf
+.jpg .png .gif .jpeg .ico .tif .tiff .tga .bmp .webp  # maybe someday we'll support opening images
+.mp3 .wav .ogg .wma
+.blend .obj .fbx .dae .3ds .dat
+.mpg .mpeg .psd .codex .webm .wma
+.zip .rar .7z
+.bin .sys .iso
+.nib .exp
+.pyc .rpyc
+.DS_Store .dmg
+
+[[script]]
+
+on_load:
+    4 console_location!
+     "GUI" open_project
+    if_else [ focus_executable? "focus_debug" contains ]
+            #[ "Escape Room" open_project ]
+            [ "GUI" open_project ]
+            [ "Focus" open_project ]
+
+on_editor:
+    if_else [editor_language? "Markdown" =]
+            [true zen_mode!]
+            [false zen_mode!]
+
+
+greet:
+    "Hello!" print
+
+[[settings]]
+# NOTE: please copy the whole block when overriding settings, otherwise defaults will be used
+#       for any settings you haven't listed here explicitly
+maximize_on_start:                      false
+open_on_the_biggest_monitor:            false
+open_on_monitor_one:                    true
+cursor_blink_time_in_seconds:           99999
+cursor_as_block:                        false
+highlight_selection_occurrences:        true
+disable_that_annoying_paste_effect:     false
+disable_file_open_close_animations:     false
+insert_spaces_when_pressing_tab:        true
+strip_trailing_whitespace_on_save:      true
+smooth_scrolling:                       false
+double_shift_to_search_in_workspace:    false
+can_cancel_go_to_line:                  false
+max_entries_in_open_file_dialog:        2000
+tab_size:                               4
+line_height_scale_percent:              120
+max_editor_width:                       -1
+scroll_to_cursor_line_offset            5
+ignore_whitespace_in_finder             true
+ignore_whitespace_in_search_bar         true
+collapse_leading_whitespace             false
+prefer_system_file_dialogs              false
+
+zen_mode_blend_percent                  70
+zen_mode_minimal                        false
+zen_mode_width_in_chars                 70
+show_console_on_build                   false
+
+[[keymap]]
+
+# - The first matching combination will be used, so order matters
+# - E.g. [open file dialog] means the keys in this section will only be used when the open file dialog is open
+# - You can override the keys partially - the default combinations will be used for the actions you didn't specify
+# - If you want to disable a particular combination, use a do_nothing action for it
+
+
+[editors]   # <- this means that the following key combos will apply only when editing text
+
+# Key combination           Action````
+Ctrl-Shift-Q                quit
+Alt-F4                      quit
+Ctrl-96                     toggle_console
+Alt-96                      toggle_console_maximize
+
+Ctrl-Shift-K                dump_key_mappings
+
+Ctrl-D                      center_viewport_on_cursor #select_word_or_create_another_cursor
+Ctrl-W                      select_word
+Ctrl-E                      jump_to_eye_tracker
+Alt-E                       jump_to_error
+Alt-Shift-E                 jump_to_previous_error
+Ctrl-Alt-E                  clear_build_errors
+#Shift-Alt-E                 jump_to_commented_source_location
+
+Ctrl-Shift-D                jump_to_definition #duplicate_lines
+
+#Alt-Delete                  do_nothing #delete_line_and_go_up
+Alt-Delete                  delete_line
+
+F5                          ficus_run_current_or_continue
+Shift-F5                    ficus_halt
+F7                          toggle_show_keystrokes
+F9                          ficus_toggle_breakpoint
+Ctrl-F10                    ficus_debug_current
+F10                         ficus_step
+F11                         toggle_zen_mode#toggle_show_filename#parse_file
+F12                         jump_to_definition
+
+Ctrl-F11                    toggle_profiling
+
+
+Ctrl-Shift-Backspace        do_nothing #delete_to_start_of_line
+{Shift}-Ctrl-Delete         delete_to_end_of_line
+
+Alt-ArrowUp                 move_selected_lines_up
+Alt-ArrowDown               move_selected_lines_down
+
+Ctrl-J                      do_nothing #join_lines
+Ctrl-Shift-J                do_nothing #join_lines_no_spaces_in_between
+
+Ctrl-U                      change_case_cycle
+
+Ctrl-39                     show_cursor_position
+Ctrl-Shift-39               toggle_line_numbers
+
+Tab                         indent_or_go_to_next_tabstop
+Shift-Tab                   unindent
+Alt-A                       autoindent
+
+Ctrl-[                      do_nothing #unindent
+{Shift}-Ctrl-]              jump_to_matching_bracket #indent
+
+Ctrl-S                      save
+Ctrl-Shift-S                save_all
+
+Ctrl-/                      do_nothing #toggle_comment
+Ctrl-L                      do_nothing #select_line
+
+Alt-K                       do_nothing #scroll_viewport_up
+Alt-E                       do_nothing #scroll_viewport_up_fast  # for some reason Alt-U didn't reach the window at all, so using Alt-E instead
+Alt-J                       do_nothing #scroll_viewport_down
+Alt-D                       do_nothing #scroll_viewport_down_fast
+#Alt-PageUp                  do_nothing #scroll_viewport_up_fast
+#Alt-PageDown                do_nothing #scroll_viewport_down_fast
+Alt-H                       scroll_viewport_left
+Alt-L                       scroll_viewport_right
+
+{Shift}-Ctrl-PageUp         move_up_one_section
+{Shift}-Ctrl-PageDown       move_down_one_section
+{Shift}-Alt-PageUp          move_up_one_important_section
+{Shift}-Alt-PageDown        move_down_one_important_section
+
+
+
+#Ctrl-Alt-ArrowUp            scroll_viewport_up
+#Ctrl-Alt-ArrowDown          scroll_viewport_down
+#Ctrl-Alt-ArrowLeft          scroll_viewport_left
+#Ctrl-Alt-ArrowRight         scroll_viewport_right
+
+Ctrl-B                      move_to_previous_editor_history
+Ctrl-Shift-B                move_to_next_editor_history
+Ctrl-Tab                    move_to_previous_buffer
+Ctrl-Shift-Tab              move_to_next_buffer
+
+Alt-V                       do_nothing #move_cursor_to_viewport_center
+
+{Shift}-Ctrl-ArrowUp        move_up_to_empty_line
+{Shift}-Ctrl-ArrowDown      move_down_to_empty_line
+
+Escape                      remove_additional_cursors
+
+Enter                       break_line
+Ctrl-Enter                  do_nothing #new_line_below_without_breaking
+Ctrl-Shift-Enter            do_nothing #new_line_above_without_breaking
+
+Ctrl-1                      switch_to_left_editor
+Ctrl-2                      switch_to_right_editor
+Ctrl-\                      switch_to_other_editor
+Ctrl-Shift-\                duplicate_editor
+
+#Ctrl-Alt-Shift-ArrowLeft    move_editor_to_the_left
+#Ctrl-Alt-Shift-ArrowRight   move_editor_to_the_right
+
+Ctrl-N                      create_new_file
+Ctrl-Shift-N                create_new_file_on_the_side
+Ctrl-M                      create_new_ficus_file
+Ctrl-Shift-M                create_new_ficus_file_on_the_side
+
+Ctrl-Alt-ArrowUp           create_cursor_above
+Ctrl-Alt-ArrowDown         create_cursor_below
+Ctrl-Alt-ArrowLeft         create_cursors_around
+Ctrl-Alt-ArrowRight        select_word_or_create_another_cursor
+Ctrl-Alt-Shift-ArrowRight  select_all_occurrences
+
+[open file dialog]
+
+Escape                      close_dialog
+
+Enter                       open_entry_in_place
+Ctrl-Enter                  open_entry_on_the_side
+Ctrl-1                      open_entry_on_the_left
+Ctrl-2                      open_entry_on_the_right
+Shift-Enter                 open_entry_in_explorer
+
+Tab                         open_directory
+
+Backspace                   pop_directory
+
+
+[search dialog]
+
+Escape                      close_dialog
+
+Enter                       open_entry_in_place
+Ctrl-Enter                  open_entry_on_the_side
+Ctrl-1                      open_entry_on_the_left
+Ctrl-2                      open_entry_on_the_right
+
+Shift-Enter                 move_up  # an alternative way to move
+
+Alt-C                       toggle_case_sensitive
+Alt-W                       toggle_whole_word
+Alt-R                       toggle_regex_search
+
+[common]
+
+# Common key combos may be used as a fallback if they are not defined in more specific sections.
+# For example, if "move_up" is not defined in [editors], the one in the [common] section will be matched.
+
+
+
+Ctrl-Shift-P                show_commands
+
+Ctrl-P                      switch_to_project
+
+Ctrl-Alt-F                  search_in_project
+Ctrl-F                      search_in_buffer
+Alt-F                       search_in_buffer_dropdown_mode
+
+Ctrl-T                      show_open_file_dialog_in_search_mode
+Ctrl-O                      show_open_file_dialog_in_navigate_mode
+Ctrl-Shift-O                show_open_file_dialog_in_navigate_mode_from_root
+
+F8                          compile
+Ctrl-F8                     build_debug
+Ctrl-Shift-F8               build_release
+
+Ctrl-G                      go_to_line
+
+Ctrl-C                      copy
+Ctrl-X                      cut
+Ctrl-V                      paste
+
+Ctrl-Z                      undo
+Ctrl-Shift-Z                redo
+Ctrl-Y                      redo
+
+Ctrl-W                      select_word
+Ctrl-A                      select_all
+
+Alt-W                       hide_current_buffer
+Ctrl-Shift-W                do_nothing #close_other_editor
+Alt-\                       close_other_editor
+
+Ctrl-Shift-L                toggle_expand
+Ctrl-I                      toggle_collapse_leading_whitespace
+
+Ctrl-Alt-H                  profiler_back
+Ctrl-Alt-J                  profiler_down
+Ctrl-Alt-K                  profiler_up
+Ctrl-Alt-L                  profiler_select
+Ctrl-Alt-M                  profiler_mode_cycle
+Ctrl-Alt-N                  profiler_frame_lock
+Ctrl-Alt-I                  profiler_next_frame
+Ctrl-Alt-U                  profiler_prev_frame
+
+# {Shift}- means shift is optional, the key combination will still be matched.
+{Shift}-ArrowUp             move_up
+{Shift}-Ctrl-ArrowUp        move_up_fast
+{Shift}-PageUp              move_up_one_page
+
+{Shift}-ArrowDown           move_down
+{Shift}-Ctrl-ArrowDown      move_down_fast
+{Shift}-PageDown            move_down_one_page
+
+{Shift}-ArrowLeft           move_left
+{Shift}-Alt-ArrowLeft       move_left_by_word
+{Shift}-Ctrl-ArrowLeft      move_left_by_word_ends
+
+{Shift}-ArrowRight          move_right
+{Shift}-Alt-ArrowRight      move_right_by_word
+{Shift}-Ctrl-ArrowRight     move_right_by_word_ends
+
+{Shift}-Home                jump_to_line_start
+{Shift}-End                 jump_to_line_end
+{Shift}-Ctrl-Home           jump_to_file_start
+{Shift}-Ctrl-End            jump_to_file_end
+
+{Shift}-Backspace           delete_left_char
+{Shift}-Delete              delete_right_char
+{Shift}-Alt-Backspace       do_nothing #delete_word_left_no_underscore
+{Shift}-Alt-Delete          do_nothing #delete_word_right_no_underscore
+{Shift}-Ctrl-Backspace      delete_word_left
+
+Ctrl-Plus                   increase_font_size
+Ctrl-Minus                  decrease_font_size
+Ctrl-Shift-Plus             increase_console_font_size
+Ctrl-Shift-Minus            decrease_console_font_size
+Ctrl-0                      reset_font_size_to_default
+Ctrl-MouseMiddle            reset_font_size_to_default
+
+Ctrl-,                      open_global_config
+Ctrl-.                      open_project_config
+
+[[style]]
+
+[user interface]
+font:       default
+font_size:  14
+console_font_size: 17
+
+[colors]
+background:                     15212AFF
+background_dark:                10191FFF
+background_highlight:           18262FFF
+background_light:               1A2831FF
+background_bright:              21333FFF
+background_region:              0000004F
+background_region_private:      1A1618FF
+background_region_public:       0B0B18FF
+background_cursor_row:          FFFFFF0F
+
+selection_active:               1C4449FF
+selection_inactive:             1C44497F
+selection_highlight:            FCEDFC26
+search_result_active:           8E772EFF
+search_result_inactive:         FCEDFC26
+scrollbar:                      33CCCC19
+scrollbar_hover:                33CCCC4C
+scrollbar_background:           10191F4C
+cursor:                         26B2B2FF
+cursor_inactive:                196666FF
+paste_animation:                1C4449FF
+splitter:                       21333FFF
+splitter_hover:                 1C44497F
+letter_highlight:               599999FF
+list_cursor_lite:               33CCCC19
+list_cursor:                    33CCCC4C
+shadow_dark:                    0E161C7F
+shadow_transparent:             0E161C00
+text_input_label:               3B4450FF
+collapsed_area_marker:          E67D74FF
+
+console_background:             050505EF
+console_text:                   BFC9DBFF
+console_error:                  FF5555FF
+console_header_background:      FFFF774F
+console_header_success:         55FF554F
+console_header_error:           FF55554F
+console_header_text:            000000FF     #DFE9FBFF
+
+ui_default:                     BFC9DBFF
+ui_dim:                         87919DAF
+ui_neutral:                     00FFFF4F
+ui_warning:                     F8AD34FF
+ui_warning_dim:                 986032FF
+ui_error:                       772222FF
+ui_error_bright:                FF0000FF
+ui_success:                     227722FF
+
+code_default:                   BFC9DBFF
+code_comment:                   87919DFF
+code_type:                      82AAA3FF
+code_function:                  D0C5A9FF
+code_punctuation:               BFC9DBFF
+code_operation:                 E0AD82FF
+code_string:                    D4BC7DFF
+code_value:                     D699B5FF
+code_highlight:                 D89B75FF
+code_error:                     FF0000FF
+code_keyword:                   CFC9DBFF
+code_jump:                      E67D74FF
+code_directive:                 EDE694FF
+code_format_item:               55FFFFFF
