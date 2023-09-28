@@ -445,7 +445,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
                 color = brighten(color, 1.0 - t);
             }
         }
-        draw_cool_rect(it.rect, color, 0.5);
+        draw_header_rect(it.rect, color, 0.5);
 
         push_scissor(inner_rect);
         defer pop_scissor();
@@ -2068,7 +2068,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         #if MINIMAL_FOOTER {
             push_scissor(rect);
             defer pop_scissor();
-            draw_cool_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
+            draw_header_rect(outer_footer_rect, footer_color, 1.0 - shader_value);
             if #complete editors.layout == {
                 case .None;
                 left_file_rect, _ := cut_top(main_area, footer_height);
@@ -2155,7 +2155,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 push_scissor(status_bar_rect);
                 defer pop_scissor();
-                draw_cool_rect(status_bar_rect, footer_color, 1.0 - shader_value);
+                draw_header_rect(status_bar_rect, footer_color, 1.0 - shader_value);
 
                 push_scissor(inner_rect);
                 defer pop_scissor();
@@ -4227,6 +4227,11 @@ draw_permutated_rect :: (rect: Rect, color: Color) {
                         color + permutations[1],
                         color + permutations[2],
                         color + permutations[3]);
+}
+
+draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
+    //draw_rounded_rect(rect, color);
+    draw_cool_rect(rect, color, value);
 }
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float) {
