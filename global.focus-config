@@ -379,7 +379,7 @@ console_header_text:            000000FF     #DFE9FBFF
 
 ui_default:                     BFC9DBFF
 ui_dim:                         87919DAF
-ui_neutral:                     00FFFF4F
+ui_neutral:                     FF7FFF4F
 ui_warning:                     F8AD34FF
 ui_warning_dim:                 986032FF
 ui_error:                       772222FF

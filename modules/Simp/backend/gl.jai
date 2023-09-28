@@ -190,6 +190,9 @@ backend_init_shaders :: () {
     shader_rounded_rect.gl_handle   = get_shader_program(SHADER_ROUNDED_RECT);
     shader_rounded_rect.alpha_blend = true;
 
+    shader_cool_rounded_rect.gl_handle = get_shader_program(SHADER_COOL_ROUNDED_RECT);
+    shader_cool_rounded_rect.alpha_blend = true;
+
     shader_circle.gl_handle   = get_shader_program(SHADER_CIRCLE);
     shader_circle.alpha_blend = true;
 }
@@ -373,6 +376,61 @@ void main () {
     float distance = rounded_rect_sdf(gl_FragCoord.xy, rect_center, rect_size, rect_corner_radius);
     float smoothed_alpha = 1.0f - smoothstep(0.0f, rect_edge_softness, distance);
     color = vec4(iterated_color.xyz, iterated_color.a * smoothed_alpha);
+}
+
+#endif // FRAGMENT_SHADER
+glsl
+
+SHADER_COOL_ROUNDED_RECT :: #string glsl
+OUT_IN vec4 iterated_color;
+flat OUT_IN vec2 rect_center;
+flat OUT_IN vec2 rect_size;
+flat OUT_IN float rect_corner_radius;
+flat OUT_IN float rect_edge_softness;
+
+#ifdef VERTEX_SHADER
+in vec2 vert_position;
+in vec4 vert_color;
+
+in vec2 vert_rect_center;
+in vec2 vert_rect_size;
+in float vert_rect_corner_radius;
+in float vert_rect_edge_softness;
+
+uniform mat4 projection;
+
+void main() {
+    gl_Position = projection * vec4(vert_position, 0.0, 1.0);
+    iterated_color    = vert_color;
+
+    rect_center = vert_rect_center;
+    rect_size = vert_rect_size;
+    rect_corner_radius = vert_rect_corner_radius;
+    rect_edge_softness = vert_rect_edge_softness;
+}
+#endif // VERTEX_SHADER
+
+#ifdef FRAGMENT_SHADER
+out vec4 color;
+uniform vec2 u_resolution;
+uniform float u_time;
+
+float rounded_rect_sdf(vec2 frag_pos, vec2 rect_center, vec2 size, float radius) {
+    return length(max(abs(frag_pos - rect_center) - size + radius, 0.0)) - radius;
+}
+
+void main () {
+    float distance = rounded_rect_sdf(gl_FragCoord.xy, rect_center, rect_size, rect_corner_radius);
+    float smoothed_alpha = 1.0f - smoothstep(0.0f, rect_edge_softness, distance);
+    vec2 scaled = u_resolution / 32;
+    //scaled.y /= 16;
+    vec2 st = gl_FragCoord.xy / scaled;
+    st.x += u_time;
+    vec4 perm = vec4(cos(st.x), sin(st.y), sin(st.x) * cos(st.y), 0.0);
+    perm += 2.0;
+    color = mix(iterated_color, perm, 0.03);
+    //color = iterated_color + perm * 0.2;
+    color.a = iterated_color.a * smoothed_alpha;
 }
 
 #endif // FRAGMENT_SHADER

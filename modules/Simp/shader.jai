@@ -36,6 +36,19 @@ set_shader_for_cool :: (value: float) {
     }
 }
 
+set_shader_for_cool_rounded_rect :: (value: float) {
+    CheckInit();
+    if state.current_shader != *shader_cool_rounded_rect {
+        immediate_set_shader(*shader_cool_rounded_rect);
+        set_projection();
+        c := *context.simp.current_window_info;
+        loc := glGetUniformLocation(shader_cool_rounded_rect.gl_handle, "u_resolution");
+        glUniform2f(loc, cast(float)c.window_width, cast(float)c.window_height);
+        loc = glGetUniformLocation(shader_cool_rounded_rect.gl_handle, "u_time");
+        glUniform1f(loc, value);
+    }
+}
+
 set_shader_for_text :: () {
     CheckInit();
     if state.current_shader != *shader_text {
@@ -78,4 +91,5 @@ shader_color:  Shader;
 shader_color_with_blend:  Shader;
 shader_cool: Shader;
 shader_rounded_rect:      Shader;
+shader_cool_rounded_rect:      Shader;
 shader_circle:            Shader;

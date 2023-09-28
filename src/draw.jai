@@ -4084,6 +4084,21 @@ draw_tooltip_bottom_left :: (text: string, pos: Vector2) {
 
 Corner_Rounding :: enum { none; in; out; }
 
+draw_cool_rounded_rect :: (rect: Rect, color: Color, radius := 0.0, softness := 1.0, value: float, $set_shader := true) {
+    using font_data;
+    if !is_valid(rect) return;
+    #if set_shader
+        Simp.set_shader_for_cool_rounded_rect(value);
+    if radius <= 0 then radius = rounding_radius;
+
+    center := Vector2.{ x = rect.x + rect.w / 2, y = rect.y + rect.h / 2 };
+    size   := Vector2.{ x = rect.w / 2, y = rect.h / 2 };
+    p0 := bottom_left(rect);
+    p2 := top_right(rect);
+
+    Simp.immediate_rounded_rect(p0, p2, color, center, size, radius, softness);
+}
+
 draw_rounded_rect :: (rect: Rect, color: Color, radius := 0.0, softness := 1.0, $set_shader := true) {
     using font_data;
     if !is_valid(rect) return;
@@ -4231,7 +4246,7 @@ draw_permutated_rect :: (rect: Rect, color: Color) {
 
 draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
     //draw_rounded_rect(rect, color);
-    draw_cool_rect(rect, color, value);
+    draw_cool_rounded_rect(rect, color, value=xx frame_time * 0.1);
 }
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float) {
