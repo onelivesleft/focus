@@ -450,14 +450,14 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     path_overwrite_separators(full_path, separator = #char "/");
     if !file_exists(full_path) || !success {
         log_error("Couldn't open file %", path);
-        add_user_error(tprint("Couldn't open file %", path), duration_in_seconds = 60, icon="\ue4eb");
+        add_user_message_error(tprint("Couldn't open file %", path), duration_in_seconds = 60, icon="\ue4eb");
         print("[%]\n", path);
         return false;
     }
     buffer_id := find_or_create_buffer(full_path);
     if buffer_id < 0 && full_path.count > 248 {
         log_error("Couldn't open file because path is too long for Windows: %\n", full_path);
-        add_user_error("Couldn't open file. Path is too long.", icon="\ue4eb");  // not including full path for obvious reasons
+        add_user_message_error("Couldn't open file. Path is too long.", icon="\ue4eb");  // not including full path for obvious reasons
         return false;
     }
 
@@ -546,7 +546,7 @@ editors_open_project_config :: (placement: Editor_Placement) {
     if project_config_path {
         editors_open_file(project_config_path, placement);
     } else {
-        add_user_warning("No project is active. Please open a project first.", duration_in_seconds = 5, icon="\uf071");
+        add_user_message_warning("No project is active. Please open a project first.", duration_in_seconds = 5, icon="\uf071");
     }
 }
 
@@ -682,7 +682,7 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
             should_jump_to_eye_tracker = editors.active;
     }
     else {
-        add_user_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2, icon="\uf070");
+        add_user_message_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2, icon="\uf070");
     }
 }
 
@@ -690,7 +690,7 @@ show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
     cursor := cursors[main_cursor];
     coords := offset_to_coords(editor, buffer, cursor.pos);
     message := tprint("Row: %  Col: %  Pos: %", coords.line + 1, coords.col + 1, cursor.pos);
-    add_user_neutral(message, duration_in_seconds = 2, icon="\U0000f3c5");
+    add_user_message(message, duration_in_seconds = 2, icon="\U0000f3c5");
 }
 
 show_file_info :: (using editor: *Editor, buffer: Buffer) {
@@ -1745,7 +1745,7 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
 
         MAX_CURSORS :: 5000; // @Todo Make it a setting ?
         if cursors.count >= MAX_CURSORS {
-            add_user_warning(tprint("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS), icon="\uf071");
+            add_user_message_warning(tprint("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS), icon="\uf071");
             break;
         }
 

@@ -47,19 +47,19 @@ refresh_config :: (path: string) {
         success, changed, there_were_warnings := load_global_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
-            add_success_message("Global config changes have been applied", duration_in_seconds = 3, icon = "\uf085");
+            add_user_message_success("Global config changes have been applied", duration_in_seconds = 3, icon = "\uf085");
         }
         if current_project_name {
             success, changed, there_were_warnings = load_project_config(.refresh, current_project_name);
             if success && changed && !there_were_warnings {
-                add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3, icon = "\uf085");
+                add_user_message_success(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3, icon = "\uf085");
             }
         }
     } else if platform_path_equals(path, project_config_path) {
         success, changed, there_were_warnings := load_project_config(.refresh);
         if success && changed && !there_were_warnings {
             clear_user_messages();
-            add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3, icon = "\uf085");
+            add_user_message_success(tprint("Config changes for project '%' have been applied", current_project_name), duration_in_seconds = 3, icon = "\uf085");
         }
     } else {
         log_error("Attempted to refresh config from file %, but it is not a global config or a current project config", path);
@@ -84,7 +84,7 @@ refresh_config :: (path: string) {
         if unsaved_buffers_exist() {
             show_unsaved_buffers_dialog(.reload_workspace);
             clear_user_messages();
-            add_user_warning("Workspace directories have changed in the config.\nWorkspace will need to reload, however there are unsaved changes.", icon="\uf071");
+            add_user_message_warning("Workspace directories have changed in the config.\nWorkspace will need to reload, however there are unsaved changes.", icon="\uf071");
             should_reload_workspace = false;
         }
     }
@@ -101,7 +101,7 @@ is_our_config_file :: (path: string) -> bool {
 
 close_project :: () {
     if !project_config_path {
-        add_user_warning("No project is currently active.", duration_in_seconds = 5, icon="\uf071");
+        add_user_message_warning("No project is currently active.", duration_in_seconds = 5, icon="\uf071");
         return;
     }
 
@@ -114,7 +114,7 @@ close_project :: () {
         }
         project_config_path = "";
     } else {
-        add_user_error("Couldn't close project because the global config failed to load", duration_in_seconds = 10, icon="\uf06a");
+        add_user_message_error("Couldn't close project because the global config failed to load", duration_in_seconds = 10, icon="\uf06a");
     }
 }
 
@@ -166,7 +166,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     if !success_read {
         error_msg := tprint("Couldn't read the config file file '%'", file_path);
         log_error(error_msg);
-        add_user_error(error_msg, icon="\uf06a");
+        add_user_message_error(error_msg, icon="\uf06a");
         return false, false, false;
     }
 
@@ -174,12 +174,12 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     if !success_parse {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
         log_error(error_msg);
-        add_user_error(error_msg, icon="\uf06a");
+        add_user_message_error(error_msg, icon="\uf06a");
         return false, false, false;
     }
     if warnings {
-        add_user_warning(tprint("Config file % loaded with warnings", file_path), duration_in_seconds = 60, icon="\uf071");
-        for warnings add_user_warning(it, duration_in_seconds = 60, icon="\uf071");
+        add_user_message_warning(tprint("Config file % loaded with warnings", file_path), duration_in_seconds = 60, icon="\uf071");
+        for warnings add_user_message_warning(it, duration_in_seconds = 60, icon="\uf071");
     }
 
     // Maybe update hash if changed
@@ -210,7 +210,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     old_tab_size := TAB_SIZE;
     TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable (though 100 is unreasonable)
     if config.settings.tab_size != TAB_SIZE {
-        add_user_warning(tprint("Tab size clamped to %", TAB_SIZE), icon="\ue4ba");
+        add_user_message_warning(tprint("Tab size clamped to %", TAB_SIZE), icon="\ue4ba");
         clamp_warnings = true;
     }
     if old_tab_size != TAB_SIZE {
@@ -224,14 +224,14 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     line_height_scale := config.settings.line_height_scale_percent;
     config.settings.line_height_scale_percent = clamp(line_height_scale, 50, 1000);
     if config.settings.line_height_scale_percent != line_height_scale {
-        add_user_warning(tprint("Line height scale clamped to %", config.settings.line_height_scale_percent), icon="\uf07d");
+        add_user_message_warning(tprint("Line height scale clamped to %", config.settings.line_height_scale_percent), icon="\uf07d");
         clamp_warnings = true;
     }
 
     editor_history_size := config.settings.editor_history_size;
     config.settings.editor_history_size = clamp(editor_history_size, 4, 1024 * 1024);
     if config.settings.editor_history_size != editor_history_size {
-        add_user_warning(tprint("Editor history size clamped to %", config.settings.editor_history_size), icon="\ue522");
+        add_user_message_warning(tprint("Editor history size clamped to %", config.settings.editor_history_size), icon="\ue522");
         clamp_warnings = true;
     }
 
@@ -288,7 +288,7 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
             main_font_name = parsed.font;
         } else {
             // NOTE: this error will be removed by the config success message. Should do something about it
-            add_user_error(tprint("Couldn't load font %", parsed.font));
+            add_user_message_error(tprint("Couldn't load font %", parsed.font));
         }
     }
     if parsed.font_size > 0 {
@@ -398,6 +398,7 @@ Settings :: struct {
     zen_mode_minimal                       := false;
     zen_mode_width_in_chars                := 80;
     show_console_on_build                  := true;
+    ficus_debug_on_error                   := false;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

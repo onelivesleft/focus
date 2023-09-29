@@ -74,6 +74,7 @@ main :: () {
     if !make_directory_if_it_does_not_exist(temp_dir)     then panic_messagebox("Couldn't create folder % for temporary files. Is the directory writable?", temp_dir);
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
+
     init_ficus();
     init_file_watcher();
     load_global_config(.load, fallback_to_default_on_failure = true);
@@ -298,7 +299,7 @@ main :: () {
                     if show_keystrokes && event.key_pressed {
                         name := key_code_name(event.key_code);
                         if starts_with(name, "(enum")  name = "";
-                        add_success_message(tprint("% <%>", name, cast(int)event.key_code), duration_in_seconds = 2, icon = "\uf11c");
+                        add_user_message_success(tprint("% <%>", name, cast(int)event.key_code), duration_in_seconds = 2, icon = "\uf11c");
                     }
 
                     // Double shift click
@@ -697,7 +698,7 @@ increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
+        add_user_message_success(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
@@ -705,21 +706,21 @@ decrease_font_size :: () {
     if (font_size - 1) >= MIN_FONT_SIZE {
         font_size -= 1;
         init_fonts_and_dependent_things();
-        add_success_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
+        add_user_message_success(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
 increase_console_font_size :: () {
     if (font_console_size + 1) <= MAX_FONT_SIZE {
         set_console_font_size(font_console_size + 1);
-        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
+        add_user_message_success(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
 decrease_console_font_size :: () {
     if (font_console_size - 1) >= MIN_FONT_SIZE {
         set_console_font_size(font_console_size - 1);
-        add_success_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
+        add_user_message_success(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
@@ -788,12 +789,12 @@ update_window_size :: (w: s64, h: s64) {
 
 toggle_show_keystrokes :: () {
     show_keystrokes = !show_keystrokes;
-    add_success_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), duration_in_seconds = 2, icon = "\uf11c");
+    add_user_message_success(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), duration_in_seconds = 2, icon = "\uf11c");
 }
 
 toggle_show_filename :: () {
     show_filename = !show_filename;
-    add_success_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
+    add_user_message_success(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
 }
 
 update_zen_mode :: () {
@@ -835,7 +836,7 @@ refresh_zen_mode :: () {
 
 toggle_collapse_leading_whitespace :: () {
     config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;
-    add_success_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), duration_in_seconds = 2);
+    add_user_message_success(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), duration_in_seconds = 2);
 }
 
 toggle_profiling :: () {
@@ -843,7 +844,7 @@ toggle_profiling :: () {
         iprof_active = !iprof_active;
     }
     else {
-        add_user_error("Profiling is not available in this build of Focus", duration_in_seconds = 2, icon="\ue55d");
+        add_user_message_error("Profiling is not available in this build of Focus", duration_in_seconds = 2, icon="\ue55d");
     }
 }
 
@@ -1254,69 +1255,3 @@ Embedded_Font :: struct {
 }
 
 prev_key_pressed : Input.Key_Code;
-
-my_config :: #string focus_config
-[colors]
-background:                     15212AFF
-background_dark:                10191FFF
-background_highlight:           18262FFF
-background_light:               1A2831FF
-background_bright:              21333FFF
-background_region:              0000004F
-background_region_private:      1A1618FF
-background_region_public:       0B0B18FF
-background_cursor_row:          FFFFFF0F
-
-selection_active:               1C4449FF
-selection_inactive:             1C44497F
-selection_highlight:            FCEDFC26
-search_result_active:           8E772EFF
-search_result_inactive:         FCEDFC26
-scrollbar:                      33CCCC19
-scrollbar_hover:                33CCCC4C
-scrollbar_background:           10191F4C
-cursor:                         26B2B2FF
-cursor_inactive:                196666FF
-paste_animation:                1C4449FF
-splitter:                       21333FFF
-splitter_hover:                 1C44497F
-letter_highlight:               599999FF
-list_cursor_lite:               33CCCC19
-list_cursor:                    33CCCC4C
-shadow_dark:                    0E161C7F
-shadow_transparent:             0E161C00
-text_input_label:               3B4450FF
-collapsed_area_marker:          E67D74FF
-
-console_background:             050505EF
-console_text:                   BFC9DBFF
-console_error:                  FF5555FF
-console_header_background:      FFFF774F
-console_header_success:         55FF554F
-console_header_error:           FF55554F
-console_header_text:            000000FF     #DFE9FBFF
-
-ui_default:                     BFC9DBFF
-ui_dim:                         87919DAF
-ui_neutral:                     4C4C4CFF
-ui_warning:                     F8AD34FF
-ui_warning_dim:                 986032FF
-ui_error:                       772222FF
-ui_error_bright:                FF0000FF
-ui_success:                     227722FF
-
-code_default:                   BFC9DBFF
-code_comment:                   87919DFF
-code_type:                      82AAA3FF
-code_function:                  D0C5A9FF
-code_punctuation:               BFC9DBFF
-code_operation:                 E0AD82FF
-code_string:                    D4BC7DFF
-code_value:                     D699B5FF
-code_highlight:                 D89B75FF
-code_error:                     FF0000FF
-code_keyword:                   CFC9DBFF
-code_jump:                      E67D74FF
-code_directive:                 EDE694FF
-code_format_item:               55FFFFFF
-focus_config

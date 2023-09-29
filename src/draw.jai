@@ -390,10 +390,11 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 
     ui_id := get_ui_id_from_loc();
     message_rect := right_file_rect;
+    left_right_padding := char_x_advance / 2;
 
     for * user_messages {
         text_width := Simp.get_text_width(font_ui_bold, it.text);
-        width := text_width + char_x_advance * 2;
+        width := text_width + left_right_padding * 2;
         if it.icon   width += font_ui.character_height + char_x_advance;
         message_rect.x -= width + char_x_advance;
         message_rect.w = width;
@@ -419,7 +420,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 
     for < * user_messages {
         Simp.prepare_text(font_ui_bold, it.text);
-        inner_rect := shrink_x(it.rect, char_x_advance);
+        inner_rect := shrink_x(it.rect, left_right_padding);
         pen := make_vector2(
             inner_rect.x,
             inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
@@ -429,7 +430,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
         if #complete it.level == {
             case .error;    color = Colors.UI_ERROR;
             case .warning;  color = Colors.UI_WARNING_DIM;
-            case .neutral;  color = Colors.UI_NEUTRAL;
+            case .message;  color = Colors.UI_MESSAGE;
             case .success;  color = Colors.UI_SUCCESS;
         }
 
@@ -462,7 +463,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
                     case .warning;
                     icon = "\uf071";
 
-                    case .neutral;
+                    case .message;
                     animation_rate :: 0.44;
                     icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
                     icon = to_string(*convert_utf32_to_utf8(xx build_icons[icon_index]));
@@ -2043,6 +2044,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         footer_rect = shrink_x(outer_footer_rect, text_offset.x);
 
         padding := floor(4 * dpi_scale);
+        left_right_padding := char_x_advance / 2;
         width := 0.0;
         pen := make_vector2(
             footer_rect.x,
@@ -2052,13 +2054,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
             outer_footer_rect.y -= char_x_advance / 2;
             _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
-            outer_footer_rect.w = new_pen.x - pen.x + text_offset.x * 2;
+            outer_footer_rect.w = new_pen.x - pen.x + left_right_padding * 2;
             #if HIDE_SCROLLBARS
                 outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - char_x_advance;
             else
                 outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
             status_bar_rect = outer_footer_rect;
-            footer_rect = shrink_x(outer_footer_rect, text_offset.x);
+            footer_rect = shrink_x(outer_footer_rect, left_right_padding);
             pen = make_vector2(
                 footer_rect.x,
                 footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
@@ -3345,7 +3347,7 @@ draw_unsaved_buffers_dialog :: () {
         pen_x := cast(s32) (header_rect.x + 2 * margin);
         pen_y := cast(s32) (header_rect.y + (header_rect.h - font_ui_medium.character_height) / 2 + 2);
         header_text := "There are unsaved files. Continue?";
-        if unsaved_buffers.count == 1 then header_text = "#aved file. Continue?";
+        if unsaved_buffers.count == 1 then header_text = "Unsaved file. Continue?";
         Simp.draw_text(font_ui_medium, pen_x, pen_y, header_text, Colors.UI_DEFAULT);
 
         hr := cut_bottom(header_rect, 1);

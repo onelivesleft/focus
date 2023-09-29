@@ -58,7 +58,7 @@ open_project :: (name: string) -> bool {
             should_reload_workspace = false;
         }
     } else {
-        add_user_error(tprint("Couldn't load project config for %", name), duration_in_seconds = 10, icon="\ue4eb");
+        add_user_message_error(tprint("Couldn't load project config for %", name), duration_in_seconds = 10, icon="\ue4eb");
         editors_open_file(get_project_config_path(name));
     }
     return success;

@@ -214,6 +214,14 @@ windows_windowproc_exists :: () -> bool {
 
 #scope_export
 
+get_window_position_and_size :: (hwnd: HWND) -> (x: s32, y: s32, width: s32, height: s32, success := true) {
+    rect: RECT;
+    success := GetWindowRect(hwnd, *rect);
+    if !success  return 0, 0, 0, 0, false;
+
+    return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top;
+}
+
 get_dimensions :: (hwnd: HWND, right_handed: bool) -> (x: s32, y: s32, width: s32, height: s32, success := true) {
     rect: RECT;
     success := GetClientRect(hwnd, *rect);

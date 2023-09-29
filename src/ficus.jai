@@ -120,12 +120,18 @@ ficus_update :: () {
 
         if state == .errored {
             if ficus_execution_stack.count > 0 {
-                frame := *ficus_execution_stack[ficus_execution_stack.count - 1];
-                frame.token = frame.previous_token;
-                frame.tokenizer = frame.previous_tokenizer;
-                ficus_machine_state = .pause_just_happened;
-                state = .active;
-                is_ficus_debugging = true;
+                if config.settings.ficus_debug_on_error {
+                    frame := *ficus_execution_stack[ficus_execution_stack.count - 1];
+                    frame.token = frame.previous_token;
+                    frame.tokenizer = frame.previous_tokenizer;
+                    ficus_machine_state = .pause_just_happened;
+                    state = .active;
+                    is_ficus_debugging = true;
+                }
+                else {
+                    ficus_halt();
+                    return;
+                }
             }
         }
 
@@ -140,7 +146,6 @@ ficus_update :: () {
                     offset_from_buffer_start = xx (`about_to_execute_word.data - `container.data) + buffer_offset;
                     len = xx `about_to_execute_word.count;
                     open_buffers[buffer_id].flags |= .needs_coloring;
-                    print("% > %\n", open_buffers[buffer_id].bytes.count, ficus_instruction_pointer);
                 }
                 container, stored_within := ficus_stored_string(about_to_execute_word);
                 if stored_within == {
@@ -444,7 +449,7 @@ run_build_script :: (mode: enum { Compile; Debug; Release; }) {
 
 %:
     "% - %" build_name!
-    "c:\jai\jai.exe first.jai" build
+    "c:\jai\bin\jai.exe first.jai" build
 focus_config, word_name, current_project_name, mode), .Focus_Config);
         return;
     }
@@ -568,7 +573,7 @@ get_project_words_buffer_id :: () -> int {
 max_stack_size :: 4096;
 max_user_stacks :: 64;
 max_instructions_per_frame :: 8192;
-max_stack_depth :: 1024;
+max_stack_depth :: 256;
 
 #insert -> string {
     b: String_Builder;
@@ -1560,6 +1565,7 @@ intrinsics :: #code if word_name == {
         x := pop(.int_number);
         platform_set_window_location(xx x.int_value, xx y.int_value, xx width.int_value, xx height.int_value);
     case "window_location?";
+        window_x, window_y, window_width, window_height = get_window_position_and_size(window);
         push(window_x, stack);
         push(window_y, stack);
         push(window_width, stack);
@@ -1621,6 +1627,7 @@ intrinsics :: #code if word_name == {
         }
         stack.count = new_count;
         if has_commands  build();
+        else             return tprint("% expected a command", word_name);
 
     case "editor_path?";
         if editors.active >= 0 {
@@ -1677,25 +1684,25 @@ intrinsics :: #code if word_name == {
         seconds := pop(.number);
         message := pop(.text);
         icon := pop(.text);
-        add_user_neutral(message.string_value, xx seconds.value, icon.string_value, .ficus);
+        add_user_message(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_success";
         seconds := pop(.number);
         message := pop(.text);
         icon := pop(.text);
-        add_success_message(message.string_value, xx seconds.value, icon.string_value, .ficus);
+        add_user_message_success(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_warning";
         seconds := pop(.number);
         message := pop(.text);
         icon := pop(.text);
-        add_user_warning(message.string_value, xx seconds.value, icon.string_value, .ficus);
+        add_user_message_warning(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_error";
         seconds := pop(.number);
         message := pop(.text);
         icon := pop(.text);
-        add_user_error(message.string_value, xx seconds.value, icon.string_value, .ficus);
+        add_user_message_error(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     // nada
     case;

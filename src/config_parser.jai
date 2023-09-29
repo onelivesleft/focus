@@ -174,6 +174,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "ui_default";                         return *config.colors.UI_DEFAULT;
         case "ui_dim";                             return *config.colors.UI_DIM;
         case "ui_neutral";                         return *config.colors.UI_NEUTRAL;
+        case "ui_message";                         return *config.colors.UI_MESSAGE;
         case "ui_warning";                         return *config.colors.UI_WARNING;
         case "ui_warning_dim";                     return *config.colors.UI_WARNING_DIM;
         case "ui_error";                           return *config.colors.UI_ERROR;

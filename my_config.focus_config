@@ -37,6 +37,7 @@ __pycache__
 [[script]]
 
 on_load:
+    #0 0 2736 1824 window_location!
     4 console_location!
      "GUI" open_project
     if_else [ focus_executable? "focus_debug" contains ]
@@ -58,7 +59,7 @@ greet:
 #       for any settings you haven't listed here explicitly
 maximize_on_start:                      false
 open_on_the_biggest_monitor:            false
-open_on_monitor_one:                    true
+open_on_monitor_one:                    false
 cursor_blink_time_in_seconds:           99999
 cursor_as_block:                        false
 highlight_selection_occurrences:        true
@@ -261,6 +262,8 @@ Ctrl-Shift-O                show_open_file_dialog_in_navigate_mode_from_root
 
 F8                          compile
 Ctrl-F8                     build_debug
+Alt-C                       compile
+Alt-B                       build_debug
 Ctrl-Shift-F8               build_release
 
 Ctrl-G                      go_to_line
@@ -379,7 +382,6 @@ console_header_text:            000000FF     #DFE9FBFF
 
 ui_default:                     BFC9DBFF
 ui_dim:                         87919DAF
-ui_neutral:                     FF7FFF4F
 ui_warning:                     F8AD34FF
 ui_warning_dim:                 986032FF
 ui_error:                       772222FF

@@ -3,19 +3,19 @@ default_error_duration : float64 : -1;
 
 user_message_allocator : Allocator;
 
-add_user_error :: inline (message: string, duration_in_seconds := default_error_duration, icon := "", origin := User_Message.Origin.general) {
+add_user_message_error :: inline (message: string, duration_in_seconds := default_error_duration, icon := "", origin := User_Message.Origin.general) {
     add_user_message(message, .error, cast(Time) duration_in_seconds, icon, origin);
 }
 
-add_user_neutral :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
-    add_user_message(message, .neutral, cast(Time) duration_in_seconds, icon, origin);
+add_user_message :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
+    add_user_message(message, .message, cast(Time) duration_in_seconds, icon, origin);
 }
 
-add_user_warning :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
+add_user_message_warning :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
     add_user_message(message, .warning, cast(Time) duration_in_seconds, icon, origin);
 }
 
-add_success_message :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
+add_user_message_success :: inline (message: string, duration_in_seconds := default_message_duration, icon := "", origin := User_Message.Origin.general) {
     add_user_message(message, .success, cast(Time) duration_in_seconds, icon, origin);
 }
 
@@ -140,7 +140,7 @@ User_Message :: struct {
     dismissed: bool;
     rect: Rect;
 
-    Level :: enum { warning; error; success; neutral; };
+    Level :: enum { warning; error; success; message; };
     Origin :: enum { general; build; ficus; };
 
     arrival_duration : Time : 0.2;

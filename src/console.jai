@@ -200,7 +200,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 
     build_text := tprint("[BUILD] %", task.title);
     build_task_header, build_task_region_id = print_console_header(build_text, remain_closed=!config.settings.show_console_on_build);
-    add_user_neutral(build_text, duration_in_seconds = -1, icon = to_string(*convert_utf32_to_utf8(xx build_icons[0])), origin = .build);
+    add_user_message(build_text, duration_in_seconds = -1, icon = to_string(*convert_utf32_to_utf8(xx build_icons[0])), origin = .build);
 
     successful := true;
     output: string;

@@ -67,6 +67,7 @@ auto_close_brackets:                    false
 prefer_system_file_dialogs:             false  # Windows only
 zen_mode_blend_percent                  90
 show_console_on_build                   true
+ficus_debug_on_error                    false
 
 [[keymap]]
 

@@ -61,6 +61,7 @@ Color_Values :: struct {
     UI_DEFAULT              := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     UI_DIM                  := Color.{ r = 0.533, g = 0.569, b = 0.616, a = 1.0 };
     UI_NEUTRAL              := Color.{ r = 0.3, g = 0.3, b = 0.3, a = 1.0 };
+    UI_MESSAGE              := Color.{ r = 0.131, g = 0.202, b = 0.25, a = 1.0 };
     UI_WARNING              := Color.{ r = 0.85, g = 0.68, b = 0.33, a = 1.0 };
     UI_WARNING_DIM          := Color.{ r = 0.59, g = 0.37, b = 0.19, a = 1.0 };
     UI_ERROR                := Color.{ r = 0.46, g = 0.13, b = 0.13, a = 1.0 };
@@ -304,6 +305,7 @@ convert_active_buffer_to_colors :: () {
     do("ui_default",                     "button.foreground", "menu.foreground");
     do("ui_dim",                         "inputValidation.infoBackground", op=.darken);
     do("ui_neutral",                     "inputValidation.infoBackground");
+    do("ui_message",                     "inputValidation.infoBackground");
     do("ui_warning",                     "inputValidation.warningBackground");
     do("ui_warning_dim",                 "inputValidation.warningBackground", op=.darken);
     do("ui_error",                       "inputValidation.errorBackground");
