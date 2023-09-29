@@ -2144,12 +2144,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             if is_status_bar_showing(editor) {
                 using status_bar;
                 text_width := Simp.prepare_text(font_ui_bold, message_string);
-                width := text_width + text_offset.x * 2;
-                if left_icon   width += font_ui.character_height + text_offset.x;
-                if right_icon  width += font_ui.character_height + text_offset.x;
-                status_bar_rect.x -= width + text_offset.x;
+                left_right_padding := char_x_advance / 2;
+                width := text_width + left_right_padding * 2;
+                if left_icon   width += font_ui.character_height + char_x_advance;
+                if right_icon  width += font_ui.character_height + char_x_advance;
+                status_bar_rect.x -= width + char_x_advance;
                 status_bar_rect.w = width;
-                inner_rect := shrink_x(status_bar_rect, text_offset.x);
+                inner_rect := shrink_x(status_bar_rect, left_right_padding);
                 pen := make_vector2(
                     inner_rect.x,
                     inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
@@ -2163,7 +2164,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 defer pop_scissor();
                 if left_icon {
                     draw_icon(left_icon, pen, Colors.UI_DEFAULT, .default);
-                    pen.x += font_ui.character_height + text_offset.x;
+                    pen.x += font_ui.character_height + left_right_padding;
                 }
                 Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
                 pen.x += text_width + text_offset.x - 1;
