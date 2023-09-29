@@ -72,8 +72,8 @@ toggle_fullscreen :: (hwnd: HWND, desire_fullscreen: bool, saved: *Saved_Window_
         old_style    := GetWindowLongW(hwnd, GWL_STYLE);
         old_ex_style := GetWindowLongW(hwnd, GWL_EXSTYLE);
 
-        SetWindowLongW(hwnd, GWL_STYLE, old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME));
-        SetWindowLongW(hwnd, GWL_EXSTYLE, old_ex_style & ~cast(s32)(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+        SetWindowLongW(hwnd, GWL_STYLE, xx (old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME)));
+        SetWindowLongW(hwnd, GWL_EXSTYLE, xx (old_ex_style & ~cast(s32)(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE)));
 
         monitor := MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         info: MONITORINFO;
@@ -100,8 +100,8 @@ toggle_fullscreen :: (hwnd: HWND, desire_fullscreen: bool, saved: *Saved_Window_
         width  := saved.rect.right  - x;
         height := saved.rect.bottom - y;
 
-        SetWindowLongW(hwnd, GWL_STYLE, saved.style);
-        SetWindowLongW(hwnd, GWL_EXSTYLE, saved.ex_style);
+        SetWindowLongW(hwnd, GWL_STYLE, xx saved.style);
+        SetWindowLongW(hwnd, GWL_EXSTYLE, xx saved.ex_style);
 
         SetWindowPos(hwnd, HWND_TOP, x, y, width, height,
                      SWP_FRAMECHANGED);

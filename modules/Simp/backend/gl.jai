@@ -288,10 +288,27 @@ uniform float u_time;
 
 out vec4 color;
 
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec4 random4(vec2 co) {
+    vec4 result;
+    result.x = rand(co); co *= 2;
+    result.y = rand(co); co *= 2;
+    result.z = rand(co); co *= 2;
+    result.w = rand(co);
+    return result;
+}
+
 void main () {
-    vec2 st = gl_FragCoord.xy / u_resolution;
-    vec4 perm = vec4(st.x, st.x * st.y, st.x * (1.0-u_time), 0.0);
-    color = mix(iterated_color, perm, 0.05);
+    vec2 uv = gl_FragCoord.xy / u_resolution;
+    vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-u_time), 0.0);
+    vec4 mixed = mix(iterated_color, perm, 0.05);
+    // When color is between two displayable values, round it up or down randomly, proportionate to
+    // which it is nearer to.
+    vec4 remainder = fract(mixed * 255.0);
+    color = mixed - (remainder / 255.0) + (1.0 / 255.0) - (step(remainder, random4(uv)) / 255.0);
     color.a = iterated_color.a;
 }
 #endif // FRAGMENT_SHADER

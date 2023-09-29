@@ -85,9 +85,9 @@ platform_set_window_location :: (x: s32, y: s32, w: s32, h: s32) {
 
 platform_set_window_sizable :: (sizable: bool) {
     if sizable
-        SetWindowLongW(window, GWL_STYLE, normal_style | cast(s32)(WS_THICKFRAME));
+        SetWindowLongW(window, GWL_STYLE, xx normal_style | xx (WS_THICKFRAME));
     else
-        SetWindowLongW(window, GWL_STYLE, normal_style);
+        SetWindowLongW(window, GWL_STYLE, xx normal_style);
     SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
 }
 
