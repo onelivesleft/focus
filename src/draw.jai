@@ -603,7 +603,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
     max_width := cast(float) config.settings.max_editor_width * dpi_scale;
     if zen_mode {
-        zen_max_width := cast(float) config.settings.zen_mode_width_in_chars * dpi_scale * char_x_advance;
+        zen_max_width := cast(float) config.settings.zen_mode_width_in_chars * char_x_advance;
         if changed_zen_mode_at {
             if max_width <= 0  max_width = main_area.w;
             max_width = lerp(max_width, zen_max_width, zen_mode_t);
