@@ -34,11 +34,9 @@ init_ficus :: () {
     user_stack_colors[4] = *Colors.UI_BACKGROUND_5;
 
     ficus_execute_string(baked_words_string, .baked, .silent, null);
-    #insert -> string {
-        b : String_Builder;
-        for name, index: ACTIONS_EDITORS  print_to_builder(*b, "table_set(*action_words, \"!%\", %);\n", name, index);
-        return builder_to_string(*b);
-    }
+
+    for name, index: ACTIONS_EDITORS
+        table_set(*action_words, unique_string(tprint("!%", name)), xx index);
 }
 
 ficus_run :: () {
@@ -488,8 +486,12 @@ ficus_set_project_words_string :: (s: string, filename: string, offset: s32) -> 
 }
 
 ficus_set_user_words_string :: (s: string, filename: string, buffer_id: int) -> string {
-    if user_words_string  free(user_words_string);
-    user_words_string = copy_string(s);
+    user_words_cache_index = (user_words_cache_index + 1) % cached_user_words_count;
+    if user_words_cache[user_words_cache_index] {
+        free(user_words_cache[user_words_cache_index]);
+    }
+    user_words_cache[user_words_cache_index] = copy_string(s);
+    user_words_string = user_words_cache[user_words_cache_index];
     user_words_filename = filename;
     user_words_buffer_id = buffer_id;
     return user_words_string;
@@ -574,6 +576,7 @@ max_stack_size :: 4096;
 max_user_stacks :: 64;
 max_instructions_per_frame :: 8192;
 max_stack_depth :: 256;
+cached_user_words_count :: 24;
 
 #insert -> string {
     b: String_Builder;
@@ -590,6 +593,9 @@ fig;
 global_words_string : string;
 project_words_string : string;
 user_words_string : string;
+
+user_words_cache : [cached_user_words_count] string;
+user_words_cache_index := 0;
 
 global_words_buffer_offset  : s32 = 0;
 project_words_buffer_offset : s32 = 0;
@@ -1047,12 +1053,10 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
 
         handled:, found = try_handle_action_word(word_name);
         if found {
-            if handled {
+            if handled
                 return_success();
-            }
-            else {
+            else
                 return tprint("Error: Tried to perform action [%] but we failed to handle it.", word_name);
-            }
         }
     }
 
@@ -1766,7 +1770,7 @@ try_handle_action_word :: (word_name: string) -> handled: bool, found: bool {
 
     handled := handle_common_editor_action(action);
     if !handled
-        active_editor_handle_event(Input.Event.{}, action);
+        handled = active_editor_handle_event(Input.Event.{}, action);
     return handled, true;
 }
 
