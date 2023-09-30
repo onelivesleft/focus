@@ -105,6 +105,8 @@ pointer_end_frame :: () {
     } else {
         #if OS == .WINDOWS {
             Windows.SetCursor(pointers[current_pointer_image]);
+            if current_pointer_image == .NORMAL
+                Input.window_region_override = .TITLE_BAR;
         } else #if OS == .MACOS {
             NSCursor.set(pointers[current_pointer_image]);
         } else #if OS == .LINUX {

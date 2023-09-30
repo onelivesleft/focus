@@ -445,7 +445,7 @@ void main () {
     st.x += u_time;
     vec4 perm = vec4(cos(st.x), sin(st.y), sin(st.x) * cos(st.y), 0.0);
     perm += 2.0;
-    color = mix(iterated_color, perm, 0.03);
+    color = mix(iterated_color, perm, 0.02);
     //color = iterated_color + perm * 0.2;
     color.a = iterated_color.a * smoothed_alpha;
 }

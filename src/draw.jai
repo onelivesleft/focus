@@ -288,14 +288,6 @@ draw_welcome_screen :: (main_area: Rect) {
             y -= 1.5 * font_ui_big_line_height;
             Simp.draw_prepared_text(font_ui_medium, xx x, xx y, color = Colors.UI_DIM);
         }
-
-        {
-            ui_id := Ui_Id.splash_screen;
-            maybe_set_hot_or_active(ui_id, welcome_left_area, .PRESSABLE);
-
-            if mouse_pointer_is_within(welcome_left_area) && is_hovering_over(ui_id)
-                Input.window_region_override = .TITLE_BAR;
-        }
     }
 
     // Draw the right part
@@ -396,7 +388,7 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
         text_width := Simp.get_text_width(font_ui_bold, it.text);
         width := text_width + left_right_padding * 2;
         if it.icon   width += font_ui.character_height + char_x_advance;
-        message_rect.x -= width + char_x_advance;
+        message_rect.x -= width + char_x_advance / 2;
         message_rect.w = width;
         if (left_file_rect.x + left_file_rect.w >= message_rect.x  && left_file_rect.x + left_file_rect.w < message_rect.x + message_rect.w)
         || (left_file_rect.x >= message_rect.x && left_file_rect.x < message_rect.x + message_rect.w)
@@ -1368,7 +1360,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     button_rect := make_rect(screen_pos.x - char_x_advance, screen_pos.y, line_height, line_height);
                     icon :: "\uf14c";
                     button_id := get_ui_id_from_loc(parent_id = ui_id) + xx position.start; // I guess
-                    maybe_set_hot_or_active(button_id, button_rect, .NORMAL);
+                    maybe_set_hot_or_active(button_id, button_rect, .PRESSABLE);
                     if draw_button(font_icons_small, icon, .{a=0.0}, Colors.UI_DEFAULT, button_id, button_rect, .icon, 0, 0) {
                         if target_buffer_index >= 0 && target_buffer_index < open_buffers.count {
                             target_buffer := *open_buffers[target_buffer_index];
@@ -1388,7 +1380,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             marks_rect_top := marks_rect.y + marks_rect.h;
             assert(buffer.line_starts.count > 0);
 
-            highlight_mark_rect := shrink_x(marks_rect, marks_rect.w / 3);
+            #if HIDE_SCROLLBARS {
+                highlight_mark_rect := marks_rect;
+            }
+            else {
+                highlight_mark_rect := shrink_x(marks_rect, marks_rect.w / 3);
+            }
             highlight_mark_rect.h = floor(4 * dpi_scale);
 
             total_scrollable_lines := cast(float) get_max_real_line_num(buffer) + rect.h / line_height;
@@ -1412,9 +1409,15 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
 
             // Cursor and selection marks
-            cursor_mark_rect := marks_rect;
+            #if HIDE_SCROLLBARS {
+                cursor_mark_rect := cut_right(marks_rect, scrollbar_size / 2);
+                selection_mark_rect := marks_rect;
+            }
+            else {
+                cursor_mark_rect := marks_rect;
+                selection_mark_rect := cut_left(marks_rect, marks_rect.w / 3);
+            }
             cursor_mark_rect.h = 2 * dpi_scale;
-            selection_mark_rect := cut_left(marks_rect, marks_rect.w / 3);
 
             for cursor : cursors {
                 coords := cursor_coords[it_index];
@@ -1693,7 +1696,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Draw whitespace collapse marker
         if whitespace_collapse_width > 0 && !zen_mode {
             marker_width := char_x_advance * 4;
-            marker_height :: 2;
+            marker_height := 2 * dpi_scale;
             foreground_color := Colors.CODE_DEFAULT;
             background_color := Colors.SPLITTER;
             background := rect;
@@ -1798,7 +1801,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         top_rect, results_rect := cut_top(bar_rect, top_rect_height);
 
-        draw_rounded_rect_with_shadow(bar_rect, Colors.MOTIF);
+        draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_BRIGHT);
 
         maybe_set_hot_or_active(input_id,   bar_rect, .NORMAL);
         maybe_set_hot_or_active(results_id, bar_rect, .NORMAL);
@@ -2056,7 +2059,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
             outer_footer_rect.w = new_pen.x - pen.x + left_right_padding * 2;
             #if HIDE_SCROLLBARS
-                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - char_x_advance;
+                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - char_x_advance / 2;
             else
                 outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
             status_bar_rect = outer_footer_rect;
@@ -2131,11 +2134,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             draw_rect_raw(fadeout_rect, bottom_left = trans, top_left = trans, bottom_right = footer_color, top_right = footer_color);
         }
 
+        // We want footer to act as the title bar, and all we have to do to enable that
+        // behaviour is set cursor to .NORMAL. Therefor, all we need to do here is call
+        // maybe_set_hot_or_active.
         footer_ui_id := ifx ui_id == xx editors.right then Ui_Id.footer_right else .footer_left;
-        maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .PRESSABLE);
-
-        if mouse_pointer_is_within(outer_footer_rect) && is_hovering_over(footer_ui_id)
-            Input.window_region_override = .TITLE_BAR;
+        maybe_set_hot_or_active(footer_ui_id, outer_footer_rect, .NORMAL);
     }
 
     // Draw status bar
@@ -2148,7 +2151,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 width := text_width + left_right_padding * 2;
                 if left_icon   width += font_ui.character_height + char_x_advance;
                 if right_icon  width += font_ui.character_height + char_x_advance;
-                status_bar_rect.x -= width + char_x_advance;
+                status_bar_rect.x -= width + char_x_advance / 2;
                 status_bar_rect.w = width;
                 inner_rect := shrink_x(status_bar_rect, left_right_padding);
                 pen := make_vector2(
@@ -2183,11 +2186,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     }
                 }
 
+                // We want status bar to act as the title bar, and all we have to do to enable that
+                // behaviour is set cursor to .NORMAL. Therefor, all we need to do here is call
+                // maybe_set_hot_or_active.
                 status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
-                maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .PRESSABLE);
-
-                if mouse_pointer_is_within(status_bar_rect) && is_hovering_over(status_bar_ui_id)
-                    Input.window_region_override = .TITLE_BAR;
+                maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .NORMAL);
 
                 if #complete editors.layout == {
                     case .None;
@@ -2209,18 +2212,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Draw console buttons if appropriate
     if is_console_ui_enabled && buffer_id == console_buffer_id {
-        // anchor: top bottom center
-        // height: tall normal
-        // width: narrow normal
+        margin := 8 * dpi_scale;
         anchor_icon :: "\uf338";
         anchor_button_id := get_ui_id_from_loc(parent_id = ui_id);
         if !lock_console_anchor_button_position {
             anchor_button_rect = cut_top(rect, xx font_icons_size);
             anchor_button_rect = cut_right(anchor_button_rect, anchor_button_rect.h);
-            anchor_button_rect.x -= 4 + 2 * (4 + anchor_button_rect.w);
-            anchor_button_rect.y -= 4;
+            anchor_button_rect.x -= margin + 2 * (margin + anchor_button_rect.w);
+            anchor_button_rect.y -= margin;
         }
-        maybe_set_hot_or_active(anchor_button_id, anchor_button_rect, .NORMAL);
+        maybe_set_hot_or_active(anchor_button_id, anchor_button_rect, .PRESSABLE);
         lock_console_anchor_button_position = ui.hot == anchor_button_id;
         if draw_button(font_icons_small, anchor_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, anchor_button_id, anchor_button_rect, .icon, 0, 0) {
             if floating_area_position & .top
@@ -2237,10 +2238,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if !lock_console_size_button_position {
             size_button_rect = cut_top(rect, xx font_icons_size);
             size_button_rect = cut_right(size_button_rect, size_button_rect.h);
-            size_button_rect.x -= 4 + 1 * (4 + size_button_rect.w);
-            size_button_rect.y -= 4;
+            size_button_rect.x -= margin + 1 * (margin + size_button_rect.w);
+            size_button_rect.y -= margin;
         }
-        maybe_set_hot_or_active(size_button_id, size_button_rect, .NORMAL);
+        maybe_set_hot_or_active(size_button_id, size_button_rect, .PRESSABLE);
         lock_console_size_button_position = ui.hot == size_button_id;
         if draw_button(font_icons_small, size_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, size_button_id, size_button_rect, .icon, 0, 0) {
             if floating_area_position & .tall {
@@ -2265,10 +2266,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         if !lock_console_restore_button_position {
             restore_button_rect = cut_top(rect, xx font_icons_size);
             restore_button_rect = cut_right(restore_button_rect, restore_button_rect.h);
-            restore_button_rect.x -= 4;
-            restore_button_rect.y -= 4;
+            restore_button_rect.x -= margin;
+            restore_button_rect.y -= margin;
         }
-        maybe_set_hot_or_active(restore_button_id, restore_button_rect, .NORMAL);
+        maybe_set_hot_or_active(restore_button_id, restore_button_rect, .PRESSABLE);
         lock_console_restore_button_position = ui.hot == restore_button_id;
         if draw_button(font_icons_small, restore_icon, Colors.SHADOW_TRANSPARENT, Colors.UI_DIM, restore_button_id, restore_button_rect, .icon, 0, 0) {
             toggle_console_maximize();
@@ -3838,7 +3839,7 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     go_to_width : float32 : 200;
 
     label_width := cast(float) Simp.prepare_text(font_ui, "Go to line");
-    width  := max(go_to_width, 6 * char_x_advance + 2 * (margin + padding + 1));
+    width  := max(go_to_width * dpi_scale, 6 * char_x_advance + 2 * (margin + padding + 1));
     height := font_ui_line_height + 2 * (margin + padding + 1);
 
     bar_rect := cut_top(active_editor_rect, height);
@@ -3851,7 +3852,7 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     input_rect := shrink(bar_rect, margin);
     input_rect = cut_right(input_rect, input_rect.w - (label_width + margin));
 
-    draw_rounded_rect_with_shadow(bar_rect, Colors.MOTIF);
+    draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_BRIGHT);
 
     pen := Vector2.{
         x = bar_rect.x + margin,
@@ -4347,7 +4348,7 @@ draw_scrollbar :: (main_rect: Rect, width: float, content_height: float, scroll:
 
     if scroll_zone_size <= 0 return scroll_target;  // don't draw
 
-    maybe_set_hot_or_active(ui_id, area, .NORMAL);
+    maybe_set_hot_or_active(ui_id, area, .PRESSABLE);
 
     // Draw
     color := Colors.SCROLLBAR;

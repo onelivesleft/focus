@@ -299,7 +299,7 @@ main :: () {
                     if show_keystrokes && event.key_pressed {
                         name := key_code_name(event.key_code);
                         if starts_with(name, "(enum")  name = "";
-                        add_user_message_success(tprint("% <%>", name, cast(int)event.key_code), duration_in_seconds = 2, icon = "\uf11c");
+                        add_user_message(tprint("% <%>", name, cast(int)event.key_code), duration_in_seconds = 2, icon = "\uf11c");
                     }
 
                     // Double shift click
@@ -698,7 +698,7 @@ increase_font_size :: () {
     if (font_size + 1) <= MAX_FONT_SIZE {
         font_size += 1;
         init_fonts_and_dependent_things();
-        add_user_message_success(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
+        add_user_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
@@ -706,21 +706,21 @@ decrease_font_size :: () {
     if (font_size - 1) >= MIN_FONT_SIZE {
         font_size -= 1;
         init_fonts_and_dependent_things();
-        add_user_message_success(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
+        add_user_message(tprint("Font size: %", font_size), duration_in_seconds = 2, icon="\uf034");
     }
 }
 
 increase_console_font_size :: () {
     if (font_console_size + 1) <= MAX_FONT_SIZE {
         set_console_font_size(font_console_size + 1);
-        add_user_message_success(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
+        add_user_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
 decrease_console_font_size :: () {
     if (font_console_size - 1) >= MIN_FONT_SIZE {
         set_console_font_size(font_console_size - 1);
-        add_user_message_success(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
+        add_user_message(tprint("Console font size: %", font_console_size), duration_in_seconds = 2, icon="\uf658");
     }
 }
 
@@ -789,12 +789,12 @@ update_window_size :: (w: s64, h: s64) {
 
 toggle_show_keystrokes :: () {
     show_keystrokes = !show_keystrokes;
-    add_user_message_success(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), duration_in_seconds = 2, icon = "\uf11c");
+    add_user_message(tprint("Show Keystrokes: %", ifx show_keystrokes then "ON" else "OFF"), duration_in_seconds = 2, icon = "\uf11c");
 }
 
 toggle_show_filename :: () {
     show_filename = !show_filename;
-    add_user_message_success(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
+    add_user_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
 }
 
 update_zen_mode :: () {
@@ -836,7 +836,7 @@ refresh_zen_mode :: () {
 
 toggle_collapse_leading_whitespace :: () {
     config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;
-    add_user_message_success(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), duration_in_seconds = 2);
+    add_user_message(tprint("Collapse Leading Whitespace: %", ifx config.settings.collapse_leading_whitespace then "ON" else "OFF"), duration_in_seconds = 2);
 }
 
 toggle_profiling :: () {
