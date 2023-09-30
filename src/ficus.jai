@@ -1424,8 +1424,23 @@ intrinsics :: #code if word_name == {
     case "clear";
         clear_stack(stack);
 
-    case "globals";
+    case "globals?";
         for global_variables  push(it_index, stack);
+
+    case "exists?";
+        word := pop();
+        if !has_string_value(word)  return tprint("% expected a word but got a %", word_name, word.type);
+        needle := word.string_value;
+        if needle {
+            last_char := needle[needle.count - 1];
+            if last_char == #char "!" || last_char == #char "?"
+                needle.count -= 1;
+            if table_find_pointer(*global_variables, needle) {
+                push(true, stack);
+                return_success();
+            }
+        }
+        push(false, stack);
 
     // utils
 
@@ -1909,6 +1924,10 @@ to_bool :: (item: Stack_Item) -> bool {
         case .separator;   return false;
         case .type;        return false;
     }
+}
+
+has_string_value :: (item: Stack_Item) -> bool {
+    return item.type == .word || item.type == .text || item.type == .sequence;
 }
 
 to_string :: (item: Stack_Item) -> string {

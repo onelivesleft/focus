@@ -399,7 +399,27 @@ main :: () {
 
         draw_frame();
 
-        end_frame_cleanup();
+        pointer_end_frame();
+        maybe_save_editor_history();
+
+        if should_reload_workspace {
+            hard_reload_workspace();
+            should_reload_workspace = false;
+            redraw_requested = true;
+            platform_apply_config(*config.platform);
+        }
+
+        reset_temporary_storage();
+
+        if Input.input_application_has_focus {
+            if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
+                // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
+                sleep_milliseconds(2);
+            }
+        }
+        else {
+            sleep_milliseconds(100);
+        }
     }
 
     #if EYE_TRACKING {
@@ -410,31 +430,6 @@ main :: () {
     // report := make_leak_report();
     // log_leak_report(report);
 
-}
-
-end_frame_cleanup :: () {
-    pointer_end_frame();
-
-    // TODO:
-    // maybe_save_editor_state_into_session();
-
-    maybe_save_editor_history();
-
-    if should_reload_workspace {
-        hard_reload_workspace();
-        should_reload_workspace = false;
-        redraw_requested = true;
-        platform_apply_config(*config.platform);
-    }
-
-    reset_temporary_storage();
-
-    // #if DEBUG FrameMark();
-
-    if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
-        // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
-        sleep_milliseconds(2);
-    }
 }
 
 debug_change_color := DEBUG_CHANGE_COLOR;

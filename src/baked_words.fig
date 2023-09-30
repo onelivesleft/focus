@@ -80,6 +80,13 @@ spent?:
                      [discard true]
                      [false]]
 
+# global variables
+
+default: ([global] default_value)
+    swap
+    if [copy exists?]
+       [apply swap]
+    discard
 
 # misc
 
