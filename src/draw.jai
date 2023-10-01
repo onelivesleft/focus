@@ -1163,13 +1163,16 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 start = max(start, visible_lines_start);
                 end_is_visible := end <= visible_lines_end;
                 end   = min(end,   visible_lines_end);
+
                 if region.inclusive && start == end
                     start = end - 1;
 
-                if line_wrap_is_active(editor) && start == end && end > 0 {
-                    wrapped_end := offset_to_real_line(buffer, end - 1);
-                    wrapped_diff := wrapped_end - end;
-                    start -= wrapped_diff;
+                {
+                    i := end;
+                    while line_wrapped_from_previous_line(editor, buffer, i) {
+                        i -= 1;
+                        start -= 1;
+                    }
                 }
 
                 gutter_width := ifx end > drawn_gutter_up_to

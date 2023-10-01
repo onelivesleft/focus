@@ -1183,6 +1183,16 @@ get_line_info :: (using editor: *Editor, buffer: Buffer, line: s32) -> start: s3
     return start, end, end - start;
 }
 
+line_wraps_to_next_line :: (editor: *Editor, buffer: *Buffer, line_num: s32) -> bool {
+    end_offset := get_line_end_offset(editor, buffer, line_num);
+    return end_offset < buffer.bytes.count && buffer.bytes[end_offset] != #char "\n" && !is_last_line(editor, buffer, line_num);
+}
+
+line_wrapped_from_previous_line :: (editor: *Editor, buffer: *Buffer, line_num: s32) -> bool {
+    if line_num == 0  return false;
+    return line_wraps_to_next_line(editor, buffer, line_num - 1);
+}
+
 get_closest_line :: (using editor: *Editor, buffer: Buffer, coords: Coords) -> line: s32 {
     return_if_good :: (line: s32) #expand {
         start, end, count := get_line_info(editor, buffer, line);
@@ -4137,6 +4147,12 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_
 
 remove_active_buffer_from_history :: () {
     if editors.active < 0  return;
+
+    if editors.layout == .Double && open_editors[editors.left].buffer_id == open_editors[editors.right].buffer_id {
+        close_editor(.current);
+        return;
+    }
+
     editor := *open_editors[editors.active];
     make_buffer_active(editor.buffer_id); // guarantees buffer is on top of buffer_order;
     buffer_order.count -= 1;
