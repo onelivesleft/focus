@@ -165,6 +165,13 @@ _find_col_by_scanning_line :: (buffer: Buffer, line_num: s32, offset: s64, line_
 
 get_cursor_coords :: (editor: Editor, buffer: Buffer, using cursor: Cursor) -> Cursor_Coords {
     pos_coords := offset_to_coords(editor, buffer, pos);
+    // @TODO
+    if false && line_wrap_is_active(editor) {
+        if col_wanted >=0 && pos_coords.col == 0 && (editor.is_wrapped_line[pos_coords.line] & .on_left) {
+            pos_coords.line -= 1;
+            pos_coords.col = col_wanted;
+        }
+    }
     sel_coords := ifx pos != sel then offset_to_coords(editor, buffer, sel) else pos_coords;
     return Cursor_Coords.{ pos = pos_coords, sel = sel_coords };
 }
@@ -392,9 +399,12 @@ rescan_for_wrapped_lines :: (editor: *Editor, buffer: Buffer) {
     // Not locking here because rescanning for wrapped lines should only happen in the main thread
 
     array_reset_keeping_memory(*editor.wrapped_line_starts);
+    array_reset_keeping_memory(*editor.is_wrapped_line);
     array_reserve(*editor.wrapped_line_starts, buffer.line_starts.count);  // can't be less than that
+    array_reserve(*editor.is_wrapped_line, buffer.line_starts.count);  // can't be less than that
 
     array_add(*editor.wrapped_line_starts, 0);  // first line
+    array_add(*editor.is_wrapped_line, .not_wrapped);  // first line
 
     max_width_in_chars := ifx editor.last_width_in_chars > 0 then editor.last_width_in_chars else S32_MAX;
     current_line_width := 0;
@@ -415,15 +425,20 @@ rescan_for_wrapped_lines :: (editor: *Editor, buffer: Buffer) {
         }
 
         if current_line_width > max_width_in_chars {
+            editor.is_wrapped_line[editor.wrapped_line_starts.count - 1] |= .on_right;
             array_add(*editor.wrapped_line_starts, this_char_index);
+            array_add(*editor.is_wrapped_line, .on_left);
             current_line_width = 1;
         } else if byte == #char "\n" {
             array_add(*editor.wrapped_line_starts, i);
+            array_add(*editor.is_wrapped_line, .not_wrapped);
             current_line_width = 0;
         }
     }
 
     array_add(*editor.wrapped_line_starts, cast(s32) buffer.bytes.count);  // last line
+    array_add(*editor.is_wrapped_line, .not_wrapped);
+    assert(editor.wrapped_line_starts.count == editor.is_wrapped_line.count);
 }
 
 recalculate_colors :: (buffer: *Buffer) {
@@ -1302,9 +1317,24 @@ Cursor :: struct {
     pos: s32;
     sel: s32;
     col_wanted: s32 = -1;
+    travel_direction: Direction;
 }
 
-#assert size_of(Cursor) == (2 + 1) * size_of(s32);  // make sure no padding accidentally gets added
+Direction :: enum_flags s32 {
+    up; down; to_left; to_right;
+}
+
+set_direction_vertical :: (dir: *Direction, vertical_dir: Direction) {
+    dir &= ~(Direction.up | .down);
+    dir |= vertical_dir;
+}
+
+set_direction_horizontal:: (dir: *Direction, horizontal_dir: Direction) {
+    dir &= ~(Direction.to_left | .to_right);
+    dir |= horizontal_dir;
+}
+
+#assert size_of(Cursor) == (2 + 2) * size_of(s32);  // make sure no padding accidentally gets added
 
 Cursor_Coords :: struct {
     pos, sel: Coords;

@@ -230,12 +230,25 @@ layout(location = 0, index = 1) out vec4 colorMask;
 
 uniform sampler2D text_sampler;
 uniform vec4 text_color;
+uniform int lightsource_count;
+uniform vec2 lightsources[40];
+uniform vec4 lightsource_color;
+uniform float lightsource_intensity;
 
 void main () {
     float sample_left   = textureOffset(text_sampler, TextureCoords, ivec2(-1, 0)).r;
     float sample_center = texture(text_sampler, TextureCoords).r;
     float sample_right  = textureOffset(text_sampler, TextureCoords, ivec2( 1, 0)).r;
     color = iterated_color;
+    float max_brightness = 0;
+    for (int i = 0; i < lightsource_count; i++) {
+        float d = distance(lightsources[i], gl_FragCoord.xy);
+        float brightness = 1 - clamp(lightsource_intensity / d, 0, 1);
+        brightness = 1 - (brightness * brightness * brightness);
+        max_brightness = max(brightness, max_brightness);
+    }
+    if (max_brightness > 0)
+        color = mix(color, lightsource_color, lightsource_color.a * max_brightness);
     colorMask = vec4(sample_left * color.a, sample_center * color.a, sample_right * color.a, 1.0);
 }
 #endif // FRAGMENT_SHADER
@@ -285,26 +298,44 @@ void main() {
 #ifdef FRAGMENT_SHADER
 uniform vec2 u_resolution;
 uniform float u_time;
+uniform float jiggle;
+uniform int lightsource_count;
+uniform vec2 lightsources[40];
+uniform vec4 lightsource_color;
+uniform float lightsource_intensity;
 
 out vec4 color;
 
-float rand(vec2 co){
-    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+float random (in vec2 _st) {
+    return fract(sin(dot(_st.xy,
+                         vec2(12.9898,78.233)))*
+        43758.5453123);
 }
 
 vec4 random4(vec2 co) {
     vec4 result;
-    result.x = rand(co); co *= 2;
-    result.y = rand(co); co *= 2;
-    result.z = rand(co); co *= 2;
-    result.w = rand(co);
+    result.x = random(co); co *= 2;
+    result.y = random(co); co *= 2;
+    result.z = random(co); co *= 2;
+    result.w = random(co);
     return result;
 }
 
 void main () {
     vec2 uv = gl_FragCoord.xy / u_resolution;
-    vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-u_time), 0.0);
+    vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-jiggle), 0.0);
     vec4 mixed = mix(iterated_color, perm, 0.05);
+
+    float max_brightness = 0;
+    for (int i = 0; i < lightsource_count; i++) {
+        float d = distance(lightsources[i], gl_FragCoord.xy);
+        float brightness = 1 - clamp(lightsource_intensity / d, 0, 1);
+        brightness = 1 - (brightness * brightness * brightness);
+        max_brightness = max(brightness, max_brightness);
+    }
+    if (max_brightness > 0)
+        mixed = mix(mixed, lightsource_color, lightsource_color.a * max_brightness);
+
     // When color is between two displayable values, round it up or down randomly, proportionate to
     // which it is nearer to.
     vec4 remainder = fract(mixed * 255.0);

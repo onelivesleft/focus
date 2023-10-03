@@ -66,6 +66,8 @@ auto_close_brackets:                    false
 zen_mode_blend_percent                  90
 show_console_on_build                   true
 ficus_debug_on_error                    false
+cursor_glow_intensity                   5
+cursor_glow_percent                     33
 
 [[keymap]]
 

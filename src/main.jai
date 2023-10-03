@@ -21,6 +21,7 @@ TOAST_BUILD_RESULT :: false;
 
 show_keystrokes := false;
 show_filename := true;
+show_cursor_position_in_status_bar := false;
 zen_mode := false;
 changed_zen_mode_at: Time;
 zen_mode_transition_duration :: 0.1;
@@ -74,7 +75,6 @@ main :: () {
     if !make_directory_if_it_does_not_exist(temp_dir)     then panic_messagebox("Couldn't create folder % for temporary files. Is the directory writable?", temp_dir);
     if !projects_dir_existed then write_entire_file(tprint("%/Example Project.focus-config", projects_dir), EXAMPLE_PROJECT_FILE_DATA);
 
-
     init_ficus();
     init_file_watcher();
     load_global_config(.load, fallback_to_default_on_failure = true);
@@ -97,9 +97,6 @@ main :: () {
     else {
         window_x, window_y, window_width, window_height = platform_get_centered_window_dimensions(config.settings.open_on_the_biggest_monitor);
     }
-
-    window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
-    platform_create_window();
 
     init_session_with_no_guidance :: () #expand {
         session = maybe_load_previous_session();
@@ -133,8 +130,10 @@ main :: () {
     } else {
         init_session_with_no_guidance();
     }
-
     CODE_COLOR_MAP = refresh_code_color_map();
+
+    window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
+    platform_create_window();
 
     // This may generate window resize events if DPI/scaling settings need to be
     // applied, so make sure to only call it after the window is created.
@@ -177,9 +176,7 @@ main :: () {
             eye_tracking_init();
     }
 
-    // Calling ths twice means we can load a project in global config, then a file in project
-    // config, and we'll skip drawing the splash screen.
-    ficus_update();
+    // Execute ficus script in config (+ project if it loads one)
     ficus_update();
 
     // On Wayland and X11 the main window needs to be mapped before we can get input focus.
@@ -272,7 +269,7 @@ main :: () {
         maybe_update_workspace_buffers();
         finder_update();
 
-        for * editor : open_editors {
+        for * editor: open_editors {
             using editor;
             cursor_moved = .has_not_moved;
             if old_line_height != line_height {
@@ -396,6 +393,7 @@ main :: () {
         refresh_open_buffers();
         update_user_messages();
         update_zen_mode();
+        update_editors();
 
         draw_frame();
 
@@ -488,6 +486,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
         case .toggle_show_filename;                             toggle_show_filename();                             return true;
+        case .toggle_show_cursor_position;                      toggle_show_cursor_position();                      return true;
         case .toggle_zen_mode;                                  toggle_zen_mode();                                  return true;
         case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
@@ -790,6 +789,10 @@ toggle_show_keystrokes :: () {
 toggle_show_filename :: () {
     show_filename = !show_filename;
     add_user_message(tprint("Show Filename: %", ifx show_filename then "ON" else "OFF"), duration_in_seconds = 2);
+}
+
+toggle_show_cursor_position :: () {
+    show_cursor_position_in_status_bar = !show_cursor_position_in_status_bar;
 }
 
 update_zen_mode :: () {

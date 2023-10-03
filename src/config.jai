@@ -399,6 +399,8 @@ Settings :: struct {
     zen_mode_width_in_chars                := 80;
     show_console_on_build                  := true;
     ficus_debug_on_error                   := false;
+    cursor_glow_intensity                  := 5;
+    cursor_glow_percent                    := 33;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

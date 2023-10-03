@@ -182,15 +182,10 @@ lerp :: (a: Color, b: Color, t: float) -> Color {
 }
 
 brighten :: (a: Color, t: float) -> Color {
-    white : Color;
-    white.r = 1.0;
-    white.g = 1.0;
-    white.b = 1.0;
-    white.a = 1.0;
     return lerp(a, white, t);
 }
 
-
+white :: Color.{r = 1.0, g = 1.0, b = 1.0, a = 1.0};
 
 convert_active_buffer_to_colors :: () {
     if editors.active < 0  return;

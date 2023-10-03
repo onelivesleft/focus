@@ -1,6 +1,7 @@
 # Mine
 
-- [x] Check out markdown on release build
+- [ ] Fix move by word left in text input
+- [ ] Fix line wrap up down at start/end / home/end behavior
 
 - [.] User Messages
     - [x] neutral message
@@ -15,7 +16,7 @@
 
 - [.] Zen
     - [x] Zen theme
-    - [ ] make margins draggable
+    - [x] make margins draggable
     - [ ] mouse wheel scroll
 
 - [ ] Multicursor iterator
@@ -178,6 +179,7 @@
 
 - [ ] next/prev search result
 
+- [x] Check out markdown on release build
 - [x] Regions should color line numbers
 - [x] Fix console save as / open buffer mangling console colors
 - [x] Go to added_string source

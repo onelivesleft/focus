@@ -236,8 +236,6 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
 
     if successful {
         duration : float64 : 5;
-        #if TOAST_BUILD_RESULT
-            add_success_message(tprint("% Success!", task.title), origin=.build, dismiss_in_seconds = duration);
         #if HIDE_CONSOLE_ON_SUCCESS
             if !console_was_open  add_delayed_action(hide_console, duration);
         set_build_header(ifx build_errors then .warning else .success);

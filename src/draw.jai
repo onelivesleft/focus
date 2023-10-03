@@ -7,6 +7,11 @@ main_cursor_rect: Rect;
 right_file_rect: Rect;
 left_file_rect: Rect;
 
+cursor_lightsources_buffer: [40] Vector2;
+cursor_lightsources: [] Vector2;
+cursor_lightsource_background_intensity: float;
+cursor_lightsource_foreground_intensity: float;
+
 draw_frame :: () {
     if !simp_initialized  return;
 
@@ -31,6 +36,9 @@ draw_frame :: () {
 
     active_pane_rect, left_rect, right_rect: Rect = ---;
     Input.window_region_override = .NONE;
+
+    cursor_lightsource_background_intensity = config.settings.cursor_glow_intensity * dpi_scale;
+    cursor_lightsource_foreground_intensity = ifx config.settings.cursor_glow_intensity then dpi_scale;
 
     // Draw editors
     if #complete editors.layout == {
@@ -657,7 +665,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
     }
     else {
-        draw_cool_rect(rect, Colors.BACKGROUND, shader_value);
+        draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources);
     }
 
     // Calculate text origin in screen coordinates
@@ -1167,12 +1175,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if region.inclusive && start == end
                     start = end - 1;
 
-                {
-                    i := end;
-                    while line_wrapped_from_previous_line(editor, buffer, i) {
-                        i -= 1;
+                if line_wrap_is_active(editor) {
+                    while start >= 0 && editor.is_wrapped_line[start] & .on_right
                         start -= 1;
-                    }
                 }
 
                 gutter_width := ifx end > drawn_gutter_up_to
@@ -1186,20 +1191,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 if region.depth == 0 { // "inserting" code
                     bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
-                    draw_cool_rect(region_rect, bg, shader_value);
+                    draw_cool_rect(region_rect, bg, shader_value, *cursor_lightsources);
                     if gutter_width {
                         region_rect.w = gutter_width;
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources);
                         region_rect.x += gutter_width;
                     }
                     region_rect.w = char_x_advance;
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value);
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources);
                     region_rect.x += char_x_advance;
                     fade_char_count :: 8;
                     for 1 .. fade_char_count {
                         alpha := lerp(Colors.BACKGROUND_REGION.a, 0, it / cast(float)fade_char_count);
                         color := with_alpha(Colors.BACKGROUND_REGION, alpha);
-                        draw_cool_rect(region_rect, xx color, shader_value);
+                        draw_cool_rect(region_rect, xx color, shader_value, *cursor_lightsources);
                         region_rect.x += char_x_advance;
                     }
                 }
@@ -1213,11 +1218,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value);
-                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
                         }
                         else {
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
                         }
                         if !at_end_of_file && end_is_visible {
                             // Draw trailing rectangle to right of next scope tab
@@ -1227,7 +1232,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                             width := char_x_advance * (scope_line_count + 1);
                             region_rect.x += width;
                             region_rect.w -= width;
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
                         }
                         scope_background = Colors.BACKGROUND_REGION_PRIVATE;
                         scope_background_ends_at = end;
@@ -1243,11 +1248,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value);
-                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
                         }
                         else {
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
                         }
                         if !at_end_of_file && end_is_visible {
                             // Draw trailing rectangle to right of next scope tab
@@ -1257,7 +1262,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                             width := line_number_panel_width + char_x_advance * (scope_line_count + 1);
                             region_rect.x += width;
                             region_rect.w -= width;
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
                         }
                         scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                         scope_background_ends_at = end;
@@ -1584,7 +1589,30 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             bold_offset := cast(u8)(is_console_buffer && line_start < buffer.colors.count && buffer.colors[line_start] == xx Code_Color.CONSOLE_HEADER_TEXT) * cast(u8)64;
             code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors, bold_offset = bold_offset };
         }
-        Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
+
+        cursor_lightsources.data = cursor_lightsources_buffer.data;
+        cursor_lightsources.count = 0;
+        if cursors_active {
+            for cursor_coords {
+                xy := get_cursor_screen_pos(text_origin, it.pos);
+                if xy.y < -100 || xy.y > xx (window_height + 100)
+                    continue;
+
+                i := cursor_lightsources.count;
+                cursor_lightsources.count += 1;
+                lightsource := *cursor_lightsources[it_index];
+                lightsource.* = xy;
+                lightsource.y += line_height / 2;
+                if cursor_lightsources.count >= cursor_lightsources_buffer.count
+                    break;
+            }
+        }
+        if cursors_active && should_draw_cursors() && !search_bar_is_open(editor) {
+            Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left, *cursor_lightsources, cursor_lightsource_foreground_intensity, white);
+        }
+        else {
+            Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
+        }
 
         // Draw continuation markers for wrapped lines
         if line_wrap_is_active(editor) && !actually_show_line_numbers && !zen_mode {
@@ -1593,6 +1621,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             radius   := char_x_advance / 4;
             y_offset := (editor_font.character_height - char_x_advance / 2) / 2;
 
+            // @TODO rework to use editor.is_wrapped_line[]
             for line_num : visible_lines_start .. visible_lines_end {
                 end_offset := get_line_end_offset(editor, buffer, line_num);
                 if end_offset < buffer.bytes.count && buffer.bytes[end_offset] != #char "\n" && !is_last_line(editor, buffer, line_num) {
@@ -2146,38 +2175,49 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Draw status bar
     #if MINIMAL_FOOTER {
-        if not_zen_mode() {
-            if is_status_bar_showing(editor) {
-                using status_bar;
-                text_width := Simp.prepare_text(font_ui_bold, message_string);
-                left_right_padding := char_x_advance / 2;
-                width := text_width + left_right_padding * 2;
-                if left_icon   width += font_ui.character_height + char_x_advance;
-                if right_icon  width += font_ui.character_height + char_x_advance;
-                status_bar_rect.x -= width + char_x_advance / 2;
-                status_bar_rect.w = width;
-                inner_rect := shrink_x(status_bar_rect, left_right_padding);
-                pen := make_vector2(
-                    inner_rect.x,
-                    inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-                );
-
-                push_scissor(status_bar_rect);
-                defer pop_scissor();
-                draw_header_rect(status_bar_rect, footer_color, 1.0 - shader_value);
-
-                push_scissor(inner_rect);
-                defer pop_scissor();
-                if left_icon {
-                    draw_icon(left_icon, pen, Colors.UI_DEFAULT, .default);
-                    pen.x += font_ui.character_height + left_right_padding;
+        if not_zen_mode() && is_status_bar_showing(editor) {
+            using status_bar;
+            text_width := 0;
+            padding_between_parts := char_x_advance / 2;
+            if parts && parts[parts.count - 1].type == .divider
+                parts.count -= 1;
+            for parts {
+                if it_index  text_width += xx padding_between_parts;
+                if it.type == {
+                    case .text;  text_width += xx (Simp.prepare_text(font_ui_bold, it.text) + 1 * dpi_scale);
+                    case .icon;  text_width += xx font_ui.character_height;
+                    case .divider; text_width += xx char_x_advance;
                 }
-                Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
-                pen.x += text_width + text_offset.x - 1;
-                if right_icon {
-                    if is_ficus_running() && !is_ficus_paused() { // @TODO Generalise animated icons and remove this shim
-                        play_icon :: "\uf04b";
-                        count := cast(s32)floor(frame_time * 2) % 3;
+            }
+            left_right_padding := char_x_advance / 2;
+            width := text_width + left_right_padding * 2;
+            status_bar_rect.x -= width + char_x_advance / 2;
+            status_bar_rect.w = width;
+            inner_rect := shrink_x(status_bar_rect, left_right_padding);
+            pen := make_vector2(
+                inner_rect.x,
+                inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
+            );
+
+            push_scissor(status_bar_rect);
+            defer pop_scissor();
+            draw_header_rect(status_bar_rect, footer_color, 1.0 - shader_value);
+
+            push_scissor(inner_rect);
+            defer pop_scissor();
+            for parts {
+                if it_index  pen.x += xx padding_between_parts;
+                if it.type == {
+                    case .text;
+                    text_width := Simp.prepare_text(font_ui_bold, it.text);
+                    Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+                    pen.x += text_width + 1 * dpi_scale;
+
+                    case .icon;
+                    next_pen_x := pen.x + font_ui.character_height;
+                    play_icon :: "\uf04b";
+                    if is_ficus_running() && it.text == play_icon { // @TODO Generalise animated icons and remove this shim
+                        count := cast(s32)floor(frame_time * 2) % 2;
                         pen.x -= font_icons_size * dpi_scale * 0.125 * count;
                         for 0 .. count {
                             draw_icon(play_icon, pen, Colors.UI_DEFAULT, .default);
@@ -2185,31 +2225,35 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         }
                     }
                     else {
-                        draw_icon(right_icon, pen, Colors.UI_DEFAULT, .default);
+                        draw_icon(it.text, pen, Colors.UI_DEFAULT, .default);
                     }
+                    pen.x = next_pen_x;
+
+                    case .divider;
+                    pen.x += char_x_advance;
                 }
-
-                // We want status bar to act as the title bar, and all we have to do to enable that
-                // behaviour is set cursor to .NORMAL. Therefor, all we need to do here is call
-                // maybe_set_hot_or_active.
-                status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
-                maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .NORMAL);
-
-                if #complete editors.layout == {
-                    case .None;
-                    right_file_rect = combine(right_file_rect, status_bar_rect);
-
-                    case .Single;
-                    right_file_rect = combine(right_file_rect, status_bar_rect);
-
-                    case .Double;
-                    if editors.left == editor_id
-                        left_file_rect = combine(left_file_rect, status_bar_rect);
-                    else
-                        right_file_rect = combine(right_file_rect, status_bar_rect);
-                }
-
             }
+
+            // We want status bar to act as the title bar, and all we have to do to enable that
+            // behaviour is set cursor to .NORMAL. Therefor, all we need to do here is call
+            // maybe_set_hot_or_active.
+            status_bar_ui_id := ifx ui_id == xx editors.right then Ui_Id.status_bar_right else .status_bar_left;
+            maybe_set_hot_or_active(status_bar_ui_id, status_bar_rect, .NORMAL);
+
+            if #complete editors.layout == {
+                case .None;
+                right_file_rect = combine(right_file_rect, status_bar_rect);
+
+                case .Single;
+                right_file_rect = combine(right_file_rect, status_bar_rect);
+
+                case .Double;
+                if editors.left == editor_id
+                    left_file_rect = combine(left_file_rect, status_bar_rect);
+                else
+                    right_file_rect = combine(right_file_rect, status_bar_rect);
+            }
+
         }
     }
 
@@ -4256,8 +4300,10 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
     draw_cool_rounded_rect(rect, color, value=xx frame_time * 0.1);
 }
 
-draw_cool_rect :: (rect: Rect, color: Color, value: float) {
-    Simp.set_shader_for_cool(value);
+draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector2 = null) {
+    lightsource_color := Colors.CURSOR;
+    lightsource_color.a = 0.01 * config.settings.cursor_glow_percent;
+    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color);
     draw_rect_raw(rect, color);
 }
 

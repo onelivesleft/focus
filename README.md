@@ -1,6 +1,6 @@
 # This is a fork of Focus
 
-This is not [the official version of Focus](https://github.com/focus-editor/focus/), this is a highly personalised fork of it; it may be to your taste, or it may not.  Have a look at the above for the people who did all the actual work.
+This is not [the official version of Focus](https://github.com/focus-editor/focus/), this is a highly personalised fork of it; it may be to your taste, or it may not.  Maybe you would prefer a more standardized editor: if you don't like this version then check out the official one (if you haven't already).
 
 ## How this fork is different:
 

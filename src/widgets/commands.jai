@@ -193,6 +193,7 @@ commands := #run Command.[
     .{ .add_cursors_to_line_starts,                         "Add Cursors To Line Starts",         0, .Single },
     .{ .align_cursors,                                      "Align Cursors",                      0, .Single },
     .{ .show_cursor_position,                               "Show Cursor Position",               0, .Single },
+    .{ .toggle_show_cursor_position,                        "Toggle Show Cursor Position",        0, .None },
     .{ .show_file_info,                                     "Show File Info",                     0, .Single },
 
     .{ .move_to_previous_editor_history,                    "Move To Previous Cursor Position",   0, .None },

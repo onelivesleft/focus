@@ -91,17 +91,20 @@ ficus_update :: () {
         play_icon :: "\uf04b";
         pause_icon :: "\uf04c";
         if !is_ficus_debugging && frame_count > ficus_started_running_frame_count {
+            add_status_part(editor, .icon, ficus_icon);
+            add_status_part(editor, .text, "Ficus");
             if #complete ficus_machine_state == {
                 case .running; #through;
                 case .continue_running; #through;
                 case .step;
-                    add_status_part(editor, ficus_icon, "Ficus", play_icon);
+                    add_status_part(editor, .icon, play_icon);
 
                 case .paused; #through;
                 case .pause_request; #through;
                 case .pause_just_happened;
-                    add_status_part(editor, ficus_icon, "Ficus", pause_icon);
+                    add_status_part(editor, .icon, pause_icon);
             }
+            add_status_part(editor, .divider, "");
         }
     }
 

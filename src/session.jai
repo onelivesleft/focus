@@ -17,7 +17,7 @@ start_fresh_session :: () -> Session {
 
 maybe_load_previous_session :: () -> Session {
     assert(!session.name, "If we need to recreate a session then the old one needs to be cleared");
-
+#if 0 {
     session_dirs := get_sorted_session_dirs_tmp();
 
     // Delete old sessions if we have too many
@@ -31,15 +31,15 @@ maybe_load_previous_session :: () -> Session {
             }
         }
     }
-
+}
     // Create a new session dir after looking for the last one
     new_session := start_fresh_session();
-
+#if 0 {
     if session_dirs {
         last_session_name := session_dirs[0].name;
         copy_session_data(last_session_name, new_session.name);
     }
-
+}
     return new_session;
 
     // // Set active project if it exists

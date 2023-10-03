@@ -379,17 +379,6 @@ jai_jump_to_definition :: (editor: *Editor, buffer: Buffer) {
     select_word(buffer, cursor);
     selected_text := get_selected_string(cursor, buffer);
 
-    /*
-    pos, found := declaration_pos_for_word(buffer.file.full_path, cursor.pos, selected_text);
-    print("% % %\n", line_col(cursor.pos), line_col(pos), found);
-    if found {
-        cursor.pos = pos;
-        cursor.sel = pos + cast(s32)word.count;
-        cursor.col_wanted = -1;
-        editor.cursor_moved = .jumped;
-    }
-    */
-
     if selected_text && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
         definition := tprint("%:", selected_text);
         finder_open(definition);

@@ -145,11 +145,14 @@ convert_to_temporary_glyphs :: (font: *Dynamic_Font, s: string) -> width_in_pixe
     return width_in_pixels;
 }
 
-draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_height: float, visible_lines: [] Code_Line, color_map: [] Vector4, tab_size: s64 = 4, start_col := 0) {
+draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_height: float, visible_lines: [] Code_Line, color_map: [] Vector4, tab_size: s64 = 4, start_col := 0, lightsources : *[] Vector2 = null, lightsource_intensity := 0.0, lightsource_color := Vector4.{1.0, 1.0, 1.0, 1.0}) {
     // Setup OpenGL stuff. We do it all in one place because it's easier and there will be only one backend - GL.
     // Otherwise we would have to create temporary glyphs and pass them on to the backend draw function.
     CheckInit();
-    set_shader_for_text();
+    if lightsources && lightsources.count > 0
+        set_shader_for_text(lightsources, lightsource_intensity, lightsource_color);
+    else
+        set_shader_for_text();
     glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
     glEnable(GL_BLEND);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);

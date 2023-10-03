@@ -222,6 +222,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_down_one_section;            move_cursors_by_section             (editor, buffer, .down, false);
         case .jump_to_line_start;               move_cursors_home                   (editor, buffer);
         case .jump_to_line_end;                 move_cursors_end                    (editor, buffer);
+        case .jump_to_screen_line_start;        move_cursors_home                   (editor, buffer, .screen);
+        case .jump_to_screen_line_end;          move_cursors_end                    (editor, buffer, .screen);
         case .jump_to_file_start;               move_to_file_start                  (editor, buffer);
         case .jump_to_file_end;                 move_to_file_end                    (editor, buffer);
         case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
@@ -691,6 +693,24 @@ show_cursor_position :: (using editor: *Editor, buffer: Buffer) {
     coords := offset_to_coords(editor, buffer, cursor.pos);
     message := tprint("Row: %  Col: %  Pos: %", coords.line + 1, coords.col + 1, cursor.pos);
     add_user_message(message, duration_in_seconds = 2, icon="\U0000f3c5");
+}
+
+update_editors :: () {
+    for * editor: open_editors {
+        update_status_bar(editor);
+    }
+}
+
+update_status_bar :: (using editor: *Editor) {
+    buffer := *open_buffers[buffer_id];
+    if show_cursor_position_in_status_bar && main_cursor >= 0 {
+        cursor := cursors[main_cursor];
+        coords := offset_to_coords(editor, buffer, cursor.pos);
+        message := tprint("Row: %  Col: %  Pos: %", coords.line + 1, coords.col + 1, cursor.pos);
+        add_status_part(editor, .icon, "\U0000f3c5");
+        add_status_part(editor, .text, message);
+        add_status_part(editor, .divider);
+    }
 }
 
 show_file_info :: (using editor: *Editor, buffer: Buffer) {
@@ -2065,6 +2085,8 @@ is_a_move_action :: (action: Action_Editors) -> bool {
         case .move_down_one_important_section;  return true;
         case .jump_to_line_start;               return true;
         case .jump_to_line_end;                 return true;
+        case .jump_to_screen_line_start;        return true;
+        case .jump_to_screen_line_end;          return true;
         case .jump_to_file_start;               return true;
         case .jump_to_file_end;                 return true;
         case .jump_to_matching_bracket;         return true;
@@ -2076,6 +2098,7 @@ move_cursors_left :: (editor: *Editor, using buffer: *Buffer, by: enum { char; w
     skip_one_space := editor.cursors.count == 1;
 
     for * cursor : editor.cursors {
+        set_direction_horizontal(*cursor.travel_direction, .to_left);
         if has_selection(cursor) && !extend_selection {
             cursor.pos = get_selection(cursor).start;
         } else if by == .char {
@@ -2092,7 +2115,8 @@ move_cursors_left :: (editor: *Editor, using buffer: *Buffer, by: enum { char; w
                     cursor.pos = scan_through_similar_chars_on_the_left(buffer, cursor.pos, skip_one_space = skip_one_space);
             }
         }
-        cursor.col_wanted = -1;
+        coords := offset_to_coords(editor, buffer, cursor.pos);
+        cursor.col_wanted = coords.col;
     }
     editor.cursor_moved = .unimportant;
 }
@@ -2101,6 +2125,7 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
     skip_one_space := editor.cursors.count == 1;
 
     for * cursor : editor.cursors {
+        set_direction_horizontal(*cursor.travel_direction, .to_right);
         if cursor.pos >= bytes.count continue;  // nowhere to go
 
         if has_selection(cursor) && !extend_selection {
@@ -2121,7 +2146,13 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
                     if char_type != .other && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, skip_one_space = skip_one_space);
             }
         }
-        cursor.col_wanted = -1;
+        coords := offset_to_coords(editor, buffer, cursor.pos);
+        if line_wrap_is_active(editor) {
+            if coords.col == 0 && editor.is_wrapped_line[coords.line] & .on_left {
+                coords.col = editor.wrapped_line_starts[coords.line] - editor.wrapped_line_starts[coords.line - 1];
+            }
+        }
+        cursor.col_wanted = coords.col;
     }
 
     editor.cursor_moved = .unimportant;
@@ -2129,6 +2160,7 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
 
 move_cursors_vertically :: (editor: *Editor, using buffer: Buffer, delta: s32, extend_selection: bool) {
     for * cursor : editor.cursors {
+        cursor.travel_direction = ifx delta < 0 then .up else .down;
         if has_selection(cursor) && !extend_selection {
             selection := get_selection(cursor);
             new_pos := ifx delta < 0 then selection.start else selection.end;
@@ -2150,10 +2182,11 @@ move_cursors_vertically :: (editor: *Editor, using buffer: Buffer, delta: s32, e
     else          editor.cursor_moved = .moved_down;
 }
 
-move_cursors_to_empty_line :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; }) {
+move_cursors_to_empty_line :: (editor: *Editor, buffer: Buffer, dir: Direction) {
     for * cursor : editor.cursors {
+        set_direction_vertical(*cursor.travel_direction, dir);
         line := offset_to_real_line(buffer, cursor.pos);
-        if dir == .up {
+        if dir & .up {
             while line > 0 {
                 line -= 1;
                 if is_empty(buffer, line) break;
@@ -2172,14 +2205,15 @@ move_cursors_to_empty_line :: (editor: *Editor, buffer: Buffer, dir: enum { up; 
     else           editor.cursor_moved = .moved_down;
 }
 
-move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; }) {
+move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: Direction) {
     using font_data;
 
     page_size := cast(s32) (window_height / line_height);
 
     for * cursor : editor.cursors {
+        set_direction_vertical(*cursor.travel_direction, dir);
         line := offset_to_line(editor, buffer, cursor.pos);
-        if dir == .up {
+        if dir & .up {
             line -= page_size;
         } else {
             line += page_size;
@@ -2191,10 +2225,11 @@ move_cursors_by_page :: (editor: *Editor, buffer: Buffer, dir: enum { up; down; 
     else           editor.cursor_moved = .moved_down;
 }
 
-move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; down; }, only_important: bool) {
+move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: Direction, only_important: bool) {
     cursor := leave_only_original_cursor(editor);
+    set_direction_vertical(*cursor.travel_direction, dir);
     section_pos : s32 = ---;
-    if dir == .up {
+    if dir & .up {
         section_pos = 0;
         for buffer.sections {
             if it.pos < cursor.pos {
@@ -2224,11 +2259,17 @@ move_cursors_by_section :: (editor: *Editor, buffer: *Buffer, dir: enum { up; do
     cursor.col_wanted = -1;
 }
 
-move_cursors_home :: (editor: *Editor, buffer: Buffer) {
+move_cursors_home :: (editor: *Editor, buffer: Buffer, $line_ends : enum { screen; real; } = .real) {
     for * cursor : editor.cursors {
-        line := offset_to_real_line(buffer, cursor.pos);
-        start, end := get_real_line_start_offset(buffer, line), get_real_line_end_offset(buffer, line);
-
+        set_direction_horizontal(*cursor.travel_direction, .to_left);
+        #if line_ends == .screen {
+            line := offset_to_line(editor, buffer, cursor.pos);
+            start, end := get_line_start_offset(editor, buffer, line), get_line_end_offset(editor, buffer, line);
+        }
+        else {
+            line := offset_to_real_line(buffer, cursor.pos);
+            start, end := get_real_line_start_offset(buffer, line), get_real_line_end_offset(buffer, line);
+        }
         text_start_col: s32 = 0;
         i := start;
         while i < end {
@@ -2238,17 +2279,24 @@ move_cursors_home :: (editor: *Editor, buffer: Buffer) {
             i += 1 + trailingBytesForUTF8[byte];
         }
         if cursor.pos > i || cursor.pos == start then cursor.pos = i; else cursor.pos = start;
-        cursor.col_wanted = -1;
+        cursor.col_wanted = 0;
     }
 
     editor.cursor_moved = .unimportant;
 }
 
-move_cursors_end :: (editor: *Editor, buffer: Buffer) {
+move_cursors_end :: (editor: *Editor, buffer: Buffer, $line_ends : enum { screen; real; } = .real) {
     for * cursor : editor.cursors {
-        line := offset_to_real_line(buffer, cursor.pos);
-        cursor.pos = get_real_line_end_offset(buffer, line);
-        cursor.col_wanted = -1;
+        set_direction_horizontal(*cursor.travel_direction, .to_right);
+        #if line_ends == .screen {
+            line := offset_to_line(editor, buffer, cursor.pos);
+            cursor.pos = get_line_end_offset(editor, buffer, line);
+        }
+        else {
+            line := offset_to_real_line(buffer, cursor.pos);
+            cursor.pos = get_real_line_end_offset(buffer, line);
+        }
+        cursor.col_wanted = 99999;
     }
 
     editor.cursor_moved = .unimportant;
@@ -2258,13 +2306,15 @@ move_to_file_start :: (editor: *Editor, buffer: Buffer) {
     cursor := leave_only_original_cursor(editor);
     cursor.pos = 0;
     cursor.col_wanted = 0;
+    cursor.travel_direction = .up | .to_left;
     editor.cursor_moved = .jumped;
 }
 
 move_to_file_end :: (editor: *Editor, buffer: Buffer) {
     cursor := leave_only_original_cursor(editor);
     cursor.pos = cast(s32) buffer.bytes.count;
-    cursor.col_wanted = -1;
+    cursor.col_wanted = 99999;
+    cursor.travel_direction = .down | .to_right;
     editor.cursor_moved = .jumped;
 }
 
@@ -2335,7 +2385,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
         }
         cursor.pos = selection.start + xx insert_str.count;
         cursor.col_wanted = -1;
-
+        cursor.travel_direction = .down | .to_right;
     }
 
     editor.cursor_moved = .unimportant;
@@ -2458,6 +2508,7 @@ delete_selection :: (editor: *Editor, buffer: *Buffer) {
 
         cursor.pos = range.start;
         cursor.col_wanted = -1;
+        set_direction_horizontal(*cursor.travel_direction, .to_left);
 
         offset_delta += (range.end - range.start);
     }
@@ -2508,6 +2559,7 @@ delete_left_char :: (editor: *Editor, buffer: *Buffer) {
 
         cursor.pos = range.start;
         cursor.col_wanted = -1;
+        set_direction_horizontal(*cursor.travel_direction, .to_left);
 
         offset_delta += (range.end - range.start);
     }
@@ -2524,6 +2576,7 @@ delete_right_char :: (editor: *Editor, buffer: *Buffer) {
     for * cursor : editor.cursors {
         cursor.pos -= xx offset_delta;
         cursor.sel -= xx offset_delta;
+        set_direction_horizontal(*cursor.travel_direction, .to_right);
 
         range: Offset_Range;
 
@@ -2592,6 +2645,7 @@ insert_tab_at_each_cursor :: (editor: *Editor, buffer: *Buffer) {
         }
         cursor.sel = cursor.pos;
         cursor.col_wanted = -1;
+        set_direction_horizontal(*cursor.travel_direction, .to_right);
     }
 
     editor.cursor_moved = .unimportant;
@@ -2635,6 +2689,7 @@ indent_lines :: (editor: *Editor, buffer: *Buffer) {
             if line_start > pos && line_start > sel break;
         }
         cursor.col_wanted += tab_size;
+        set_direction_horizontal(*cursor.travel_direction, .to_right);
     }
 
     // Build a replacement string
@@ -2699,7 +2754,7 @@ unindent_lines :: (editor: *Editor, buffer: *Buffer, only_unindent_closing_brack
     range := Offset_Range.{ start = xx line_starts[0], end = xx last_line_end_offset };
     replace_range(buffer, range, new_str);
 
-    for * cursor : editor.cursors { cursor.col_wanted = -1; }
+    for * cursor : editor.cursors { cursor.col_wanted = -1; cursor.travel_direction = .to_left; }
 
     editor.cursor_moved = .unimportant;
 }
@@ -2886,7 +2941,7 @@ add_cursors_to_line_starts :: (editor: *Editor, buffer: Buffer) {
         while true {
             pos := buffer.line_starts[line_num];
             if pos >= line_range.end break;
-            array_add(*editor.cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1 });
+            array_add(*editor.cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1, travel_direction = .to_left });
             line_num += 1;
         }
     }
@@ -3711,6 +3766,7 @@ free_editor :: (using editor: *Editor) {
     array_reset(*highlights);
     array_reset(*search_bar.results);
     array_reset(*wrapped_line_starts);
+    array_reset(*is_wrapped_line);
 }
 
 #scope_export
@@ -3744,6 +3800,9 @@ Editor :: struct {
     line_wrap: enum u8 { off; to_enable; to_disable; on; };
     last_width_in_chars: s32 = S32_MAX;
     wrapped_line_starts: [..] s32;  // empty when line wrap is off
+    is_wrapped_line: [..] enum_flags u8 {
+        not_wrapped :: 0; on_left :: 1; on_right :: 2; on_both :: 3;
+    };
 
     paste_animations: [..] Paste_Animation;
 
@@ -3751,14 +3810,16 @@ Editor :: struct {
         display_duration : Time : 5.0;
         fade_duration : Time : 1.0;
         last_set_at: Time;
-        message_buffer: [80] u8;
-        message_string: string;
-        left_icon: string;
-        right_icon: string;
+        parts: [..] Status_Bar_Part;
     }
 
     whitespace_collapse_width := 0.0;
     shader_value := 0.0;
+}
+
+Status_Bar_Part :: struct {
+    text: string;
+    type: enum { text; icon; divider; }
 }
 
 Cursor_Movement :: enum u8 {
@@ -4213,10 +4274,7 @@ open_floating :: (editor: *Editor, buffer: *Buffer) {
 
 clear_status_bar :: (editor: *Editor) {
     using editor.status_bar;
-    message_string.data = message_buffer.data;
-    message_string.count = 0;
-    left_icon = "";
-    right_icon = "";
+    array_reset_keeping_memory(*parts);
 }
 
 clear_status_bars :: () {
@@ -4224,24 +4282,16 @@ clear_status_bars :: () {
         clear_status_bar(editor);
 }
 
-add_status_part :: (editor: *Editor, new_left_icon := "", text := "", new_right_icon := "") {
+add_status_part :: (editor: *Editor, type: type_of(Status_Bar_Part.type), text := "") {
     using editor.status_bar;
-    if text {
-        if message_string  {
-            message_buffer[message_string.count] = #char " ";
-            message_string.count += 1;
-        }
-        assert(text.count + message_string.count < message_buffer.count, "Tried to add status text but it's too long: max length of status text is %", message_buffer.count);
-        memcpy(message_buffer.data + message_string.count, text.data, text.count);
-        message_string.count += text.count;
-    }
-    if new_left_icon  left_icon = new_left_icon;
-    if new_right_icon  right_icon = new_right_icon;
+    part := array_add(*parts);
+    part.type = type;
+    part.text = copy_string(split_into_two(text, #char "\n"), temp);
 }
 
 is_status_bar_showing :: (editor: *Editor) -> bool {
     using editor.status_bar;
-    return message_string || left_icon || right_icon;
+    return parts.count > 0;
 }
 
 #scope_file

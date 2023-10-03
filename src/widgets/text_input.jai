@@ -201,12 +201,11 @@ move_cursor_left :: (using input: *Text_Input, by: enum { char; word; word_ends;
         cursor.sel = cursor.pos;
     } else {
         // Move normally
+        if cursor.pos <= 0  return;
         if by == {
             case .char;
-                if cursor.pos > 0 {
-                    cursor.pos = prev_char_offset(text, cursor.pos);
-                    cursor.pos = clamp(cursor.pos, 0, xx text.count);
-                }
+                cursor.pos = prev_char_offset(text, cursor.pos);
+                cursor.pos = clamp(cursor.pos, 0, xx text.count);
             case .word;
                 context.underscore_is_part_of_word = false;
                 cursor.pos = scan_through_similar_chars_on_the_left(input, cursor.pos);
@@ -216,7 +215,7 @@ move_cursor_left :: (using input: *Text_Input, by: enum { char; word; word_ends;
                 char_type := get_char_type(char);
                 if !(char_type & .word) then cursor.pos = scan_through_similar_chars_on_the_left(input, cursor.pos, char_type, skip_one_space = false);
                 char_type = get_char_type(get_char_at_offset(input, cursor.pos));
-                if !(char_type * .other) && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_left(input, cursor.pos);
+                if !(char_type & .other) && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_left(input, cursor.pos);
         }
         if !extend_selection then cursor.sel = cursor.pos;
     }
@@ -243,7 +242,7 @@ move_cursor_right :: (using input: *Text_Input, by: enum { char; word; word_ends
                     char_type := get_char_type(char);
                     if !(char_type & .word) then cursor.pos = scan_through_similar_chars_on_the_right(input, cursor.pos, char_type, skip_one_space = false);
                     char_type = get_char_type(get_char_at_offset(input, cursor.pos));
-                    if char_type != .other && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_right(input, cursor.pos);
+                    if !(char_type & .other) && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_right(input, cursor.pos);
             }
             if !extend_selection then cursor.sel = cursor.pos;
         }
