@@ -1,7 +1,17 @@
 # Mine
 
-- [ ] Fix move by word left in text input
+- [ ] Add colors to ficus
+
+- [x] Hitting down on bottom line of buffer should become `end`
+- [x] Fix move by word left in text input
+- [x] Fix unsymmetrical footer rects
+
 - [ ] Fix line wrap up down at start/end / home/end behavior
+
+- [.] Status bar
+    - [x] icons, text, divider
+    - [x] ficus
+    - [ ] color
 
 - [.] User Messages
     - [x] neutral message
@@ -50,7 +60,8 @@
     - [ ] error message for pop(.type)
     - [.] events:
         - [x] on_load - when config file is loaded (global/project)
-        - [ ] on_editor [needs editor_path?, editor_language?] - when editor is switched-to
+        - [x] on_editor [needs editor_path?, editor_language?] - when editor is switched-to
+        - [x] on_frame
     - [ ] zen_mode? zen_mode!
     - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
     - [ ] open_file take project relative path
@@ -128,7 +139,6 @@
 - [ ] Redo jumps cursor too far forward
 - [ ] History jumps are too large
 - [ ] Open project folder in explorer
-- [ ] Show file status: status bar things, but on request at cursor.
 - [ ] Sync settings
 - [ ] MOAR CURSORS
     - [ ] Search all -> cursors

@@ -31,8 +31,10 @@ draw_frame :: () {
     if (!mouse.left.is_down || mouse.left.just_released) && (!mouse.middle.is_down || mouse.middle.just_released) then ui.active = .none;
 
     footer_height = font_data.font_ui_line_height + floor(4 * dpi_scale);
-    #if FOOTER_AT_TOP
+    #if FOOTER_AT_TOP {
         editor_top_margin = footer_height * 1.5;
+        footer_height += 1;
+    }
 
     active_pane_rect, left_rect, right_rect: Rect = ---;
     Input.window_region_override = .NONE;
@@ -582,6 +584,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     #if MINIMAL_FOOTER && FOOTER_AT_TOP {
         footer_rect, _ := cut_top(main_area, footer_height);
+        footer_rect = align_to_grid(footer_rect);
         rect := main_area;
     }
     else #if FOOTER_AT_TOP {
@@ -2089,13 +2092,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         );
 
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
-            outer_footer_rect.y -= char_x_advance / 2;
+            outer_footer_rect.y -= floor(char_x_advance / 2);
             _, new_pen := draw_file_info(buffer, width, padding, pen, draw_crlf_warning = true, draw_config_warning = true, calculate_only = true);
-            outer_footer_rect.w = new_pen.x - pen.x + left_right_padding * 2;
+            outer_footer_rect.w = floor(new_pen.x - pen.x + left_right_padding * 2);
             #if HIDE_SCROLLBARS
-                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - char_x_advance / 2;
+                outer_footer_rect.x = floor(main_area.x + main_area.w - outer_footer_rect.w - char_x_advance / 2);
             else
-                outer_footer_rect.x = main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2;
+                outer_footer_rect.x = floor(main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2);
             status_bar_rect = outer_footer_rect;
             footer_rect = shrink_x(outer_footer_rect, left_right_padding);
             pen = make_vector2(
@@ -2177,18 +2180,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Draw status bar
     #if MINIMAL_FOOTER {
-        if not_zen_mode() && is_status_bar_showing(editor) {
+        if editor_is_active && not_zen_mode() && is_status_bar_showing(editor) {
             using status_bar;
-            text_width := 0;
+            text_width := 0.0;
             padding_between_parts := char_x_advance / 2;
             if parts && parts[parts.count - 1].type == .divider
                 parts.count -= 1;
             for parts {
                 if it_index  text_width += xx padding_between_parts;
                 if it.type == {
-                    case .text;  text_width += xx (Simp.prepare_text(font_ui_bold, it.text) + 1 * dpi_scale);
-                    case .icon;  text_width += xx font_ui.character_height;
-                    case .divider; text_width += xx char_x_advance;
+                    case .text;  text_width += Simp.prepare_text(font_ui_bold, it.text);
+                    case .icon;  text_width += font_ui.character_height;
+                    case .divider; text_width += char_x_advance / 2;
                 }
             }
             left_right_padding := char_x_advance / 2;
@@ -2212,8 +2215,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if it.type == {
                     case .text;
                     text_width := Simp.prepare_text(font_ui_bold, it.text);
-                    Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
-                    pen.x += text_width + 1 * dpi_scale;
+                    Simp.draw_prepared_text(font_ui_bold, xx pen.x, xx pen.y, color = it.color);
+                    pen.x += text_width;
 
                     case .icon;
                     next_pen_x := pen.x + font_ui.character_height;
@@ -2221,18 +2224,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     if is_ficus_running() && it.text == play_icon { // @TODO Generalise animated icons and remove this shim
                         count := cast(s32)floor(frame_time * 2) % 2;
                         pen.x -= font_icons_size * dpi_scale * 0.125 * count;
-                        for 0 .. count {
-                            draw_icon(play_icon, pen, Colors.UI_DEFAULT, .default);
+                        for plays: 0 .. count {
+                            draw_icon(play_icon, pen, it.color, .default);
                             pen.x += font_icons_size * dpi_scale * 0.25;
                         }
                     }
                     else {
-                        draw_icon(it.text, pen, Colors.UI_DEFAULT, .default);
+                        draw_icon(it.text, pen, it.color, .default);
                     }
                     pen.x = next_pen_x;
 
                     case .divider;
-                    pen.x += char_x_advance;
+                    pen.x += char_x_advance / 2;
                 }
             }
 

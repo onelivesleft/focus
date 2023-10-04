@@ -1,8 +1,5 @@
 #1 while [true] [1 +]
 #1 2 3 4 5 reverse
+#"" 100 to_string 1 toast
 #print
 
-[frame_count?] 0 default
-1 + copy frame_count!
-copy
-if [debug_break 200 % 0 =] [ to_string 1 swap toast]

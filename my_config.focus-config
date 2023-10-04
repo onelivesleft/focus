@@ -50,12 +50,12 @@ on_editor:
     editor_language? "Markdown" =
     and (=>) zen_mode!
 
-on_framex:
-    [frame_count?] 0 default
-    1 + copy frame_count!
-    copy
-    debug_break
-    if_else [200 % 0 =] [to_string 1 swap toast] [discard]
+on_frame:
+    "" status_bar_icon
+    "[" status_bar_text
+    fps? to_string 0 5 slice status_bar_text
+    "]" status_bar_text
+    status_bar_divider
 
 greet:
     "Hello!" print
@@ -64,7 +64,7 @@ greet:
 # NOTE: please copy the whole block when overriding settings, otherwise defaults will be used
 #       for any settings you haven't listed here explicitly
 maximize_on_start:                      false
-open_on_monitor_one:                    false
+open_on_monitor_one:                    true
 open_on_the_biggest_monitor:            false
 colored_titlebar:                       false   # Windows 11+ only
 prefer_system_file_dialogs              false
@@ -84,6 +84,8 @@ show_console_on_build                   false
 collapse_leading_whitespace             false
 hide_mouse_when_typing:                 true
 highlight_selection_occurrences:        true
+show_fps                                false
+show_cursor_position                    false
 
 # none of these animation effects do anything in this fork unless it's compiled without SKIP_CUTSCENES
 disable_that_annoying_paste_effect:     false
@@ -168,6 +170,7 @@ Ctrl-U                      change_case_cycle
 
 Ctrl-39                     toggle_show_cursor_position
 Ctrl-Shift-39               toggle_line_numbers
+Ctrl-F12                    toggle_show_fps
 
 Tab                         indent_or_go_to_next_tabstop
 Shift-Tab                   unindent
@@ -378,7 +381,7 @@ background_region_private:      1A1618FF
 background_region_public:       0B0B18FF
 background_cursor_row:          FFFFFF0F
 
-selection_active:               994411FF     #1C4449FF
+selection_active:               994411AF     #1C4449FF
 selection_inactive:             1C44497F
 selection_highlight:            FCEDFC26
 search_result_active:           8E772EFF

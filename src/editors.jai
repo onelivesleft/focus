@@ -209,9 +209,9 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .move_right_by_word;               move_cursors_right                  (editor, buffer, by = .word,      shift_pressed);
         case .move_right_by_word_ends;          move_cursors_right                  (editor, buffer, by = .word_ends, shift_pressed);
         case .move_up;                          move_cursors_vertically             (editor, buffer, -1, shift_pressed);
-        case .move_down;                        move_cursors_vertically             (editor, buffer,  1, shift_pressed);
+        case .move_down;                        move_cursors_vertically             (editor, buffer, +1, shift_pressed);
         case .move_up_fast;                     move_cursors_vertically             (editor, buffer, -5, shift_pressed);
-        case .move_down_fast;                   move_cursors_vertically             (editor, buffer,  5, shift_pressed);
+        case .move_down_fast;                   move_cursors_vertically             (editor, buffer, +5, shift_pressed);
         case .move_up_to_empty_line;            move_cursors_to_empty_line          (editor, buffer, .up);
         case .move_down_to_empty_line;          move_cursors_to_empty_line          (editor, buffer, .down);
         case .move_up_one_page;                 move_cursors_by_page                (editor, buffer, .up);
@@ -703,12 +703,17 @@ update_editors :: () {
 
 update_status_bar :: (using editor: *Editor) {
     buffer := *open_buffers[buffer_id];
-    if show_cursor_position_in_status_bar && main_cursor >= 0 {
+    if config.settings.show_cursor_position && main_cursor >= 0 {
         cursor := cursors[main_cursor];
         coords := offset_to_coords(editor, buffer, cursor.pos);
         message := tprint("Row: %  Col: %  Pos: %", coords.line + 1, coords.col + 1, cursor.pos);
         add_status_part(editor, .icon, "\U0000f3c5");
         add_status_part(editor, .text, message);
+        add_status_part(editor, .divider);
+    }
+    if config.settings.show_fps {
+        add_status_part(editor, .icon, "\U0001f39e");
+        add_status_part(editor, .text, tprint("%", formatFloat(get_fps(), trailing_width = 2, zero_removal = .NO)));
         add_status_part(editor, .divider);
     }
 }
@@ -2173,9 +2178,18 @@ move_cursors_vertically :: (editor: *Editor, using buffer: Buffer, delta: s32, e
         }
         coords := offset_to_coords(editor, buffer, cursor.pos);
         coords.line += delta;
-        if cursor.col_wanted < 0 then cursor.col_wanted = coords.col;
-        coords.col = cursor.col_wanted;
-        cursor.pos = coords_to_offset(editor, buffer, coords);
+        count := get_line_starts(editor, buffer).count;
+        if coords.line < 0 {
+            cursor.pos = 0;
+        }
+        else if coords.line >= get_line_starts(editor, buffer).count - 1 {
+            cursor.pos = xx buffer.bytes.count;
+        }
+        else {
+            if cursor.col_wanted < 0 then cursor.col_wanted = coords.col;
+            coords.col = cursor.col_wanted;
+            cursor.pos = coords_to_offset(editor, buffer, coords);
+        }
     }
 
     if delta < 0  editor.cursor_moved = .moved_up;
@@ -3819,6 +3833,7 @@ Editor :: struct {
 
 Status_Bar_Part :: struct {
     text: string;
+    color: Color;
     type: enum { text; icon; divider; }
 }
 
@@ -4287,6 +4302,15 @@ add_status_part :: (editor: *Editor, type: type_of(Status_Bar_Part.type), text :
     part := array_add(*parts);
     part.type = type;
     part.text = copy_string(split_into_two(text, #char "\n"), temp);
+    part.color = Colors.UI_DEFAULT;
+}
+
+add_status_part :: (editor: *Editor, type: type_of(Status_Bar_Part.type), text := "", color: Color) {
+    using editor.status_bar;
+    part := array_add(*parts);
+    part.type = type;
+    part.text = copy_string(split_into_two(text, #char "\n"), temp);
+    part.color = color;
 }
 
 is_status_bar_showing :: (editor: *Editor) -> bool {

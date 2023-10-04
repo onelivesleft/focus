@@ -425,6 +425,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "jump_to_definition",
     "show_cursor_position",
     "toggle_show_cursor_position",
+    "toggle_show_fps",
     "show_file_info",
     "move_cursor_to_viewport_center",
     "remove_additional_cursors",

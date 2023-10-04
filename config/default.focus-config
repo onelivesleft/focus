@@ -56,6 +56,8 @@ show_line_numbers:                      false
 draw_indent_guides:                     false
 show_console_on_build                   true
 collapse_leading_whitespace             false
+show_fps                                false
+show_cursor_position                    false
 
 # none of these animation effects do anything in this fork unless it's compiled without SKIP_CUTSCENES
 disable_that_annoying_paste_effect:     false

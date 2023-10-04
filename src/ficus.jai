@@ -420,11 +420,9 @@ ficus_execute_editor_or_step :: (editor: *Editor, buffer: *Buffer, output := Vol
     }
 }
 
-ficus_execute_string :: (_script: string, space := Space.user, output := Volume.default, callback: #type (string) = null, $event := "", $loc := #caller_location) {
+ficus_execute_string :: (script: string, space := Space.user, output := Volume.default, callback: #type (string) = null, $event := "", $loc := #caller_location) {
     #assert event == "" || array_find(ficus_events, event);
-    script := _script;
-    if space == .user
-        script = ficus_set_user_words_string(script, "", -1);
+
     array_add(*ficus_scripts_to_execute, .{script, event, space, output, callback});
     ficus_machine_state = .running;
 }
@@ -437,6 +435,8 @@ ficus_execute_delayed_string :: (script_pointer: *void) {
 
 ficus_execute_event :: ($event: string) {
     #assert array_find(ficus_events, event);
+    if is_ficus_debugging  return;
+
     word, found := get_word(event);
     if found
         ficus_execute_string(word);
@@ -1029,22 +1029,41 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
         array_reset(*popped_during_this_execute_word);
     }
 
-    pop :: (t: type_of(Stack_Item.type)) -> Stack_Item #expand {
-        if !stack.count  `return tprint("% expected <%> but stack was empty", word_name, t);
+    pop :: (t: type_of(Stack_Item.type), name := "") -> Stack_Item #expand {
+        if !stack.count {
+            if name
+                `return tprint("% expected <%> for parameter '%' but stack was empty", word_name, t, name);
+            else
+                `return tprint("% expected <%> but stack was empty", word_name, t);
+        }
         item := pop(stack);
         pop_message(item, stack);
         if t == .number {
-            if item.type != .number && item.type != .int_number && item.type != .boolean
-                `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+            if item.type != .number && item.type != .int_number && item.type != .boolean {
+                if name
+                    `return tprint("% expected <%> for parameter '%' but found <%>", word_name, t, name, item.type);
+                else
+                    `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+            }
         }
         else {
-            if item.type != t  `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+            if item.type != t {
+                if name
+                    `return tprint("% expected <%> for parameter '%' but found <%>", word_name, t, name, item.type);
+                else
+                    `return tprint("% expected <%> but found <%>", word_name, t, item.type);
+            }
         }
         return item;
     }
 
-    pop :: () -> Stack_Item #expand {
-        if !stack.count  `return tprint("% expected a value but stack was empty", word_name);
+    pop :: (name := "") -> Stack_Item #expand {
+        if !stack.count {
+            if name
+                `return tprint("% expected a value for parameter '%' but stack was empty", word_name, name);
+            else
+                `return tprint("% expected a value but stack was empty", word_name);
+        }
         item := pop(stack);
         pop_message(item, stack);
         return item;
@@ -1084,8 +1103,13 @@ execute_word :: (word_name: string, frame: *Ficus_Frame, intrinsic_only := false
             `return tprint("% does not work on numbers (just on int_numbers)", `word_name);
     }
 
-    peek :: () -> Stack_Item #expand {
-        if !stack.count  `return tprint("% expected a value but stack was empty", word_name);
+    peek :: (name := "") -> Stack_Item #expand {
+        if !stack.count {
+            if name
+                `return tprint("% expected a value for parameter '%' but stack was empty", word_name, name);
+            else
+                `return tprint("% expected a value but stack was empty", word_name);
+        }
         return stack.*[stack.count - 1];
     }
 
@@ -1215,8 +1239,8 @@ intrinsics :: #code if word_name == {
         push_type(item.type, stack);
 
     case "cast";
-        type := pop(.type);
-        item := pop();
+        type := pop(.type, "type");
+        item := pop("value");
         item.type = xx type.int_value;
         push(item, stack);
 
@@ -1403,8 +1427,11 @@ intrinsics :: #code if word_name == {
 
     case "apply_code_if_true";
         code_stack := get_stack("code");
+        if code_stack.count == 0
+            return tprint("% expected parameter 'then_body' but stack was empty", word_name);
         then_body := pop(code_stack);
-        value := pop();
+
+        value := pop("value");
         if to_bool(value) {
             push(then_body, stack);
             execute_string("apply", stack, space, output);
@@ -1416,9 +1443,15 @@ intrinsics :: #code if word_name == {
 
     case "apply_code_if_else_true";
         code_stack := get_stack("code");
+        if code_stack.count == 0
+            return tprint("% expected parameter 'else_body' but stack was empty", word_name);
         else_body := pop(code_stack);
+
+        if code_stack.count == 0
+            return tprint("% expected parameter 'then_body' but stack was empty", word_name);
         then_body := pop(code_stack);
-        value := pop();
+
+        value := pop("value");
         if to_bool(value)
             push(then_body, stack);
         else
@@ -1442,7 +1475,7 @@ intrinsics :: #code if word_name == {
         for global_variables  push(it_index, stack);
 
     case "exists?";
-        word := pop();
+        word := pop("variable");
         if !has_string_value(word)  return tprint("% expected a word but got a %", word_name, word.type);
         needle := word.string_value;
         if needle {
@@ -1486,12 +1519,12 @@ intrinsics :: #code if word_name == {
         else        reset(*builder);
 
     case "after_frames";
-        count := pop(.int_number);
+        count := pop(.int_number, "frames");
         action := unique_string(tprint("%\0", to_string(pop())), true);
         add_delayed_action(ficus_execute_delayed_string, action.data, count.int_value);
 
     case "after_seconds";
-        seconds := pop(.number);
+        seconds := pop(.number, "seconds");
         action := unique_string(tprint("%\0", to_string(pop())), true);
         add_delayed_action(ficus_execute_delayed_string, action.data, seconds.value);
 
@@ -1511,7 +1544,7 @@ intrinsics :: #code if word_name == {
         push(builder_to_string(*builder), stack);
 
     case "join";
-        joint := to_string(pop());
+        joint := to_string(pop("joint"));
         index, new_count := index_after_separator();
         builder : String_Builder;
         for i: index .. stack.count - 1 {
@@ -1522,36 +1555,36 @@ intrinsics :: #code if word_name == {
         push(builder_to_string(*builder), stack);
 
     case "contains";
-        needle := pop(.text);
-        haystack := pop(.text);
+        needle := pop(.text, "needle");
+        haystack := pop(.text, "haystack");
         push(contains(haystack.string_value, needle.string_value), stack);
 
     case "first_index";
-        needle := pop(.text);
-        haystack := pop(.text);
+        needle := pop(.text, "needle");
+        haystack := pop(.text, "haystack");
         push(first_index(haystack.string_value, needle.string_value), stack);
 
     case "last_index";
-        needle := pop(.text);
-        haystack := pop(.text);
+        needle := pop(.text, "needle");
+        haystack := pop(.text, "haystack");
         push(last_index(haystack.string_value, needle.string_value), stack);
 
     case "starts_with";
-        needle := pop(.text);
-        haystack := pop(.text);
+        needle := pop(.text, "needle");
+        haystack := pop(.text, "haystack");
         push(starts_with(haystack.string_value, needle.string_value), stack);
 
     case "ends_with";
-        needle := pop(.text);
-        haystack := pop(.text);
+        needle := pop(.text, "needle");
+        haystack := pop(.text, "haystack");
         push(ends_with(haystack.string_value, needle.string_value), stack);
 
     case "slice";
-        n := pop(.number);
+        n := pop(.number, "from_index");
         if !is_int_number(n)  return tprint("Expected an integer number for %", word_name);
-        x := pop();
+        x := pop("to_index/text");
         if is_int_number(x) {
-            s := pop(.text);
+            s := pop(.text, "text");
             push_already_unique_string(slice(s.string_value, x.int_value, n.int_value), stack);
         }
         else if x.type == .text {
@@ -1562,13 +1595,13 @@ intrinsics :: #code if word_name == {
         }
 
     case "split";
-        splitter := pop(.text).string_value;
-        text := pop(.text).string_value;
+        splitter := pop(.text, "splitter").string_value;
+        text := pop(.text, "text").string_value;
         for split(text, splitter)
             push_already_unique_string(it, stack);
 
     case "line_split";
-        text := pop(.text).string_value;
+        text := pop(.text, "text").string_value;
         for line_split(text)
             push_already_unique_string(it, stack);
 
@@ -1584,6 +1617,15 @@ intrinsics :: #code if word_name == {
     case "focus_executable?";
         push(executable_name, stack);
 
+    case "frame_time?";
+        push(cast(float)frame_time, stack);
+
+    case "frame_count?";
+        push(frame_count, stack);
+
+    case "fps?";
+        push(get_fps(), stack);
+
     // Focus settings
 
     case "console_location!";
@@ -1592,10 +1634,10 @@ intrinsics :: #code if word_name == {
         push(cast(int)floating_area_position, stack);
 
     case "window_location!";
-        height := pop(.int_number);
-        width := pop(.int_number);
-        y := pop(.int_number);
-        x := pop(.int_number);
+        height := pop(.int_number, "height");
+        width := pop(.int_number, "width");
+        y := pop(.int_number, "x");
+        x := pop(.int_number, "y");
         platform_set_window_location(xx x.int_value, xx y.int_value, xx width.int_value, xx height.int_value);
     case "window_location?";
         window_x, window_y, window_width, window_height = get_window_position_and_size(window);
@@ -1607,7 +1649,7 @@ intrinsics :: #code if word_name == {
     // Focus commands
 
     case "open_project";
-        item := pop(.text);
+        item := pop(.text, "project");
         success: bool;
         if ficus_global_flags & .already_opened_project
             success = false;
@@ -1620,7 +1662,7 @@ intrinsics :: #code if word_name == {
         for names  push(it, stack);
 
     case "open_file";
-        item := pop(.text);
+        item := pop(.text, "file");
         success := editors_open_file(to_string(item));
         push(success, stack);
 
@@ -1631,19 +1673,19 @@ intrinsics :: #code if word_name == {
                 pop();
                 break;
             }
-            item := pop(.text);
+            item := pop(.text, "file");
             success := editors_open_file(to_string(item));
             if success  opened += 1;
         }
         push(opened, stack);
 
     case "build_name!";
-        name := pop(.text);
+        name := pop(.text, "name");
         ok := set_build_task_name(name.string_value);
         if !ok  return tprint("Cannot % while a build is already running", word_name);
 
     case "build_dir!";
-        dir := pop(.text);
+        dir := pop(.text, "path");
         ok := set_build_task_dir(dir.string_value);
         if !ok  return tprint("Cannot % while a build is already running", word_name);
 
@@ -1710,32 +1752,49 @@ intrinsics :: #code if word_name == {
         push(zen_mode, stack);
 
     case "zen_mode!";
-        value := pop(.boolean);
+        value := pop(.boolean, "enabled");
         set_zen_mode(value.bool_value);
 
     case "toast";
-        seconds := pop(.number);
-        message := pop(.text);
-        icon := pop(.text);
+        seconds := pop(.number, "seconds");
+        message := pop(.text, "message");
+        icon := pop(.text, "icon");
         add_user_message(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_success";
-        seconds := pop(.number);
-        message := pop(.text);
-        icon := pop(.text);
+        seconds := pop(.number, "seconds");
+        message := pop(.text, "message");
+        icon := pop(.text, "icon");
         add_user_message_success(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_warning";
-        seconds := pop(.number);
-        message := pop(.text);
-        icon := pop(.text);
+        seconds := pop(.number, "seconds");
+        message := pop(.text, "message");
+        icon := pop(.text, "icon");
         add_user_message_warning(message.string_value, xx seconds.value, icon.string_value, .ficus);
 
     case "toast_error";
-        seconds := pop(.number);
-        message := pop(.text);
-        icon := pop(.text);
+        seconds := pop(.number, "seconds");
+        message := pop(.text, "message");
+        icon := pop(.text, "icon");
         add_user_message_error(message.string_value, xx seconds.value, icon.string_value, .ficus);
+
+    case "status_bar_icon";
+        if editors.active < 0  return "";
+        icon := pop(.text, "icon");
+        editor := *open_editors[editors.active];
+        add_status_part(editor, .icon, icon.string_value);
+
+    case "status_bar_text";
+        if editors.active < 0  return "";
+        text := pop(.text, "text");
+        editor := *open_editors[editors.active];
+        add_status_part(editor, .text, text.string_value);
+
+    case "status_bar_divider";
+        if editors.active < 0  return "";
+        editor := *open_editors[editors.active];
+        add_status_part(editor, .divider);
 
     // nada
     case;

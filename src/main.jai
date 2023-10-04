@@ -21,7 +21,6 @@ TOAST_BUILD_RESULT :: false;
 
 show_keystrokes := false;
 show_filename := true;
-show_cursor_position_in_status_bar := false;
 zen_mode := false;
 changed_zen_mode_at: Time;
 zen_mode_transition_duration :: 0.1;
@@ -29,6 +28,8 @@ transitioning_to_zen_mode := false;
 zen_mode_t := 0.0;
 
 executable_name: string;
+frame_time_buffer : [256] Time;
+
 
 main :: () {
     #if DEBUG && MEMORY_DEBUGGING {
@@ -206,6 +207,7 @@ main :: () {
         frame_dt   = min(current_time - frame_time, MAX_FRAME_DT);
         frame_time = current_time;
         frame_count += 1;
+        frame_time_buffer[frame_count % frame_time_buffer.count] = frame_dt;
 
         for delayed_actions {
             if (it.type == .time && it.at_frame_time <= frame_time)
@@ -487,6 +489,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .toggle_show_keystrokes;                           toggle_show_keystrokes();                           return true;
         case .toggle_show_filename;                             toggle_show_filename();                             return true;
         case .toggle_show_cursor_position;                      toggle_show_cursor_position();                      return true;
+        case .toggle_show_fps;                                  toggle_show_fps();                                  return true;
         case .toggle_zen_mode;                                  toggle_zen_mode();                                  return true;
         case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
@@ -792,7 +795,11 @@ toggle_show_filename :: () {
 }
 
 toggle_show_cursor_position :: () {
-    show_cursor_position_in_status_bar = !show_cursor_position_in_status_bar;
+    config.settings.show_cursor_position = !config.settings.show_cursor_position;
+}
+
+toggle_show_fps :: () {
+    config.settings.show_fps = !config.settings.show_fps;
 }
 
 update_zen_mode :: () {
@@ -844,6 +851,14 @@ toggle_profiling :: () {
     else {
         add_user_message_error("Profiling is not available in this build of Focus", duration_in_seconds = 2, icon="\ue55d");
     }
+}
+
+get_fps :: () -> float {
+    total := frame_time_buffer[0];
+    for 1 .. frame_time_buffer.count - 1  total += frame_time_buffer[it];
+    ms_per_frame := total / frame_time_buffer.count;
+    if ms_per_frame <= 0  ms_per_frame = 0.01;
+    return 1.0 / cast(float)ms_per_frame;
 }
 
 current_time_consensus_backwards_compatible :: () -> Apollo_Time {
