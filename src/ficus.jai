@@ -80,6 +80,13 @@ ficus_started_running_frame_count := 0;
 
 ficus_update :: () {
     if !is_ficus_running()
+         ficus_execute_event("on_frame");
+
+    ficus_tick();
+}
+
+ficus_tick :: () {
+    if !is_ficus_running()
         return;
 
     if ficus_started_running_frame_count == 0
@@ -149,7 +156,7 @@ ficus_update :: () {
                     open_buffers[buffer_id].flags |= .needs_coloring;
                 }
                 container, stored_within := ficus_stored_string(about_to_execute_word);
-                if stored_within == {
+                if #complete stored_within == {
                     case .baked;
                     open_baked_words_buffer();
                     editor := *open_editors[editors.active];
@@ -172,6 +179,7 @@ ficus_update :: () {
                     jump_to_file_offset(user_words_filename, xx (about_to_execute_word.data - container.data));
                     ficus_machine_state = .paused;
 
+                    case .none; #through;
                     case;
                     console_log(tprint("<%> Internal: %", ficus_execution_stack.count, about_to_execute_word));
                     ficus_machine_state = .paused;
@@ -685,7 +693,7 @@ ficus_scripts_to_execute : [..] struct {
     callback: #type (error: string);
 };
 
-ficus_events :: string.["on_load", "on_editor"];
+ficus_events :: string.["on_load", "on_editor", "on_frame"];
 
 ficus_string_lookup: Table(string, *u8);
 
@@ -1359,6 +1367,9 @@ intrinsics :: #code if word_name == {
 
     case "break";
         ficus_global_flags |= .break_next_jump;
+
+    case "debug_break";
+        ficus_pause();
 
     case "jump_target";
         if VERBOSE  console_log(tprint("Pushed jump target [%]", token.start));

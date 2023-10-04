@@ -259,7 +259,9 @@ draw_welcome_screen :: (main_area: Rect) {
 
     // Draw the left part
     {
-        draw_rect(welcome_left_area, Colors.BACKGROUND_LIGHT);
+        t := fmod_cycling(xx frame_time * 0.05, 2.0);
+        if t > 1.0  t = 2.0 - t;
+        draw_cool_rect(welcome_left_area, Colors.BACKGROUND_LIGHT, t);
 
         // TODO: fix the circle shader
         // center := center_of(logo_rect);
@@ -363,7 +365,7 @@ draw_welcome_screen :: (main_area: Rect) {
                     shadow_rect := expand(key_rect, 1);
                     shadow_rect.y -= 2;
                     draw_rounded_rect(shadow_rect, Colors.BACKGROUND_DARK);
-                    draw_rounded_rect(key_rect, Colors.SELECTION_ACTIVE);
+                    draw_rounded_rect(key_rect, Colors.MOTIF);
                     Simp.draw_prepared_text(font_ui, xx (x + padding_h), xx text_y, Colors.UI_DEFAULT);
                     x += key_rect.w;
                     if it_index < combo_strings.count - 1 {
@@ -665,7 +667,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
     }
     else {
-        draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources);
+        draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources, line_height);
     }
 
     // Calculate text origin in screen coordinates
@@ -1191,20 +1193,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 if region.depth == 0 { // "inserting" code
                     bg := ifx end <= scope_background_ends_at then scope_background else Colors.BACKGROUND;
-                    draw_cool_rect(region_rect, bg, shader_value, *cursor_lightsources);
+                    draw_cool_rect(region_rect, bg, shader_value, *cursor_lightsources, line_height);
                     if gutter_width {
                         region_rect.w = gutter_width;
-                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources);
+                        draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources, line_height);
                         region_rect.x += gutter_width;
                     }
                     region_rect.w = char_x_advance;
-                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources);
+                    draw_cool_rect(region_rect, Colors.BACKGROUND_REGION, shader_value, *cursor_lightsources, line_height);
                     region_rect.x += char_x_advance;
                     fade_char_count :: 8;
                     for 1 .. fade_char_count {
                         alpha := lerp(Colors.BACKGROUND_REGION.a, 0, it / cast(float)fade_char_count);
                         color := with_alpha(Colors.BACKGROUND_REGION, alpha);
-                        draw_cool_rect(region_rect, xx color, shader_value, *cursor_lightsources);
+                        draw_cool_rect(region_rect, xx color, shader_value, *cursor_lightsources, line_height);
                         region_rect.x += char_x_advance;
                     }
                 }
@@ -1218,11 +1220,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
-                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
                         }
                         else {
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
                         }
                         if !at_end_of_file && end_is_visible {
                             // Draw trailing rectangle to right of next scope tab
@@ -1232,7 +1234,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                             width := char_x_advance * (scope_line_count + 1);
                             region_rect.x += width;
                             region_rect.w -= width;
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
                         }
                         scope_background = Colors.BACKGROUND_REGION_PRIVATE;
                         scope_background_ends_at = end;
@@ -1248,11 +1250,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
-                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
+                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
+                            draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
                         }
                         else {
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
                         }
                         if !at_end_of_file && end_is_visible {
                             // Draw trailing rectangle to right of next scope tab
@@ -1262,7 +1264,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                             width := line_number_panel_width + char_x_advance * (scope_line_count + 1);
                             region_rect.x += width;
                             region_rect.w -= width;
-                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources);
+                            draw_cool_rect(region_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
                         }
                         scope_background = Colors.BACKGROUND_REGION_PUBLIC;
                         scope_background_ends_at = end;
@@ -1590,9 +1592,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors, bold_offset = bold_offset };
         }
 
-        cursor_lightsources.data = cursor_lightsources_buffer.data;
-        cursor_lightsources.count = 0;
         if cursors_active {
+            cursor_lightsources.data = cursor_lightsources_buffer.data;
+            cursor_lightsources.count = 0;
             for cursor_coords {
                 xy := get_cursor_screen_pos(text_origin, it.pos);
                 if xy.y < -100 || xy.y > xx (window_height + 100)
@@ -1600,7 +1602,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 i := cursor_lightsources.count;
                 cursor_lightsources.count += 1;
-                lightsource := *cursor_lightsources[it_index];
+                lightsource := *cursor_lightsources[i];
                 lightsource.* = xy;
                 lightsource.y += line_height / 2;
                 if cursor_lightsources.count >= cursor_lightsources_buffer.count
@@ -3949,7 +3951,7 @@ get_cursor_screen_pos :: (text_origin: Vector2, coords: Coords) -> Vector2 {
     );
 }
 
-draw_range :: (range: Coords_Range, editor: Editor, buffer: Buffer, visible_start: s32, visible_end: s32, text_origin: Vector2, color: Color) {
+draw_range :: (range: Coords_Range, editor: Editor, buffer: Buffer, visible_start: s32, visible_end: s32, text_origin: Vector2, color: Color, be_cool := false) {
     using font_data;
     // Scan the visible range and add the number of chars on each line
     range_chars: [..] s32;
@@ -4004,7 +4006,10 @@ draw_range :: (range: Coords_Range, editor: Editor, buffer: Buffer, visible_star
             if next_end < last_char then br = .in;
             if next_end > last_char then br = .out;
         }
-        draw_rounded_rect_with_corners(rect, color, tl, tr, br, bl);
+        if be_cool
+            draw_cool_rounded_rect(rect, color, value=xx (frame_time * 2));
+        else
+            draw_rounded_rect_with_corners(rect, color, tl, tr, br, bl);
     }
 }
 
@@ -4300,10 +4305,10 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
     draw_cool_rounded_rect(rect, color, value=xx frame_time * 0.1);
 }
 
-draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector2 = null) {
+draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector2 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
     lightsource_color.a = 0.01 * config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color);
+    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height);
     draw_rect_raw(rect, color);
 }
 

@@ -39,17 +39,23 @@ __pycache__
 on_load:
     #0 0 2736 1824 window_location!
     4 console_location!
-     "GUI" open_project
-    if_else [ focus_executable? "focus_debug" contains ]
+     "Focus" open_project
+    #if_else [ focus_executable? "focus_debug" contains ]
             #[ "Escape Room" open_project ]
-            [ "GUI" open_project ]
-            [ "Focus" open_project ]
+    #        [ "GUI" open_project ]
+    #        [ "Focus" open_project ]
 
 on_editor:
-    if_else [editor_language? "Markdown" =]
-            [true zen_mode!]
-            [false zen_mode!]
+    editor_filename? "TODO.md" !=
+    editor_language? "Markdown" =
+    and (->) zen_mode!
 
+on_framex:
+    [frame_count?] 0 default
+    1 + copy frame_count!
+    copy
+    debug_break
+    if_else [200 % 0 =] [to_string 1 swap toast] [discard]
 
 greet:
     "Hello!" print
@@ -58,32 +64,52 @@ greet:
 # NOTE: please copy the whole block when overriding settings, otherwise defaults will be used
 #       for any settings you haven't listed here explicitly
 maximize_on_start:                      false
-open_on_the_biggest_monitor:            false
 open_on_monitor_one:                    false
-cursor_blink_time_in_seconds:           99999
+open_on_the_biggest_monitor:            false
+colored_titlebar:                       false   # Windows 11+ only
+prefer_system_file_dialogs              false
+
 cursor_as_block:                        false
-highlight_selection_occurrences:        true
+cursor_blink_time_in_seconds:           99999
+scroll_to_cursor_line_offset            5
+highlight_line_with_cursor              false
+cursor_glow_intensity                   5
+cursor_glow_percent                     33
+
+max_editor_width:                       -1
+line_wrap_is_on_by_default:             false
+show_line_numbers:                      false
+draw_indent_guides:                     false
+show_console_on_build                   false
+collapse_leading_whitespace             false
+
 disable_that_annoying_paste_effect:     false
 disable_file_open_close_animations:     false
+double_shift_to_search_in_workspace:    false
+smooth_scrolling:                       false
+hide_mouse_when_typing:                 true
+highlight_selection_occurrences:        true
+
+max_entries_in_open_file_dialog:        2000
+editor_history_size:                    1024
+
+tab_size:                               4
 insert_spaces_when_pressing_tab:        true
 strip_trailing_whitespace_on_save:      true
-smooth_scrolling:                       false
-double_shift_to_search_in_workspace:    false
-can_cancel_go_to_line:                  false
-max_entries_in_open_file_dialog:        2000
-tab_size:                               4
 line_height_scale_percent:              120
-max_editor_width:                       -1
-scroll_to_cursor_line_offset            5
+
+can_cancel_go_to_line:                  false
+copy_whole_line_without_selection:      false
+auto_close_brackets:                    false
+auto_surround_with_brackets_and_quotes: false
 ignore_whitespace_in_finder             true
 ignore_whitespace_in_search_bar         true
-collapse_leading_whitespace             false
-prefer_system_file_dialogs              false
 
 zen_mode_blend_percent                  70
 zen_mode_minimal                        false
 zen_mode_width_in_chars                 70
-show_console_on_build                   false
+
+ficus_debug_on_error                    false
 
 [[keymap]]
 
@@ -139,7 +165,7 @@ Ctrl-Shift-J                do_nothing #join_lines_no_spaces_in_between
 
 Ctrl-U                      change_case_cycle
 
-Ctrl-39                     show_cursor_position
+Ctrl-39                     toggle_show_cursor_position
 Ctrl-Shift-39               toggle_line_numbers
 
 Tab                         indent_or_go_to_next_tabstop
@@ -312,8 +338,8 @@ Ctrl-Alt-U                  profiler_prev_frame
 {Shift}-Alt-ArrowRight      move_right_by_word
 {Shift}-Ctrl-ArrowRight     move_right_by_word_ends
 
-{Shift}-Home                jump_to_line_start
-{Shift}-End                 jump_to_line_end
+{Shift}-Home                jump_to_screen_line_start
+{Shift}-End                 jump_to_screen_line_end
 {Shift}-Ctrl-Home           jump_to_file_start
 {Shift}-Ctrl-End            jump_to_file_end
 
@@ -351,7 +377,7 @@ background_region_private:      1A1618FF
 background_region_public:       0B0B18FF
 background_cursor_row:          FFFFFF0F
 
-selection_active:               1C4449FF
+selection_active:               994411FF     #1C4449FF
 selection_inactive:             1C44497F
 selection_highlight:            FCEDFC26
 search_result_active:           8E772EFF
@@ -359,11 +385,11 @@ search_result_inactive:         FCEDFC26
 scrollbar:                      33CCCC19
 scrollbar_hover:                33CCCC4C
 scrollbar_background:           10191F4C
-cursor:                         26B2B2FF
+cursor:                         55FFFFFF     #26B2B2FF
 cursor_inactive:                196666FF
 paste_animation:                1C4449FF
-splitter:                       21333FFF
-splitter_hover:                 1C44497F
+splitter:                       FFFFFF0F
+splitter_hover:                 FFFFFF0F
 letter_highlight:               599999FF
 list_cursor_lite:               33CCCC19
 list_cursor:                    33CCCC4C

@@ -23,7 +23,7 @@ set_shader_for_color :: (enable_blend := false) {
     }
 }
 
-set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector2, lightsource_intensity: float, lightsource_color: Vector4) {
+set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector2, lightsource_intensity: float, lightsource_color: Vector4, line_height: float) {
     CheckInit();
     if state.current_shader != *shader_cool {
         immediate_set_shader(*shader_cool);
@@ -35,15 +35,21 @@ set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector2, lig
         glUniform1f(loc, time);
         loc = glGetUniformLocation(shader_cool.gl_handle, "jiggle");
         glUniform1f(loc, value);
-        loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_count");
-        glUniform1i(loc, xx lightsources.count);
         if lightsources {
+            loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_count");
+            glUniform1i(loc, xx lightsources.count);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsources");
             glUniform2fv(loc, xx lightsources.count, xx lightsources.data);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_color");
             glUniform4f(loc, lightsource_color.x, lightsource_color.y, lightsource_color.z, lightsource_color.w);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_intensity");
             glUniform1f(loc, lightsource_intensity);
+            loc = glGetUniformLocation(shader_cool.gl_handle, "half_line_height");
+            glUniform1f(loc, line_height / 2);
+        }
+        else {
+            loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_count");
+            glUniform1i(loc, 0);
         }
     }
 }

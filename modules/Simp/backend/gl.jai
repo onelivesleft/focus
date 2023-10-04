@@ -303,6 +303,7 @@ uniform int lightsource_count;
 uniform vec2 lightsources[40];
 uniform vec4 lightsource_color;
 uniform float lightsource_intensity;
+uniform float half_line_height;
 
 out vec4 color;
 
@@ -326,15 +327,22 @@ void main () {
     vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-jiggle), 0.0);
     vec4 mixed = mix(iterated_color, perm, 0.05);
 
-    float max_brightness = 0;
-    for (int i = 0; i < lightsource_count; i++) {
-        float d = distance(lightsources[i], gl_FragCoord.xy);
-        float brightness = 1 - clamp(lightsource_intensity / d, 0, 1);
+    if (lightsource_count > 0) {
+        float min_distance = 9999999;
+        bool is_on_line = false;
+        for (int i = 0; i < lightsource_count; i++) {
+            float d = distance(lightsources[i], gl_FragCoord.xy);
+            if (d < min_distance) {
+                min_distance = d;
+                is_on_line = (lightsources[i].y > gl_FragCoord.y - half_line_height
+                           && lightsources[i].y < gl_FragCoord.y + half_line_height);
+            }
+        }
+        float brightness = 1 - clamp(lightsource_intensity / min_distance, 0, 1);
         brightness = 1 - (brightness * brightness * brightness);
-        max_brightness = max(brightness, max_brightness);
+        if (is_on_line)  brightness /= 2;
+        mixed = mix(mixed, lightsource_color, lightsource_color.a * brightness);
     }
-    if (max_brightness > 0)
-        mixed = mix(mixed, lightsource_color, lightsource_color.a * max_brightness);
 
     // When color is between two displayable values, round it up or down randomly, proportionate to
     // which it is nearer to.

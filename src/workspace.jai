@@ -213,7 +213,8 @@ hard_reload_workspace :: () {
     reopen_visible_editors(old_editor_state);
     start_initial_workspace_scan();
 
-    add_user_message_success("Workspace has been reloaded", duration_in_seconds=3, icon = "\uf802");
+    if frame_count > 1
+        add_user_message_success("Workspace has been reloaded", duration_in_seconds=3, icon = "\uf802");
 }
 
 remember_visible_editors_and_buffers :: () -> Visible_Editor_State {

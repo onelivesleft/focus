@@ -11,6 +11,7 @@ if errorlevel 1 goto locked
 echo Compiling...
 jai first.jai - release
 move build_release\*.* .
+copy global.focus-config my_config.focus-config /y
 
 goto:eof
 

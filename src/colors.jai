@@ -40,7 +40,7 @@ Color_Values :: struct {
     SHADOW_DARK             := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0.5 };
     SHADOW_TRANSPARENT      := Color.{ r = 0.057, g = 0.089, b = 0.11, a = 0 };  // for interpolation
     TEXT_INPUT_LABEL        := Color.{ r = 0.233, g = 0.269, b = 0.316, a = 1.0 };
-    MOTIF                   := Color.{ r = 0.459, g = 0.369, b = 0.184 };
+    MOTIF                   := Color.{ r = 0.359, g = 0.269, b = 0.124 };
     COLLAPSED_AREA_MARKER   := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 0.8 };
     GUTTER                  := Color.{ r = 0.0, g = 0.0, b = 0.0, a = 0.1 };
 
