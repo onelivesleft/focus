@@ -48,7 +48,7 @@ on_load:
 on_editor:
     editor_filename? "TODO.md" !=
     editor_language? "Markdown" =
-    and (->) zen_mode!
+    and (=>) zen_mode!
 
 on_framex:
     [frame_count?] 0 default
@@ -82,13 +82,13 @@ show_line_numbers:                      false
 draw_indent_guides:                     false
 show_console_on_build                   false
 collapse_leading_whitespace             false
-
-disable_that_annoying_paste_effect:     false
-disable_file_open_close_animations:     false
-double_shift_to_search_in_workspace:    false
-smooth_scrolling:                       false
 hide_mouse_when_typing:                 true
 highlight_selection_occurrences:        true
+
+# none of these animation effects do anything in this fork unless it's compiled without SKIP_CUTSCENES
+disable_that_annoying_paste_effect:     false
+disable_file_open_close_animations:     false
+smooth_scrolling:                       false
 
 max_entries_in_open_file_dialog:        2000
 editor_history_size:                    1024
@@ -104,6 +104,7 @@ auto_close_brackets:                    false
 auto_surround_with_brackets_and_quotes: false
 ignore_whitespace_in_finder             true
 ignore_whitespace_in_search_bar         true
+double_shift_to_search_in_workspace:    false
 
 zen_mode_blend_percent                  70
 zen_mode_minimal                        false
