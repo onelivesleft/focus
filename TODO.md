@@ -1,7 +1,13 @@
 # Mine
 
-- [ ] Add colors to ficus
+- [ ] Embed console in application so release build doesnt spawn a window every time you run a command.
+- [ ] Change release version to not be detached from command line, as a short term fix for above.
 
+- [ ] Fix font.jai blowing up "assert(colors.count > t - line.data);" ~line 227
+- [ ] Add colors to ficus
+- [ ] Add fade to light when cursor jumps
+
+- [x] Calculator
 - [x] Hitting down on bottom line of buffer should become `end`
 - [x] Fix move by word left in text input
 - [x] Fix unsymmetrical footer rects

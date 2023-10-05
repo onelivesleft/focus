@@ -369,6 +369,7 @@ main :: () {
                     case .open_file_dialog;         handled = open_file_dialog_handle_event(event);
                     case .delete_file_dialog;       handled = delete_file_dialog_handle_event(event);
                     case .go_to_line_dialog;        handled = go_to_line_dialog_handle_event(event);
+                    case .calculator_dialog;        handled = calculator_dialog_handle_event(event);
                     case .open_project_dialog;      handled = open_project_dialog_handle_event(event);
                     case .unsaved_buffers_dialog;   handled = unsaved_buffers_dialog_handle_event(event);
                     case .confirm_overwrite_dialog; handled = confirm_overwrite_dialog_handle_event(event);
@@ -493,6 +494,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .toggle_zen_mode;                                  toggle_zen_mode();                                  return true;
         case .toggle_collapse_leading_whitespace;               toggle_collapse_leading_whitespace();               return true;
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
+        case .calculator;                                       toggle_calculator();                                return true;
 
         case .compile;                                          run_build_script(.Compile);                         return true;
         case .build_debug;                                      run_build_script(.Debug);                           return true;
@@ -1081,6 +1083,7 @@ active_global_widget: enum {
     open_file_dialog;
     delete_file_dialog;
     go_to_line_dialog;
+    calculator_dialog;
     commands_dialog;
     open_project_dialog;
     unsaved_buffers_dialog;
@@ -1137,6 +1140,7 @@ dont_ignore_next_window_resize := false;
 #load "widgets/open_file_dialog.jai";
 #load "widgets/delete_file_dialog.jai";
 #load "widgets/go_to_line_dialog.jai";
+#load "widgets/calculator.jai";
 #load "widgets/finder.jai";
 #load "widgets/unsaved_buffers.jai";
 #load "widgets/commands.jai";

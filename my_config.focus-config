@@ -50,7 +50,7 @@ on_editor:
     editor_language? "Markdown" =
     and (=>) zen_mode!
 
-on_frame:
+xon_frame:
     "" status_bar_icon
     "[" status_bar_text
     fps? to_string 0 5 slice status_bar_text
@@ -67,7 +67,7 @@ maximize_on_start:                      false
 open_on_monitor_one:                    true
 open_on_the_biggest_monitor:            false
 colored_titlebar:                       false   # Windows 11+ only
-prefer_system_file_dialogs              false
+prefer_system_file_dialogs              true
 
 cursor_as_block:                        false
 cursor_blink_time_in_seconds:           99999
@@ -108,8 +108,8 @@ ignore_whitespace_in_finder             true
 ignore_whitespace_in_search_bar         true
 double_shift_to_search_in_workspace:    false
 
-zen_mode_blend_percent                  70
-zen_mode_minimal                        false
+zen_mode_blend_percent                  100
+zen_mode_minimal                        true
 zen_mode_width_in_chars                 70
 
 ficus_debug_on_error                    false
@@ -171,6 +171,7 @@ Ctrl-U                      change_case_cycle
 Ctrl-39                     toggle_show_cursor_position
 Ctrl-Shift-39               toggle_line_numbers
 Ctrl-F12                    toggle_show_fps
+155                         calculator
 
 Tab                         indent_or_go_to_next_tabstop
 Shift-Tab                   unindent
@@ -432,3 +433,9 @@ code_keyword:                   CFC9DBFF
 code_jump:                      E67D74FF
 code_directive:                 EDE694FF
 code_format_item:               55FFFFFF
+
+zen_foreground:                 FFFFFF8F
+zen_background:                 222222FF
+zen_margins:                    191919FF
+zen_cursor:                     FFFFFFFF
+zen_comment:                    FFFFFF4F

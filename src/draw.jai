@@ -39,8 +39,8 @@ draw_frame :: () {
     active_pane_rect, left_rect, right_rect: Rect = ---;
     Input.window_region_override = .NONE;
 
-    cursor_lightsource_background_intensity = config.settings.cursor_glow_intensity * dpi_scale;
-    cursor_lightsource_foreground_intensity = ifx config.settings.cursor_glow_intensity then dpi_scale;
+    cursor_lightsource_background_intensity = ifx zen_mode then 0 else config.settings.cursor_glow_intensity * dpi_scale;
+    cursor_lightsource_foreground_intensity = ifx !zen_mode && config.settings.cursor_glow_intensity then dpi_scale;
 
     // Draw editors
     if #complete editors.layout == {
@@ -130,6 +130,7 @@ draw_frame :: () {
         case .delete_file_dialog;       draw_delete_file_dialog();
         case .finder;                   draw_finder();
         case .go_to_line_dialog;        draw_go_to_line_dialog(active_pane_rect);
+        case .calculator_dialog;        draw_calculator_dialog(active_pane_rect);
         case .open_project_dialog;      draw_open_project_dialog();
         case .unsaved_buffers_dialog;   draw_unsaved_buffers_dialog();
         case .confirm_overwrite_dialog; draw_confirm_overwrite_dialog();
@@ -670,7 +671,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
     }
     else {
-        draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources, line_height);
+        if active_global_widget == .editors && !search_bar_is_open(editor)
+            draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources, line_height);
+        else
+            draw_cool_rect(rect, Colors.BACKGROUND, shader_value, null, line_height);
     }
 
     // Calculate text origin in screen coordinates
@@ -1612,7 +1616,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     break;
             }
         }
-        if cursors_active && should_draw_cursors() && !search_bar_is_open(editor) {
+        if cursors_active && active_global_widget == .editors && should_draw_cursors() && !search_bar_is_open(editor) {
             Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left, *cursor_lightsources, cursor_lightsource_foreground_intensity, white);
         }
         else {
@@ -3914,6 +3918,54 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
     draw_text_input(*go_to_line_dialog.input, input_rect, ui_id = input_id, active = true, label = " line number");
 }
 
+draw_calculator_dialog :: (active_editor_rect: Rect) {
+    using font_data;
+    input_id := get_ui_id_from_loc();
+    output_id := get_ui_id_from_loc();
+
+    margin  := floor(8 * dpi_scale);
+    padding := floor(4 * dpi_scale);
+
+    calculator_width := 0.5 * active_editor_rect.w;
+    if calculator_width < 500 * dpi_scale  calculator_width = 500 * dpi_scale;
+
+    label_width := cast(float) Simp.prepare_text(font_icons, "\U0001f5a9");
+    width  := max(calculator_width, 6 * char_x_advance + 2 * (margin + padding + 1));
+    height := font_ui_line_height + 2 * (margin + padding + 1);
+
+    bar_rect := cut_top(active_editor_rect, height);
+    bar_rect = cut_left(bar_rect, width);
+    bar_rect.x += char_x_advance / 2;
+    bar_rect.y -= char_x_advance / 2;
+
+    input_rect := shrink(bar_rect, margin);
+    input_rect = cut_right(input_rect, input_rect.w - (label_width + margin));
+
+    pen := Vector2.{
+        x = bar_rect.x + margin,
+        y = bar_rect.y + (bar_rect.h - cast(s32)font_ui.character_height) / 2 + 2,  // sigh
+    };
+
+    extra_height_for_output := font_ui_line_height + padding * 4;
+    output_rect := input_rect;
+    output_rect.y -= extra_height_for_output;
+
+    bar_rect.h += extra_height_for_output;
+    bar_rect.y -= extra_height_for_output;
+    maybe_set_hot_or_active(input_id, bar_rect, .NORMAL);
+
+    //draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_BRIGHT);
+    draw_rounded_rect(bar_rect, Colors.BACKGROUND_BRIGHT);
+    Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+    draw_text_input(*calculator_dialog.input, input_rect, ui_id = input_id, active = true, label = " ficus");
+
+    pen.x = bar_rect.x + margin;
+    pen.y -= extra_height_for_output;
+    Simp.prepare_text(font_icons, "\U0000f52c");
+    Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+    draw_text_input(*calculator_dialog.output, output_rect, ui_id = output_id, style = .display);
+}
+
 draw_buffer_switcher_dialog :: (active_rect: Rect) {
     using font_data;
 
@@ -4016,7 +4068,7 @@ draw_range :: (range: Coords_Range, editor: Editor, buffer: Buffer, visible_star
     }
 }
 
-draw_text_input :: (using input: *Text_Input, rect_: Rect, ui_id: Ui_Id, active := false, label: string = "", font: *Simp.Dynamic_Font = null, _color := Colors.NONE, margin_left := 1.0, margin_right := 1.0) {
+draw_text_input :: (using input: *Text_Input, rect_: Rect, ui_id: Ui_Id, active := false, label: string = "", font: *Simp.Dynamic_Font = null, _color := Colors.NONE, margin_left := 1.0, margin_right := 1.0, style : enum { input; display; } = .input) {
     if !is_valid(rect_) return;
 
     color := ifx _color == Colors.NONE then Colors.UI_DEFAULT else _color;
@@ -4026,9 +4078,13 @@ draw_text_input :: (using input: *Text_Input, rect_: Rect, ui_id: Ui_Id, active 
     if font == null then font = font_ui;
     padding := (rect.h - cast(float) font.default_line_spacing) / 2;
 
-    draw_rect(rect, ifx active then Colors.CURSOR_INACTIVE else Colors.BACKGROUND_DARK);
+    if style == .input
+        draw_rect(rect, ifx active then Colors.CURSOR_INACTIVE else Colors.BACKGROUND_DARK);
+
     input_rect := shrink(rect, 1);
-    draw_rect(input_rect, Colors.BACKGROUND);
+
+    if style == .input
+        draw_rect(input_rect, Colors.BACKGROUND);
 
     maybe_set_hot_or_active(ui_id, input_rect, .TEXT_SELECT);
 
@@ -4081,19 +4137,28 @@ draw_text_input :: (using input: *Text_Input, rect_: Rect, ui_id: Ui_Id, active 
     cursor_rect.x = x + cursor_pos_x;
 
     if cursor.pos != cursor.sel {
-        cursor_sel_x := Simp.get_text_width(font, slice(input_text, 0, cursor.sel));
-        left  := min(cursor_pos_x, cursor_sel_x);
-        right := max(cursor_pos_x, cursor_sel_x);
-        selection_rect := cursor_rect;
-        selection_rect.x = x + left;
-        selection_rect.w = xx (right - left);
-        draw_rect(selection_rect, Colors.SELECTION_ACTIVE);
+        if style == .display && mouse.left.just_released {
+            a, b := cursor.pos, cursor.sel;
+            if a > b  Swap(*a, *b);
+            os_clipboard_set_text(slice(input_text, a, b));
+            cursor.sel = cursor.pos;
+        }
+        else {
+            cursor_sel_x := Simp.get_text_width(font, slice(input_text, 0, cursor.sel));
+            left  := min(cursor_pos_x, cursor_sel_x);
+            right := max(cursor_pos_x, cursor_sel_x);
+            selection_rect := cursor_rect;
+            selection_rect.x = x + left;
+            selection_rect.w = xx (right - left);
+            draw_rect(selection_rect, Colors.SELECTION_ACTIVE);
+        }
     }
 
     y := input_rect.y + (input_rect.h - font.character_height) / 2 + 2 * dpi_scale;  // I don't know why we need this extra + 2, but without it the text doesn't look in the right place
 
     if !input_text then Simp.draw_text(font, xx x, xx y, label, color = Colors.TEXT_INPUT_LABEL);
-    draw_rect(cursor_rect, ifx active then Colors.CURSOR else Colors.CURSOR_INACTIVE);
+    if style == .input
+        draw_rect(cursor_rect, ifx active then Colors.CURSOR else Colors.CURSOR_INACTIVE);
     Simp.draw_text(font, xx x, xx y, input_text, color = color);
 }
 

@@ -79,15 +79,23 @@ ficus_instruction_pointer : struct {
 ficus_started_running_frame_count := 0;
 
 ficus_update :: () {
+    if !is_ficus_running() && ficus_calculator_text != ficus_prev_calculator_text {
+        if ficus_prev_calculator_text  free(ficus_prev_calculator_text);
+        ficus_prev_calculator_text = copy_string(ficus_calculator_text);
+        ficus_execute_string(ficus_calculator_text, output = .silent);
+        is_error, result := ficus_tick(true);
+        calculator_result(is_error, result);
+    }
+
     if !is_ficus_running()
          ficus_execute_event("on_frame");
 
     ficus_tick();
 }
 
-ficus_tick :: () {
+ficus_tick :: (request_result := false) -> is_error: bool, result: string {
     if !is_ficus_running()
-        return;
+        return false, "";
 
     if ficus_started_running_frame_count == 0
         ficus_started_running_frame_count = frame_count;
@@ -116,7 +124,7 @@ ficus_tick :: () {
     }
 
     if ficus_machine_state == .paused
-        return;
+        return false, "";
 
     if !ficus_execution_stack {
         item := *ficus_scripts_to_execute[0];
@@ -124,11 +132,11 @@ ficus_tick :: () {
     }
 
     for instruction_count: 1 .. max_instructions_per_frame {
-        state, error := execute_one_frame();
+        state, error, result := execute_one_frame(request_result);
 
         if state == .errored {
             if ficus_execution_stack.count > 0 {
-                if config.settings.ficus_debug_on_error {
+                if config.settings.ficus_debug_on_error && !request_result {
                     frame := *ficus_execution_stack[ficus_execution_stack.count - 1];
                     frame.token = frame.previous_token;
                     frame.tokenizer = frame.previous_tokenizer;
@@ -138,7 +146,7 @@ ficus_tick :: () {
                 }
                 else {
                     ficus_halt();
-                    return;
+                    return true, error;
                 }
             }
         }
@@ -213,10 +221,11 @@ ficus_tick :: () {
             }
             else {
                 ficus_halt();
-                break;
+                return false, result;
             }
         }
     }
+    return false, "";
 }
 
 ficus_draw_ui :: () {
@@ -581,6 +590,16 @@ get_project_words_buffer_id :: () -> int {
     return project_words_buffer_id;
 }
 
+ficus_calculator_text: string;
+ficus_prev_calculator_text: string;
+
+ficus_update_calculator_text :: (s: string) {
+    if s != ficus_calculator_text {
+        if ficus_calculator_text  free(ficus_calculator_text);
+        ficus_calculator_text = copy_string(s);
+    }
+}
+
 #scope_file
 
 max_stack_size :: 4096;
@@ -740,14 +759,14 @@ execute_string :: (s: string, stack : *[..] Stack_Item, space: Space, output: Vo
     frame.words = words_for_space(space);
 }
 
-execute_one_frame :: () -> Ficus_Execution_State, error: string {
+execute_one_frame :: (request_result := false) -> Ficus_Execution_State, error: string, result: string {
     stack_depth := ficus_execution_stack.count;
-    if stack_depth == 0  return .stopped, "";
+    if stack_depth == 0  return .stopped, "", "";
 
     using frame := *ficus_execution_stack[stack_depth - 1];
 
     if stack_depth > max_stack_depth
-        return .errored, tprint("Exceeded program stack depth limit (%)", max_stack_depth);
+        return .errored, tprint("Exceeded program stack depth limit (%)", max_stack_depth), "";
 
     ERRORS := output >= .errors;
     DEFAULT := output >= .default;
@@ -766,9 +785,9 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
         if !jump_stack {
             pop(*ficus_execution_stack);
             if !ficus_execution_stack
-                return .errored, "No jump target found";
+                return .errored, "No jump target found", "";
             else
-                return .active, "";
+                return .active, "", "";
         }
         jump_target := pop(*jump_stack);
         jump_to_jump_target = false;
@@ -817,7 +836,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
             `token = previous_token;
             `tokenizer = previous_tokenizer;
             ficus_machine_state = .pause_just_happened;
-            `return .active, "";
+            `return .active, "", "";
         }
     }
 
@@ -888,7 +907,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
                 move_tokens_to_expect_stack_count -= 1;
                 if !move_tokens_to_expect_stack_count {
                     execute_word("apply", frame, true);
-                    return .active, "";
+                    return .active, "", "";
                 }
             }
 
@@ -941,7 +960,7 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
                         break;
                     }
                     execute_string(word_name, execute_stack, space, output);
-                    return .active, "";
+                    return .active, "", "";
                 }
 
                 word_name = token_string;
@@ -997,18 +1016,29 @@ execute_one_frame :: () -> Ficus_Execution_State, error: string {
 
     if error {
         if ERRORS  console_log(error, token_string);
-        return .errored, error;
+        return .errored, error, "";
     }
 
     if token.type == .eof {
         pop(*ficus_execution_stack);
         if !ficus_execution_stack {
-            clear_all_stacks();
-            return .stopped, "";
+            if request_result {
+                builder: String_Builder;
+                for main_stack {
+                    if it_index  append(*builder, " ");
+                    append(*builder, to_string(it));
+                }
+                result := builder_to_string(*builder, temp);
+                return .stopped, "", result;
+            }
+            else {
+                clear_all_stacks();
+                return .stopped, "", "";
+            }
         }
     }
 
-    return .active, "";
+    return .active, "", "";
 }
 
 
@@ -1488,6 +1518,49 @@ intrinsics :: #code if word_name == {
             }
         }
         push(false, stack);
+
+    // math
+
+    case "cos";
+        x := pop(.number, "x");
+        push(cos(x.value), stack);
+
+    case "sin";
+        x := pop(.number, "x");
+        push(sin(x.value), stack);
+
+    case "tan";
+        x := pop(.number, "x");
+        push(tan(x.value), stack);
+
+    case "atan";
+        x := pop(.number, "x");
+        push(atan(x.value), stack);
+
+    case "acos";
+        x := pop(.number, "x");
+        push(acos(x.value), stack);
+
+    case "asin";
+        x := pop(.number, "x");
+        push(asin(x.value), stack);
+
+    case "sqrt";
+        x := pop(.number, "x");
+        push(sqrt(x.value), stack);
+
+    case "pow";
+        x := pop(.number, "x");
+        power := pop(.number, "power");
+        push(pow(x.value, power.value), stack);
+
+    case "exp";
+        x := pop(.number, "x");
+        push(exp(x.value), stack);
+
+    case "log";
+        x := pop(.number, "x");
+        push(log(x.value), stack);
 
     // utils
 

@@ -150,3 +150,21 @@ cb1ea84 Merge branch 'main' of https://github.com/onelivesleft/focus
 2c33bcf Merge main
 22577a8 Fix up merge
 9e7896b Fix save_all
+0b7bd34 Simple Changelist, Fix delete_to_start/end copying to clipboard, Fix buffers not saving on build
+c20aa62 Ficus breakpoints (almost)
+d38f528 Ficus debugging with UI, Status bar, window_location instruction to get/set window
+a4f216a Merge branch 'main' of https://github.com/onelivesleft/focus
+f8ec370 Merge main
+e503392 Dev build includes iprof, other builds do not
+bf8433b Fix show icon search
+4575f99 Ficus: Decorate current instruction, fix jumps.
+fa5517f Fixed build options at top of main: can now disable them to get back default Focus look
+169ce10 Zen mode
+9aaea87 Reworked User Messages
+ac10e8f Started work on README, Added icons to user messages, Changed `on_open` to `on_load`, Added `on_editor`,  Fixed console closing automatically when it shouldn't,  Fixed user messages drawing over status bar,
+ad438e1 Work on README, Change show_cursor_position to use user message instead of console,  Ficus++, Fixed MD highlight crash,
+a88818b Work on prettier header rects
+b391ab2 Add config to repo
+ee57738 Prettier header rects
+f162809 Remove global config
+76136ef Show FPS, Show Cursor Position, Toggle_show_fps, fixed footer graphical glitch, moving cursor up/down past edge of file moves to boundary,  Ficus++

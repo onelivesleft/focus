@@ -335,3 +335,9 @@ code_error:                     FF0000FF
 code_keyword:                   BFC9DBFF
 code_jump:                      E67D74FF
 code_directive:                 7DE674FF
+
+zen_foreground:                 FFFFFF8F
+zen_background:                 222222FF
+zen_margins:                    191919FF
+zen_cursor:                     FFFFFFFF
+zen_comment:                    FFFFFF4F
