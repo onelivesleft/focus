@@ -1,9 +1,26 @@
 highlight_odin_syntax :: (using buffer: *Buffer) {
-    tokenizer := get_tokenizer(buffer);
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + bytes.count;
+    tokenizer.t     = bytes.data;
+
+    highlight_odin_syntax(buffer, *tokenizer, true);
+}
+
+highlight_odin_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = to_string(bytes);
+    tokenizer.max_t = bytes.data + bytes.count;
+    tokenizer.t     = bytes.data;
+
+    highlight_odin_syntax(buffer, *tokenizer, false);
+}
+
+highlight_odin_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, reset: bool) {
     inside_attribute := false;
 
     while true {
-        token := get_next_token(*tokenizer);
+        token := get_next_token(tokenizer);
         if token.type == .eof break;
 
         using tokenizer;
@@ -15,7 +32,7 @@ highlight_odin_syntax :: (using buffer: *Buffer) {
             if inside_attribute || (prev.type == .punctuation && prev.punctuation == .attribute) ||
                (prev.type == .punctuation && before_prev.type == .punctuation && prev.punctuation == .l_paren && before_prev.punctuation == .attribute) {
                inside_attribute = true;
-               maybe_parse_attribute(*tokenizer, *token);
+               maybe_parse_attribute(tokenizer, *token);
             }
         }
         else if token.type == .punctuation {

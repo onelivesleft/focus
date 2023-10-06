@@ -60,6 +60,7 @@ maybe_highlight_inner_language :: (using buffer: *Buffer, language: type_of(Buff
         case .Golang;        highlight_proc = highlight_golang_syntax;
         case .Glsl;          highlight_proc = highlight_glsl_syntax;
         case .Markdown;      highlight_proc = highlight_md_syntax;
+        case .Odin;          highlight_proc = highlight_odin_syntax;
         case .Worklog;       highlight_proc = highlight_worklog;
         case .Focus_Config;  highlight_proc = highlight_focus_config_syntax;
         case .Ficus;         highlight_proc = highlight_ficus_syntax;
@@ -100,6 +101,7 @@ icon_for_lang :: (lang: type_of(Buffer.lang)) -> File_Icon {
         case .Golang;        return .unknown;
         case .Glsl;          return .unknown;
         case .Markdown;      return .unknown;
+        case .Odin;          return .unknown;
         case .Worklog;       return .worklog;
         case .Focus_Config;  return .gear;
         case .Ficus;         return .fig;

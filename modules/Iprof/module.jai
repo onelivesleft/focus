@@ -6,13 +6,12 @@
 // @Simplify: We could just use modules/Hash_Table instead of
 // doing our own zone_hash situation here.
 
-Import_Mode :: enum u8 {
-    METAPROGRAM :: 0;
-    CLIENT      :: 1;
-}
-
-#module_parameters(IMPORT_MODE := Import_Mode.METAPROGRAM, MANUAL_MODE := false, USE_GRAPHICS := true, DO_HISTORY := true);
-
+#module_parameters(IMPORT_MODE := Import_Mode.METAPROGRAM, MANUAL_MODE := false, USE_GRAPHICS := true, DO_HISTORY := true) {
+    Import_Mode :: enum u8 {
+        METAPROGRAM :: 0;
+        CLIENT      :: 1;
+    }
+};
 
 #if IMPORT_MODE == .METAPROGRAM {
     // When being imported by a metaprogram, we provide code for instrumenting the target program,

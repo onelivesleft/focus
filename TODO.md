@@ -1,5 +1,6 @@
 # Mine
 
+- [ ] Change location sentinel to 2: + number (optional comma)
 - [ ] Embed console in application so release build doesnt spawn a window every time you run a command.
 - [ ] Change release version to not be detached from command line, as a short term fix for above.
 

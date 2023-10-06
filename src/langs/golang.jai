@@ -40,7 +40,6 @@ highlight_golang_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, 
     }
 }
 
-//~
 #scope_file
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {

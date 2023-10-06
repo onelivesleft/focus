@@ -501,7 +501,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         // but when highlit in editor it looks like one number literal rather than two
         // The solution here is to not highlight more numbers if there are many number tokens in a row
         last_char := (t - 1).*;
-        if tokenizer.last_tokens[1].type != .number || (!is_digit(last_char) && last_char != #char "_") {
+        if tokenizer.before_prev_token.type != .number || (!is_digit(last_char) && last_char != #char "_") {
             parse_number(tokenizer, *token);
         }
         else {
@@ -715,7 +715,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
                 token.operation = .unknown;  // -- is not a valid token
             }
         case;
-            if tokenizer.last_tokens[1].type != .number && is_digit(t.*) {
+            if tokenizer.before_prev_token.type != .number && is_digit(t.*) {
                 parse_number(tokenizer, token);
             }
     }

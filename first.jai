@@ -61,8 +61,9 @@ build :: () {
         }
     }
 
-    options.output_path = build_dir;
-    make_directory_if_it_does_not_exist(build_dir);
+    if !no_output {
+        options.output_path = build_dir;
+        make_directory_if_it_does_not_exist(build_dir);
 
         if !optimized && !dev_build
             options.output_executable_name = sprint("%_debug", options.output_executable_name);

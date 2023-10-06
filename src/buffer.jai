@@ -465,15 +465,15 @@ recalculate_colors :: (buffer: *Buffer) {
         case .Jai;          highlight_jai_syntax(buffer);
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
+        case .Golang;       highlight_golang_syntax(buffer);
         case .Ficus;        highlight_ficus_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
         case .Markdown;     highlight_md_syntax(buffer);
-        case .Glsl;         highlight_glsl_syntax(buffer);
-        case .Golang;       highlight_golang_syntax(buffer);
         case .Odin;         highlight_odin_syntax(buffer);
+        case .Glsl;         highlight_glsl_syntax(buffer);
+        case .Worklog;      highlight_worklog(buffer);
         case .Python;       highlight_python_syntax(buffer);
         case .RenPy;        highlight_renpy_syntax(buffer);
-        case .Worklog;      highlight_worklog(buffer);
         case .Plain_Text;
     }
 
@@ -498,7 +498,6 @@ tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */
         case .C;            return tokenize_c_for_indentation(buffer);
         case .CSharp;       return tokenize_csharp_for_indentation(buffer);
         case .Glsl;         return tokenize_glsl_for_indentation(buffer);
-        case .Odin;         return tokenize_odin_for_indentation(buffer);
     }
 
     return .[];
@@ -646,7 +645,75 @@ save_buffer_to_new_file_on_disk :: (buffer: *Buffer, buffer_id: s64, file_path: 
     return true;
 }
 
-save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
+save_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64, file_path := "") -> saved: bool {
+    if flags & .readonly return false;
+
+    if !(flags & .has_file) && !file_path {
+        buffer_name := get_buffer_name(buffer);
+        add_user_message_warning(tprint("Can't save buffer in bulk '%' - please save it individually for now. Sorry.", buffer_name), icon="\uf071");
+        return false;
+    }
+
+    assert((flags & .has_file) || file_path);
+
+    if !(flags & .has_file) {
+        // Save new file buffer
+        flags |= .has_file;
+        file = get_file_info_from_full_path(file_path);
+        set_lang_from_path(buffer, file_path);
+        flags |= .needs_coloring;
+        redraw_requested = true;
+
+        lock(*open_buffers_lock);
+        {
+            existing_buffer_id, found_existing := table_find(*buffers_table, file_path);
+            if found_existing {
+                if buffer_id != existing_buffer_id {
+                    // The user chose to save the new buffer into an existing file. OK.
+                    // Mark the old buffer as deleted and use the new one
+                    removed := table_remove(*buffers_table, file_path);
+                    assert(removed, "For some reason table_remove failed. This is a very unexpected bug.");
+                    existing_buffer := *open_buffers[existing_buffer_id];
+                    existing_buffer.flags |= .deleted;
+                    existing_buffer.flags &= ~(.modified |.modified_on_disk);
+
+                    // Reroute all editors which use it to the new buffer id
+                    for * editor : open_editors {
+                        if editor.buffer_id == existing_buffer_id {
+                            editor.buffer_id = buffer_id;
+                            editor.scroll_to_cursor = .yes;
+                            for * cursor : editor.cursors { put_cursor_in_valid_spot(cursor, buffer); }
+                            organise_cursors(editor);
+                        }
+                    }
+                } else {
+                    assert(false, "Buffer without a file somehow got into the buffers hash table. This is a bug.");
+                }
+            }
+
+            table_add(*buffers_table, copy_string(file_path), buffer_id);
+        }
+        unlock(*open_buffers_lock);
+
+        if !file_is_watched(file_path) then start_watching_file(file_path);
+    }
+
+    if config.settings.strip_trailing_whitespace_on_save then strip_trailing_whitespace(buffer, buffer_id);
+
+    success := write_entire_file(file.full_path, to_string(bytes));
+    if success {
+        flags &= ~(.modified | .modified_on_disk | .deleted | .error_when_saving | .crlf);
+        meow_hash = calculate_hash(bytes);
+    } else {
+        flags |= .error_when_saving;
+    }
+    remember_last_modtime_and_size(buffer);
+    update_window_title(open_editors[editors.active].buffer_id);
+
+    return !(flags & .error_when_saving);
+}
+
+xsave_buffer_to_disk :: (using buffer: *Buffer, buffer_id: s64) -> saved: bool {
     if flags & .readonly return false;
 
     if !(flags & .has_file) {

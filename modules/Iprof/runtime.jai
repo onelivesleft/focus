@@ -1051,7 +1051,7 @@ Prepend_To_Main :: () #expand {
 
 #if !MANUAL_MODE {
     #import "Compiler";
-    #import "Metaprogram_Plugins";
+    //#import "Metaprogram_Plugins";
 
     #scope_module
     #placeholder AUTO_INSTRUMENT_ZONE_COUNT;
