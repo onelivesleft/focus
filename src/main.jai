@@ -207,6 +207,7 @@ main :: () {
 
         Input.update_window_events();
 
+        prev_frame_time = frame_time;
         if frame_time > MAX_TIME_BEFORE_RESETTING then { init_time(); frame_time = cast(Time) get_time(); }
         current_time := cast(Time) get_time();
         frame_dt   = min(current_time - frame_time, MAX_FRAME_DT);
@@ -915,6 +916,7 @@ should_reload_workspace := false;
 
 frame_count: s64;                 // ever-increasing frame counter
 frame_time: Time;                 // ever-increasing time since start in seconds
+prev_frame_time: Time;
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
 QUICK_FRAME_DT: Time : xx (1.0 / 300);  // sorry 300Hz monitor users

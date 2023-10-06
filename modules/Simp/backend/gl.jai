@@ -327,23 +327,26 @@ void main () {
     vec4 mixed = mix(iterated_color, perm, 0.05);
 
     if (lightsource_count > 0) {
-        float min_distance = 9999999;
-        bool is_on_line = false;
-        float lightsource_time;
+        float max_brightness = 0.0;
         for (int i = 0; i < lightsource_count; i++) {
             float d = distance(lightsources[i].xy, gl_FragCoord.xy);
-            if (d < min_distance) {
-                min_distance = d;
-                lightsource_time = lightsources[i].z;
-                is_on_line = (lightsources[i].y > gl_FragCoord.y - half_line_height
-                           && lightsources[i].y < gl_FragCoord.y + half_line_height);
+            float t = 1.0 - ((u_time - lightsources[i].z) / lightsource_fade_duration);
+            float brightness = 1 - clamp(t * lightsource_intensity / d, 0, 1);
+            brightness = 1 - (brightness * brightness * brightness);
+
+            for (int j = 0; j < lightsource_count; j++) {
+                if (lightsources[j].z == u_time
+                 && lightsources[j].y > gl_FragCoord.y - half_line_height
+                 && lightsources[j].y < gl_FragCoord.y + half_line_height) {
+                    brightness /= 2;
+                    break;
+                }
             }
+
+            if (brightness > max_brightness)
+                max_brightness = brightness;
         }
-        float t = 1.0 - ((u_time - lightsource_time) / lightsource_fade_duration);
-        float brightness = 1 - clamp(t * lightsource_intensity / min_distance, 0, 1);
-        brightness = 1 - (brightness * brightness * brightness);
-        if (is_on_line)  brightness /= 2;
-        mixed = mix(mixed, lightsource_color, lightsource_color.a * brightness);
+        mixed = mix(mixed, lightsource_color, lightsource_color.a * max_brightness);
     }
 
     // When color is between two displayable values, round it up or down randomly, proportionate to

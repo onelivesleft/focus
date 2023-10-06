@@ -7,7 +7,7 @@ main_cursor_rect: Rect;
 right_file_rect: Rect;
 left_file_rect: Rect;
 
-cursor_lightsource_fade_duration :: 0.1;
+cursor_lightsource_fade_duration :: 0.05;
 cursor_lightsources_buffer: [512] Vector3;
 cursor_lightsources: [] Vector3;
 cursor_lightsources_persisting: Table(u64, Vector3);
@@ -4393,7 +4393,7 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
     lightsource_color.a = 0.01 * config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cursor_lightsource_fade_duration);
+    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cursor_lightsource_fade_duration);
     draw_rect_raw(rect, color);
 }
 

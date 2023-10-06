@@ -1,5 +1,7 @@
 # Mine
 
+- [ ] Show external build errors as toasts (like read-only exe)
+
 - [ ] Embed console in application so release build doesnt spawn a window every time you run a command.
 - [x] Change release version to not be detached from command line, as a short term fix for above.
 

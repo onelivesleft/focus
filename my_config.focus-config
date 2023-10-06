@@ -406,7 +406,8 @@ collapsed_area_marker:          E67D74FF
 console_background:             050505EF
 console_text:                   BFC9DBFF
 console_error:                  FF5555FF
-console_header_background:      FFFF774F
+console_header_background:      77FFFF4F
+console_header_waiting:         FFFF774F
 console_header_success:         55FF554F
 console_header_error:           FF55554F
 console_header_text:            000000FF     #DFE9FBFF
