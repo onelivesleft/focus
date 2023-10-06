@@ -3499,11 +3499,11 @@ toggle_comment :: (editor: *Editor, buffer: *Buffer) {
     if buffer.lang == {
         case .C;            comment = "//";
         case .CSharp;       comment = "//";
+        case .Focus_Config; comment = "#";
         case .Golang;       comment = "//";
         case .Glsl;         comment = "//";
         case .Jai;          comment = "//";
         case .Odin;         comment = "//";
-        case .Focus_Config; comment = "#";
         case .Python;       comment = "#";
         case .RenPy;        comment = "#";
         case;               return;

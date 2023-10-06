@@ -48,9 +48,10 @@ Color_Values :: struct {
     CONSOLE_TEXT            := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
     CONSOLE_ERROR           := Color.{ r = 1.00, g = 0.00, b = 0.00, a = 1.0 };
     CONSOLE_HEADER_BACKGROUND := Color.{ r = 0.131, g = 0.202, b = 0.25 };
+    CONSOLE_HEADER_WAITING  := Color.{ r = 0.202, g = 0.131, b = 0.202 };
     CONSOLE_HEADER_SUCCESS  := Color.{ r = 0.10, g = 0.50, b = 0.10, a = 1.0 };
     CONSOLE_HEADER_ERROR    := Color.{ r = 0.50, g = 0.00, b = 0.00, a = 1.0 };
-    CONSOLE_HEADER_TEXT     := Color.{ r = 0.75, g = 0.79, b = 0.86, a = 1.0 };
+    CONSOLE_HEADER_TEXT     := Color.{ r = 0.65, g = 0.69, b = 0.66, a = 1.0 };
 
     ZEN_FOREGROUND          := Color.{r = 0.6,      g = 0.6,      b = 0.666667, a = 0.686275};
     ZEN_BACKGROUND          := Color.{r = 0.058824, g = 0.027451, b = 0,        a = 0.498039};

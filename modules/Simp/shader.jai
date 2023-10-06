@@ -23,7 +23,7 @@ set_shader_for_color :: (enable_blend := false) {
     }
 }
 
-set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector2, lightsource_intensity: float, lightsource_color: Vector4, line_height: float) {
+set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector3, lightsource_intensity: float, lightsource_color: Vector4, line_height: float, lightsource_fade_duration: float) {
     CheckInit();
     if state.current_shader != *shader_cool {
         immediate_set_shader(*shader_cool);
@@ -38,8 +38,10 @@ set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector2, lig
         if lightsources {
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_count");
             glUniform1i(loc, xx lightsources.count);
+            loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_fade_duration");
+            glUniform1f(loc, xx lightsource_fade_duration);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsources");
-            glUniform2fv(loc, xx lightsources.count, xx lightsources.data);
+            glUniform3fv(loc, xx lightsources.count, xx lightsources.data);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_color");
             glUniform4f(loc, lightsource_color.x, lightsource_color.y, lightsource_color.z, lightsource_color.w);
             loc = glGetUniformLocation(shader_cool.gl_handle, "lightsource_intensity");
@@ -77,7 +79,7 @@ set_shader_for_text :: () {
     }
 }
 
-set_shader_for_text :: (lightsources: *[]Vector2, lightsource_intensity: float, lightsource_color: Vector4) {
+set_shader_for_text :: (lightsources: *[]Vector3, lightsource_intensity: float, lightsource_color: Vector4) {
     CheckInit();
     if state.current_shader != *shader_text {
         immediate_set_shader(*shader_text);
@@ -85,7 +87,7 @@ set_shader_for_text :: (lightsources: *[]Vector2, lightsource_intensity: float, 
         loc := glGetUniformLocation(shader_text.gl_handle, "lightsource_count");
         glUniform1i(loc, xx lightsources.count);
         loc = glGetUniformLocation(shader_text.gl_handle, "lightsources");
-        glUniform2fv(loc, xx lightsources.count, xx lightsources.data);
+        glUniform3fv(loc, xx lightsources.count, xx lightsources.data);
         loc = glGetUniformLocation(shader_text.gl_handle, "lightsource_color");
         glUniform4f(loc, lightsource_color.x, lightsource_color.y, lightsource_color.z, lightsource_color.w);
         loc = glGetUniformLocation(shader_text.gl_handle, "lightsource_intensity");

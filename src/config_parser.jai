@@ -166,6 +166,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "console_background";                 return *config.colors.CONSOLE_BACKGROUND;
         case "console_text";                       return *config.colors.CONSOLE_TEXT;
         case "console_header_background";          return *config.colors.CONSOLE_HEADER_BACKGROUND;
+        case "console_header_waiting";             return *config.colors.CONSOLE_HEADER_WAITING;
         case "console_header_success";             return *config.colors.CONSOLE_HEADER_SUCCESS;
         case "console_header_error";               return *config.colors.CONSOLE_HEADER_ERROR;
         case "console_header_text";                return *config.colors.CONSOLE_HEADER_TEXT;

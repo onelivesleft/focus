@@ -231,7 +231,7 @@ layout(location = 0, index = 1) out vec4 colorMask;
 uniform sampler2D text_sampler;
 uniform vec4 text_color;
 uniform int lightsource_count;
-uniform vec2 lightsources[40];
+uniform vec3 lightsources[512];
 uniform vec4 lightsource_color;
 uniform float lightsource_intensity;
 
@@ -242,7 +242,7 @@ void main () {
     color = iterated_color;
     float max_brightness = 0;
     for (int i = 0; i < lightsource_count; i++) {
-        float d = distance(lightsources[i], gl_FragCoord.xy);
+        float d = distance(lightsources[i].xy, gl_FragCoord.xy);
         float brightness = 1 - clamp(lightsource_intensity / d, 0, 1);
         brightness = 1 - (brightness * brightness * brightness);
         max_brightness = max(brightness, max_brightness);
@@ -300,9 +300,10 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform float jiggle;
 uniform int lightsource_count;
-uniform vec2 lightsources[40];
+uniform vec3 lightsources[512];
 uniform vec4 lightsource_color;
 uniform float lightsource_intensity;
+uniform float lightsource_fade_duration;
 uniform float half_line_height;
 
 out vec4 color;
@@ -328,15 +329,18 @@ void main () {
     if (lightsource_count > 0) {
         float min_distance = 9999999;
         bool is_on_line = false;
+        float lightsource_time;
         for (int i = 0; i < lightsource_count; i++) {
-            float d = distance(lightsources[i], gl_FragCoord.xy);
+            float d = distance(lightsources[i].xy, gl_FragCoord.xy);
             if (d < min_distance) {
                 min_distance = d;
+                lightsource_time = lightsources[i].z;
                 is_on_line = (lightsources[i].y > gl_FragCoord.y - half_line_height
                            && lightsources[i].y < gl_FragCoord.y + half_line_height);
             }
         }
-        float brightness = 1 - clamp(lightsource_intensity / min_distance, 0, 1);
+        float t = 1.0 - ((u_time - lightsource_time) / lightsource_fade_duration);
+        float brightness = 1 - clamp(t * lightsource_intensity / min_distance, 0, 1);
         brightness = 1 - (brightness * brightness * brightness);
         if (is_on_line)  brightness /= 2;
         mixed = mix(mixed, lightsource_color, lightsource_color.a * brightness);

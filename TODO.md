@@ -1,8 +1,7 @@
 # Mine
 
-- [ ] Change location sentinel to 2: + number (optional comma)
 - [ ] Embed console in application so release build doesnt spawn a window every time you run a command.
-- [ ] Change release version to not be detached from command line, as a short term fix for above.
+- [x] Change release version to not be detached from command line, as a short term fix for above.
 
 - [ ] Fix font.jai blowing up "assert(colors.count > t - line.data);" ~line 227
 - [ ] Add colors to ficus
@@ -51,6 +50,7 @@
     - [.] Fix stdout/stderr misordering when running build command, stdout is buffering somehow, despite PeekNamedPipe?
         - [ ] Have silenced stdout after error received, but the order should be fixed!
     - [x] Recolor header based on success
+        - [x] Add neutral header
     - [x] Clickable locations
     - [x] Auto goto error
     - [x] fade background alpha to 1.0 when hovering

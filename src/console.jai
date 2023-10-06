@@ -87,7 +87,7 @@ editor_showing_console :: () -> *Editor {
     return null;
 }
 
-print_console_header :: (s: string, leading_newline := true, is_error := false, remain_closed := false) -> Offset_Range, region_id: int {
+print_console_header :: (s: string, leading_newline := true, is_error := false, remain_closed := false, waiting_for_result := false) -> Offset_Range, region_id: int {
     lock(*console_mutex);
     defer unlock(*console_mutex);
 
@@ -102,7 +102,7 @@ print_console_header :: (s: string, leading_newline := true, is_error := false, 
     print_to_console(s, true, .Plain_Text, false, remain_closed=remain_closed);
     end := cast(s32) buffer.bytes.count - 1;
     memset(buffer.colors.data + start, xx Code_Color.CONSOLE_HEADER_TEXT, end - start);
-    id := add_buffer_region(buffer, start, end, true, 1, ifx is_error then .console_header_error else .console_header);
+    id := add_buffer_region(buffer, start, end, true, 1, ifx is_error then .console_header_error else ifx waiting_for_result then .console_header_waiting else .console_header);
     return .{start, end}, id;
 }
 
@@ -199,7 +199,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     remove_delayed_action(hide_console);
 
     build_text := tprint("[BUILD] %", task.title);
-    build_task_header, build_task_region_id = print_console_header(build_text, remain_closed=!config.settings.show_console_on_build);
+    build_task_header, build_task_region_id = print_console_header(build_text, remain_closed=!config.settings.show_console_on_build, waiting_for_result = true);
     add_user_message(build_text, duration_in_seconds = -1, icon = to_string(*convert_utf32_to_utf8(xx build_icons[0])), origin = .build);
 
     successful := true;
@@ -532,8 +532,9 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
 
                 build_error := add_build_error(parts[0], coords, error_kind, parts[3]);
                 target_buffer_index := find_buffer(build_error.path);
-                if target_buffer_index >= 0
+                if target_buffer_index >= 0 {
                     add_source_location_decoration(buffer, xx (parts[2].data - buffer.bytes.data), xx target_buffer_index, real_coords_to_offset(open_buffers[target_buffer_index], build_error.coords));
+                }
             }
         }
         else {

@@ -7,8 +7,10 @@ main_cursor_rect: Rect;
 right_file_rect: Rect;
 left_file_rect: Rect;
 
-cursor_lightsources_buffer: [40] Vector2;
-cursor_lightsources: [] Vector2;
+cursor_lightsource_fade_duration :: 0.1;
+cursor_lightsources_buffer: [512] Vector3;
+cursor_lightsources: [] Vector3;
+cursor_lightsources_persisting: Table(u64, Vector3);
 cursor_lightsource_background_intensity: float;
 cursor_lightsource_foreground_intensity: float;
 
@@ -1282,7 +1284,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                              then Colors.CONSOLE_HEADER_BACKGROUND
                              else ifx region.type == .console_header_success
                                   then Colors.CONSOLE_HEADER_SUCCESS
-                                  else Colors.CONSOLE_HEADER_ERROR;
+                                  else ifx region.type == .console_header_waiting
+                                       then Colors.CONSOLE_HEADER_WAITING
+                                       else Colors.CONSOLE_HEADER_ERROR;
                     draw_rect(shrink_x(region_rect, 1), color);
                     if build_task_running && build_task_region_id == region.id {
                         animation_rate :: 0.44;
@@ -1600,18 +1604,31 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         if cursors_active {
-            cursor_lightsources.data = cursor_lightsources_buffer.data;
-            cursor_lightsources.count = 0;
+            time : float = xx frame_time;
             for cursor_coords {
                 xy := get_cursor_screen_pos(text_origin, it.pos);
                 if xy.y < -100 || xy.y > xx (window_height + 100)
                     continue;
 
+                lightsource := find_or_add(*cursor_lightsources_persisting, (cast(*u64)*it.pos).*);
+                lightsource.xy = xy;
+                lightsource.y += line_height / 2;
+                lightsource.z = time;
+            }
+
+            cursor_lightsources.data = cursor_lightsources_buffer.data;
+            cursor_lightsources.count = 0;
+            gone_away_time := time - cursor_lightsource_fade_duration;
+
+            for * cursor_lightsources_persisting {
+                if it.z < gone_away_time {
+                    remove it;
+                    continue;
+                }
+
                 i := cursor_lightsources.count;
                 cursor_lightsources.count += 1;
-                lightsource := *cursor_lightsources[i];
-                lightsource.* = xy;
-                lightsource.y += line_height / 2;
+                cursor_lightsources[i] = it;
                 if cursor_lightsources.count >= cursor_lightsources_buffer.count
                     break;
             }
@@ -4373,10 +4390,10 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
     draw_cool_rounded_rect(rect, color, value=xx frame_time * 0.1);
 }
 
-draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector2 = null, line_height := 0.0) {
+draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
     lightsource_color.a = 0.01 * config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height);
+    Simp.set_shader_for_cool(xx frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cursor_lightsource_fade_duration);
     draw_rect_raw(rect, color);
 }
 
