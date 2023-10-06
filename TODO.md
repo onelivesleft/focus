@@ -1,13 +1,14 @@
 # Mine
 
-- [ ] Show external build errors as toasts (like read-only exe)
+- [ ] Clean up icon strings: have constants! or an enum! or a struct!
+- [x] Show external build errors as toasts (like read-only exe)
 
 - [ ] Embed console in application so release build doesnt spawn a window every time you run a command.
 - [x] Change release version to not be detached from command line, as a short term fix for above.
 
 - [ ] Fix font.jai blowing up "assert(colors.count > t - line.data);" ~line 227
 - [ ] Add colors to ficus
-- [ ] Add fade to light when cursor jumps
+- [x] Add fade to light when cursor jumps
 
 - [x] Calculator
 - [x] Hitting down on bottom line of buffer should become `end`

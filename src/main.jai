@@ -17,7 +17,6 @@ EYE_TRACKING :: true;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
 BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
-TOAST_BUILD_RESULT :: false;
 
 show_keystrokes := false;
 show_filename := true;

@@ -938,14 +938,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             // length of the longest visible line, which we can only determine once we determine
             // the first visible line. Thus we need to "resolve" vertical scrolling before we can
             // properly handle horizontal scrolling.
-            using editor.viewport;
-            new_target := clamp(scroll_y.target - mouse.scroll_y_delta, 0, max_y_scroll);
-            if mouse.smooth_scroll {
-                start_animation(*scroll_y, top, new_target);
-            } else {
-                scroll_y.target = new_target;
-                top = new_target;
-                viewport_remember_glue_point(editor, buffer);
+            if zen_mode {
+                move_cursors_vertically(editor, buffer, -3 * mouse.scroll_y_delta / 120, false);
+                for * editor.cursors { it.sel = it.pos; }
+            }
+            else {
+                using editor.viewport;
+                new_target := clamp(scroll_y.target - mouse.scroll_y_delta, 0, max_y_scroll);
+                if mouse.smooth_scroll {
+                    start_animation(*scroll_y, top, new_target);
+                } else {
+                    scroll_y.target = new_target;
+                    top = new_target;
+                    viewport_remember_glue_point(editor, buffer);
+                }
             }
         } else if cursor_moved {
             // Detect if cursor is off screen and start scrolling to it

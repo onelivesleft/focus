@@ -10,7 +10,7 @@ In a lot of ways! Some big, some small:
 
 ### Look & Feel @TODO
 * Remove title bar / standard Windows gadgets (behaves more like a fullscreen borderless window).  You can move the window around by dragging the file tab in the top right.  If you're not using a window layout manager (like FancyZones in PowerToys) you can resize by right-clicking it, selecting `Size` and then hitting arrow keys. You can revert back to the normal title bar by turning off some bool constants at the top of `main.jai`.
-* You can set the size and position of the window via Ficus script (see Ficus section below): run `window_location? print` to see the current dimensions (x, y, w, h), and in your `on_load` script use `<x> <y> <w> <h> window_location!`.
+* You can set the size and position of the window via Ficus script (see Ficus section below): run `window_location? print` (or just type `window_location?` into the calculator) to see the current dimensions (x, y, w, h), and in your `on_load` script use `<x> <y> <w> <h> window_location!`.
 * Decorations: graphical elements added within the text, For instance, color squares drawn next to color settings in config files.
 * Filename tab can be hidden using `Toggle Show Filename` command, or with Zen Mode (described below).
 * `Collapse Leading Whitespace` command: if all code on screen is indented then all common leading whitespace will be collapsed.  Indicators at top and bottom of screen show how many indents have been elided.
@@ -32,8 +32,25 @@ In a lot of ways! Some big, some small:
 
 ![Compile-time code regions](images/compile_time_region.png)
 
-### Ficus @TODO
-`ficus_debug_on_error`
+### Ficus
+Ficus is a scripting language you can use to interrogate and control Focus.  Primarily it's used to set up the default build actions for a project.
+
+Ficus is a stack-based language, a derivative of Forth.  It works by putting things onto a stack and then applying functions to that stack.  In simple terms this means operations are postfix: for example, where you might be used to typing:
+```
+(a + b) * c
+```
+in Ficus you would type:
+```
+a b + c *
+```
+That is: put `a` on the stack, put `b` on the stack, add them (so now the stack contains one item: the sum of `a` and `b`), put `c` on the stack, multiply.  You can see this in action by opening the Calculator (search for it in the command runner, default `ctrl-shift-p`), which evaluates its contents using Ficus.  Watch what happens to the output as you type in `1 2 + 3 *`.
+
+You can create Ficus scripts in three places: your global config, your project config, and in any file.  You can run code in the current editor by using the `Ficus Run Current` command.  If you want an empty buffer to test some Ficus code, you can use the `Create New Ficus File` command.
+
+Functions in Ficus are called Words.
+
+* `ficus_debug_on_error`
+
 
 ### Build @TODO
 
@@ -75,3 +92,4 @@ In a lot of ways! Some big, some small:
 * Added Icon Search dialog, show with `Show Icon Search` command. Useful for Focus (and Ficus!) developers.
 * Fixed non-cut delete actions copying text to clipboard.
 * Moving cursor up/down past edge of file moves it to start/end of file.
+* Calculator

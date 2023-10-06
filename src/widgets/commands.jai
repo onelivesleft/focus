@@ -152,6 +152,8 @@ commands := #run Command.[
 
     .{ .create_new_file,                                    "Create New File",                    0, .None },
     .{ .create_new_file_on_the_side,                        "Create New File On The Side",        0, .Single },
+    .{ .create_new_ficus_file,                              "Create New Ficus File",              0, .None },
+    .{ .create_new_ficus_file_on_the_side,                  "Create New Ficus File On The Side",  0, .Single },
     .{ .search_in_project,                                  "Search In Workspace",                0, .None },
 
     .{ .select_all,                                         "Select All",                         0, .Single },

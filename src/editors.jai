@@ -2165,6 +2165,8 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
     editor.cursor_moved = .unimportant;
 }
 
+#scope_export
+
 move_cursors_vertically :: (editor: *Editor, using buffer: Buffer, delta: s32, extend_selection: bool) {
     for * cursor : editor.cursors {
         cursor.travel_direction = ifx delta < 0 then .up else .down;
@@ -2197,6 +2199,8 @@ move_cursors_vertically :: (editor: *Editor, using buffer: Buffer, delta: s32, e
     if delta < 0  editor.cursor_moved = .moved_up;
     else          editor.cursor_moved = .moved_down;
 }
+
+#scope_file
 
 move_cursors_to_empty_line :: (editor: *Editor, buffer: Buffer, dir: Direction) {
     for * cursor : editor.cursors {

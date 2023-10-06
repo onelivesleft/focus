@@ -244,18 +244,16 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     else {
         set_build_header(.error);
         if build_errors {
-            #if TOAST_BUILD_RESULT {
-                build_error := build_errors[0];
-                add_user_error(tprint("%\n% %,%\n%", task.title, build_error.path, build_error.coords.line+1, build_error.coords.col+1, build_error.message), origin=.build);
-            }
         }
         else if contains(output, "LNK1104") {
-            #if TOAST_BUILD_RESULT {
-                _, message := split_into_two(output, "LNK1104: ");
-                _, path := split_into_two(message, "'");
-                path, _ = split_into_two(path, "'");
-                add_user_error(tprint("% - Linker error - %", task.title, trim(message)), origin=.build);
-            }
+            _, message := split_into_two(output, "LNK1104: ");
+            //_, path := split_into_two(message, "'");
+            //path, _ = split_into_two(path, "'");
+            add_user_message_error(tprint("Linker error - %", trim(message)), origin=.build, icon="\U0001f517");
+        }
+        else {
+            message := split_into_two(error, #char "\n");
+            add_user_message_error(message, origin=.build, icon = "\U0000f780");
         }
     }
 
