@@ -332,6 +332,7 @@ jai_jump_to_commented_source_location :: (using editor: *Editor, buffer: Buffer,
             return;
         }
     }
+
 }
 
 jai_jump_to_added_string_source :: (added_string_editor: *Editor, added_string_buffer: Buffer, placement: Editor_Placement = .in_place) {
@@ -495,7 +496,17 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     if is_alpha(char) || char == #char "_" {
         parse_identifier(tokenizer, *token);
     } else if is_digit(char) {
-        parse_number(tokenizer, *token);
+        // Handle number literals that don't look like they are being finished properly
+        // For example, 0b10002 will highlight 0b1000 as one number and 2 as another number,
+        // but when highlit in editor it looks like one number literal rather than two
+        // The solution here is to not highlight more numbers if there are many number tokens in a row
+        last_char := (t - 1).*;
+        if tokenizer.last_tokens[1].type != .number || (!is_digit(last_char) && last_char != #char "_") {
+            parse_number(tokenizer, *token);
+        }
+        else {
+            parse_identifier(tokenizer, *token);
+        }
     } else if char == {
         case #char ":";  parse_colon             (tokenizer, *token);
         case #char "=";  parse_equal             (tokenizer, *token);
@@ -514,10 +525,10 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         case #char "%";  parse_percent           (tokenizer, *token);
         case #char "@";  parse_note              (tokenizer, *token);
         case #char "^";  parse_caret             (tokenizer, *token);
+        case #char ".";  parse_period            (tokenizer, *token);
 
         case #char ";";  token.type = .punctuation; token.punctuation = .semicolon; t += 1;
         case #char ",";  token.type = .punctuation; token.punctuation = .comma;     t += 1;
-        case #char ".";  token.type = .punctuation; token.punctuation = .period;    t += 1;
         case #char "{";  token.type = .punctuation; token.punctuation = .l_brace;   t += 1;
         case #char "}";  token.type = .punctuation; token.punctuation = .r_brace;   t += 1;
         case #char "(";  token.type = .punctuation; token.punctuation = .l_paren;   t += 1;
@@ -582,29 +593,51 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if is_digit(<< t) || << t == #char "_" {
+    is_decimal_variant :: inline (c: u8) -> bool {
+        return is_digit(c) || c == #char "." || c == #char "-" || c == #char "e" || c == #char "E";
+    }
+
+    if is_decimal_variant(t.*) || t.* == #char "_" {
         // Decimal
-        t += 1;
-        seen_decimal_point := false;
-        while t < max_t && (is_digit(<< t) || << t == #char "_" || << t == #char ".") {
-            if << t == #char "." {
-                if seen_decimal_point break;
+        seen_decimal_point  := false;
+        scientific_notation := false;
+        while t < max_t && (is_decimal_variant(t.*) || t.* == #char "_") {
+            if t.* == #char "." {
+                // Handle 0..1 (gets interpreted as a float-period-int rather than int-rangeop-int)
+                if (t + 1) < max_t && (t + 1).* == #char "." {
+                    break;
+                }
+
+                // else handle float decimal
+                if seen_decimal_point then break;
                 seen_decimal_point = true;
             }
+            else if t.* == #char "e" || t.* == #char "E" {
+                // Scientific notation (3.5e2, 1.0e-34)
+                // Only works if there is a decimal point
+                if scientific_notation || !seen_decimal_point then break;
+                scientific_notation = true;
+            }
+            else if t.* == #char "-" {
+                // Handle negative exponent in scientific notation (1.0e-34)
+                if !scientific_notation then break;
+                if (t - 1).* != #char "e" && (t - 1).* != #char "E" then break;
+            }
+
             t += 1;
         }
-    } else if << t == #char "x" || << t == #char "h" {
+    } else if t.* == #char "x" || t.* == #char "h" {
         // Hex
         is_hex :: inline (c: u8) -> bool {
             return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
         }
 
         t += 1;
-        while t < max_t && (is_hex(<< t) || << t == #char "_") t += 1;
-    } else if << t == #char "b" {
+        while t < max_t && (is_hex(t.*) || t.* == #char "_") t += 1;
+    } else if t.* == #char "b" {
         // Binary
         t += 1;
-        while t < max_t && (<< t == #char "1" || << t == #char "0" || << t == #char "_") t += 1;
+        while t < max_t && (t.* == #char "1" || t.* == #char "0" || t.* == #char "_") t += 1;
     }
 }
 
@@ -666,7 +699,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .minus_equal;
             t += 1;
@@ -682,7 +715,9 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
                 token.operation = .unknown;  // -- is not a valid token
             }
         case;
-            if is_digit(<< t) parse_number(tokenizer, token);
+            if tokenizer.last_tokens[1].type != .number && is_digit(t.*) {
+                parse_number(tokenizer, token);
+            }
     }
 }
 
@@ -710,6 +745,26 @@ parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
     if << t == {
         case #char "=";
             token.operation = .asterisk_equal;
+            t += 1;
+    }
+}
+
+parse_period :: (using tokenizer: *Tokenizer, token: *Token) {
+    token.type        = .punctuation;
+    token.punctuation = .period;
+
+    t += 1;
+    if t >= max_t return;
+
+    if t.* == {
+        case #char ".";
+            token.type      = .operation;
+            token.operation = .double_period;
+            t += 1;
+
+        case #char "*";
+            token.type      = .operation;
+            token.operation = .period_asterisk;
             t += 1;
     }
 }
@@ -1021,7 +1076,7 @@ OPERATIONS :: string.[
     "percent", "percent_equal", "less_than", "double_less_than", "less_than_equal", "greater_than", "greater_than_equal",
     "minus", "minus_equal", "triple_dash", "asterisk", "asterisk_equal", "colon", "colon_equal", "double_colon", "slash",
     "plus", "plus_equal", "slash_equal", "ampersand", "double_ampersand", "ampersand_equal", "tilde", "unknown",
-    "caret", "caret_equal",
+    "caret", "caret_equal", "double_period", "period_asterisk",
 ];
 
 KEYWORDS :: string.[

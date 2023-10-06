@@ -465,14 +465,15 @@ recalculate_colors :: (buffer: *Buffer) {
         case .Jai;          highlight_jai_syntax(buffer);
         case .C;            highlight_c_syntax(buffer);
         case .CSharp;       highlight_csharp_syntax(buffer);
-        case .Golang;       highlight_golang_syntax(buffer);
         case .Ficus;        highlight_ficus_syntax(buffer);
         case .Focus_Config; highlight_focus_config_syntax(buffer);
         case .Markdown;     highlight_md_syntax(buffer);
         case .Glsl;         highlight_glsl_syntax(buffer);
-        case .Worklog;      highlight_worklog(buffer);
+        case .Golang;       highlight_golang_syntax(buffer);
+        case .Odin;         highlight_odin_syntax(buffer);
         case .Python;       highlight_python_syntax(buffer);
         case .RenPy;        highlight_renpy_syntax(buffer);
+        case .Worklog;      highlight_worklog(buffer);
         case .Plain_Text;
     }
 
@@ -497,6 +498,7 @@ tokenize_for_indentation :: (buffer: *Buffer) -> [] Indentation_Token /* temp */
         case .C;            return tokenize_c_for_indentation(buffer);
         case .CSharp;       return tokenize_csharp_for_indentation(buffer);
         case .Glsl;         return tokenize_glsl_for_indentation(buffer);
+        case .Odin;         return tokenize_odin_for_indentation(buffer);
     }
 
     return .[];

@@ -140,7 +140,12 @@ main :: () {
     // applied, so make sure to only call it after the window is created.
     platform_apply_config(*config.platform);
 
-    if config.settings.maximize_on_start then platform_maximize_window(window);
+    #if OS == .MACOS {
+        // On macOS, attempting to maximize the window before a frame has been drawn results in a crash, so we delay it until the end of the first frame.
+        should_maximize := config.settings.maximize_on_start;
+    } else {
+        if config.settings.maximize_on_start then platform_maximize_window(window);
+    }
 
     platform_enable_drag_and_drop(window);
 
@@ -376,6 +381,11 @@ main :: () {
                     case .commands_dialog;          handled = commands_dialog_handle_event(event);
                     case .icon_search_dialog;       handled = icon_search_dialog_handle_event(event);
                 }
+            }
+
+            if !handled {
+                action := map_event_to_action(event, Action_Script);
+                handled = handle_script_action(action);
             }
 
             if !handled {
@@ -1157,9 +1167,11 @@ dont_ignore_next_window_resize := false;
 #load "langs/focus_config.jai";
 #load "langs/md.jai";
 #load "langs/glsl.jai";
-#load "langs/worklog.jai";
+#load "langs/golang.jai";
+#load "langs/odin.jai";
 #load "langs/python.jai";
 #load "langs/renpy.jai";
+#load "langs/worklog.jai";
 
 #if OS == .WINDOWS {
     #load "platform/windows.jai";
