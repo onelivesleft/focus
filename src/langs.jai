@@ -1,16 +1,17 @@
 Language :: enum u8 {
     Plain_Text :: 0;
-    Jai;
     C;
     CSharp;
-    Golang;
     Ficus;
     Focus_Config;
-    Markdown;
     Glsl;
-    Worklog;
+    Golang;
+    Jai;
+    Odin;
+    Markdown;
     Python;
     RenPy;
+    Worklog;
 }
 
 language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {
