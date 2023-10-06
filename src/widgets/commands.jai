@@ -239,8 +239,8 @@ commands := #run Command.[
     .{ .ficus_open_baked_words_buffer,                      "Ficus Open Baked Words",             0, .None },
 
 
-    .{ .build_debug,                                        "Build Release",                      0, .None },
-    .{ .build_release,                                      "Build Debug",                        0, .None },
+    .{ .build_debug,                                        "Build Debug",                        0, .None },
+    .{ .build_release,                                      "Build Release",                      0, .None },
     .{ .clear_build_errors,                                 "Clear Build Errors",                 0, .None },
 
     .{ .quit,                                               "Quit Focus",                         0, .None },

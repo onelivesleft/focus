@@ -94,7 +94,9 @@ build :: () {
     #if OS == .WINDOWS {
         // Disable runtime console
         if optimized {
-            set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]}, w);
+            // Comment this out for now, otherwise running commands (i.e. using the build system) will cause a command console to spawn
+            // each time.  Focus needs to create it's own internal console to stop this, but hopefully that will appear on the main fork...
+            //set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]}, w);
 
             // For tracing release builds use this:
             // set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup", "ws2_32.lib", "msvcprtd.lib"]}, w);

@@ -63,6 +63,7 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
+    - [ ] Add commands to ctrl-shift-p
     - [ ] toggle events enabled
     - [ ] error message for pop(.type)
     - [.] events:
