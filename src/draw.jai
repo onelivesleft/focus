@@ -7,7 +7,6 @@ main_cursor_rect: Rect;
 right_file_rect: Rect;
 left_file_rect: Rect;
 
-cursor_lightsource_fade_duration :: 0.05;
 cursor_lightsources_buffer: [512] Vector3;
 cursor_lightsources: [] Vector3;
 cursor_lightsources_persisting: Table(u64, Vector3);
@@ -41,8 +40,10 @@ draw_frame :: () {
     active_pane_rect, left_rect, right_rect: Rect = ---;
     Input.window_region_override = .NONE;
 
-    cursor_lightsource_background_intensity = ifx zen_mode then 0 else config.settings.cursor_glow_intensity * dpi_scale;
-    cursor_lightsource_foreground_intensity = ifx !zen_mode && config.settings.cursor_glow_intensity then dpi_scale;
+    glow_intensity := ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_intensity else config.settings.cursor_glow_intensity;
+
+    cursor_lightsource_background_intensity = ifx zen_mode then 0 else glow_intensity * dpi_scale;
+    cursor_lightsource_foreground_intensity = ifx !zen_mode && glow_intensity then dpi_scale;
 
     // Draw editors
     if #complete editors.layout == {
@@ -1624,7 +1625,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
             cursor_lightsources.data = cursor_lightsources_buffer.data;
             cursor_lightsources.count = 0;
-            gone_away_time := time - cursor_lightsource_fade_duration;
+            gone_away_time := time - (cast(float) ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_fade_ms else config.settings.cursor_glow_fade_ms) * 0.001;
 
             for * cursor_lightsources_persisting {
                 if it.z < gone_away_time {
@@ -4398,8 +4399,8 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
-    lightsource_color.a = 0.01 * config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cursor_lightsource_fade_duration);
+    lightsource_color.a = 0.01 * ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_percent else config.settings.cursor_glow_percent;
+    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, config.settings.go_bananas);
     draw_rect_raw(rect, color);
 }
 

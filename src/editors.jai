@@ -560,7 +560,7 @@ editors_show_default_config :: (placement: Editor_Placement) {
         buffer.meow_hash = calculate_hash(buffer.bytes);
         buffer.flags |= .readonly;
         buffer.lang = .Focus_Config;
-        buffer.file.name = "Default Focus Config";
+        buffer.file.name = "Default Locus Config";
         buffer.file.icon = .gear;
         rescan_for_lines(buffer);
     }

@@ -49,6 +49,7 @@ scroll_to_cursor_line_offset            1
 highlight_line_with_cursor:             true
 cursor_glow_intensity                   0      # 5 is good with cursor_glow_percent 33
 cursor_glow_percent                     33
+cursor_glow_fade_ms                     50
 
 max_editor_width:                       -1
 line_wrap_is_on_by_default:             false
@@ -247,6 +248,10 @@ Ctrl-W                      close_current_editor
 Ctrl-Shift-W                close_other_editor
 
 Ctrl-Shift-L                toggle_expand
+
+F8                          compile
+Ctrl-F8                     build_debug
+Ctrl-Shift-F8               build_release
 
 F11                         toggle_fullscreen
 

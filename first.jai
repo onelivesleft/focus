@@ -30,7 +30,7 @@ build :: () {
     set_optimization(*options, .DEBUG);
     // options.arithmetic_overflow_check = .FATAL; Try uncommenting this line in 0.1.072. Doesn't work correctly on 0.1.071.
     build_dir := "build_debug";
-    options.output_executable_name = "focus";
+    options.output_executable_name = "locus";
     dev_build := false;
 
     for arg: args {
@@ -48,14 +48,14 @@ build :: () {
           case "dev";
             include_profiling = true;
             build_dir = ".";
-            options.output_executable_name = "focus_dev";
+            options.output_executable_name = "locus_dev";
             dev_build = true;
           case "no_output";
             no_output = true;
             include_profiling = false;
           case "windows7";
             windows7 = true;
-            options.output_executable_name = "focus_windows7";
+            options.output_executable_name = "locus_windows7";
           case;
             compiler_report(tprint("Command-line argument #%, '%', is invalid. Valid options are: 'debug', 'release'.\n", it_index+1, arg));
         }
@@ -95,7 +95,7 @@ build :: () {
         // Disable runtime console
         if optimized {
             // Comment this out for now, otherwise running commands (i.e. using the build system) will cause a command console to spawn
-            // each time.  Focus needs to create it's own internal console to stop this, but hopefully that will appear on the main fork...
+            // each time.  Locus needs to create it's own internal console to stop this, but hopefully that will appear on the main fork...
             //set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]}, w);
 
             // For tracing release builds use this:
@@ -220,17 +220,17 @@ build :: () {
         DMG_DIR :: "dmg";
         run_command("mkdir", DMG_DIR);
 
-        // Generate Focus.app inside our temporary directory
+        // Generate Locus.app inside our temporary directory
         set_working_directory(DMG_DIR);
-        create_app_bundle("Focus", tprint("../build_release/%", options.output_executable_name), "../images/mac.png", "", true, true);
-        write_entire_file("Focus.app/Contents/Info.plist", tprint(INFO_PLIST_CONTENTS, VERSION, VERSION));
+        create_app_bundle("Locus", tprint("../build_release/%", options.output_executable_name), "../images/mac.png", "", true, true);
+        write_entire_file("Locus.app/Contents/Info.plist", tprint(INFO_PLIST_CONTENTS, VERSION, VERSION));
         set_working_directory(#filepath);
 
         // Create a symbolic link to /Applications (what all the cool kids do)
         run_command("ln", "-s", "/Applications", DMG_DIR);
 
         // Generate a .DMG using Disk Utility
-        run_command("hdiutil", "create", "-volname", tprint("Focus %", VERSION), "-srcfolder", DMG_DIR, "-ov", "-format", "UDZO", tprint("Focus-%-Intel.dmg", VERSION));
+        run_command("hdiutil", "create", "-volname", tprint("Locus %", VERSION), "-srcfolder", DMG_DIR, "-ov", "-format", "UDZO", tprint("Locus-%-Intel.dmg", VERSION));
 
         // Remove our temporary directory when we're done
         run_command("rm", "-r", DMG_DIR);
@@ -270,22 +270,22 @@ logger :: (message: string, data: *void, info: Log_Info) {
         <string>en-US</string>
 
         <key>CFBundleDisplayName</key>
-        <string>Focus</string>
+        <string>Locus</string>
 
         <key>CFBundleExecutable</key>
-        <string>Focus</string>
+        <string>Locus</string>
 
         <key>CFBundleIconFile</key>
         <string>icon_data.icns</string>
 
         <key>CFBundleIdentifier</key>
-        <string>dev.focus-editor</string>
+        <string>dev.locus-editor</string>
 
         <key>CFBundleInfoDictionaryVersion</key>
         <string>6.0</string>
 
         <key>CFBundleName</key>
-        <string>Focus</string>
+        <string>Locus</string>
 
         <key>CFBundlePackageType</key>
         <string>APPL</string>
@@ -297,7 +297,7 @@ logger :: (message: string, data: *void, info: Log_Info) {
         <string>%</string>
 
         <key>NSHumanReadableCopyright</key>
-        <string>© 2023 Ivan Ivanov</string>
+        <string>©2023 Ivan Ivanov ©2023 Iain King</string>
     </dict>
 </plist>
 STRING

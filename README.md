@@ -1,6 +1,6 @@
-# This is a fork of Focus
+# Locus
 
-This is not [the official version of Focus](https://github.com/focus-editor/focus/), this is a highly personalised fork of it; it may be to your taste, or it may not.  Maybe you would prefer a more standardized editor: if you don't like this version then check out the official one (if you haven't already).
+This is a fork of [Focus](https://github.com/focus-editor/focus/), highly personalised; it may be to your taste, or it may not.  Maybe you would prefer a more standardized editor: if you don't like this version then check out the official one (if you haven't already).
 
 Note that this fork is developed and used on Windows: not all features are present on other platforms (and the fork may not work on them either!)
 
@@ -32,27 +32,92 @@ In a lot of ways! Some big, some small:
 
 ![Compile-time code regions](images/compile_time_region.png)
 
+
+
+
 ### Ficus
 Ficus is a scripting language you can use to interrogate and control Focus.  Primarily it's used to set up the default build actions for a project.
 
-Ficus is a stack-based language, a derivative of Forth.  It works by putting things onto a stack and then applying functions to that stack.  In simple terms this means operations are postfix: for example, where you might be used to typing:
+Ficus is a stack-based language, which means instead of using variables you push values onto a stack and manipulate them there.  Functions (or `words` as they are known) do not take explicit parameters; instead they operate on the values which are atop the stack.
+
+This means operations are postfix (and you do not have to worry about precedence, as execution order is explicit). For example, where you might be used to typing:
 ```
-(a + b) * c
+(1 + 2) * 4
 ```
 in Ficus you would type:
 ```
-a b + c *
+1 2 + 4 *
 ```
-That is: put `a` on the stack, put `b` on the stack, add them (so now the stack contains one item: the sum of `a` and `b`), put `c` on the stack, multiply.  You can see this in action by opening the Calculator (search for it in the command runner, default `ctrl-shift-p`), which evaluates its contents using Ficus.  Watch what happens to the output as you type in `1 2 + 3 *`.
+That is:
+
+* Push `1` onto the stack
+* Push `2` onto the stack
+* Apply the `+` word: this pops the top two items on the stack, adds them together, then pushes the result back onto the stack.  The stack now contains one item: the number `3`.
+* Push `4` onto the stack.
+* Apply the `*` word: as you have no doubt guessed, this pops the top two items, multiplies them, and pushes the result back onto the stack.
+
+You can see this in action by opening the Calculator (search for it in the command runner, default `ctrl-shift-p`), which has Ficus evaluates whatever you type into it.  Watch what happens to the output as you type in `1 2 + 4 *`.
+
+Your program is therefor simply a series of tokens which will either be placed directly onto the stack (values), or will be applied to the stack, altering it (words).
+
+#### Value tokens:
+* Numbers: `0.1` `1.7` `2.523`
+* Int Numbers: `0` `1` `23` (all Int Numbers are Numbers)
+* Booleans: `true` `false` (Booleans can behave as Int Numbers with values `1` and `0`)
+* Text: "Hello World" (start and end with a `"`) (@TODO herestring)
+
+#### Word tokens:
+`words` in Ficus are any token which doesn't contain a reserved character or start with a number.  The reserved characters are:
+* `[` `]` - enclose a `quotation` - a sequence of words and values.
+* `(` `)` - enclose a comment (ignored).
+* `#` - turn the remainder of the line into a comment.
+* `"` `"` - enclose a string value.
+* `:` - used to declare a word.
+
+A quotation bundles zero-or-more words and values together, placing that bundle on the stack.  It can the be manipulated like any other stack item.  Using the `apply` word on it will make it execute, therefor the following two lines of code are semantically identical:
+
+* `3 2 1 reverse`
+* `3 2 1 [reverse] apply`
+
+(both will result in a stack of `1 2 3` - again, try them out by typing them into the Calculator)
+
+You can declare your own words by appending the `:` and writing the word definition in an indented block.  For example
+
+
+
 
 You can create Ficus scripts in three places: your global config, your project config, and in any file.  You can run code in the current editor by using the `Ficus Run Current` command.  If you want an empty buffer to test some Ficus code, you can use the `Create New Ficus File` command.
 
-Functions in Ficus are called Words.
 
 * `ficus_debug_on_error`
 
 
-### Build @TODO
+
+
+
+### Build
+The build system utilizes the Ficus scripting language to allow for as much flexibility as you need, so read up on that in it's section below if you want to do something complicated.  The simple version is: to create a build command you must add one of the following declarations to your settings file (typically this would be in your project settings, as they will be project specific).
+
+* `compile`, `build_debug`, `build_release`
+
+Note that these names are identical to the hotkey actions that trigger them, which default to `F8`, `Ctrl-F8`, `Ctrl-Shift-F8` respectively.
+
+Example:
+
+```focus-config
+[[scripts]]
+
+build_debug:
+    "Locus - Debug" build_name!
+    "jai.exe first.jai -quiet" build
+
+build_release:
+    "Locus - Release" build_name!
+    "jai.exe first.jai -quiet - dev" build
+```
+
+When you hit the relevant keyboard shortcut (or enter one of them in the command palette) the script will run.  In the above examples, the `build_name!` command sets the name of the build displayed in the status bar, and the `build` command runs the command line string given to it.  The output of the compiler is checked for errors; Focus will jump to the first error automatically.  Notice that we put the parameter before the command - read the Ficus section to see why!
+
 
 ### Console @TODO
 * Floating editor window which shows info / output from operations (such as builds).

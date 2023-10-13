@@ -1197,7 +1197,7 @@ intrinsics :: #code if word_name == {
     // Word names have a very broad lattitude for characters, the only reserved characters are:
     //  [ ] ( ) # "
     // Conventions for naming:
-    //   Do not start a word with !, as all the focus actions are loaded into words starting with !
+    //   Do not start a word with !, as all the locus actions are loaded into words starting with !
     //   (for instance, `!copy` performs ctrl-c, while `copy` duplicates the last item on the stack)
     //   End words with a `?` if they return a value but do not consume any items from the stack
     //   End words with a `!` if they set something
@@ -1562,6 +1562,15 @@ intrinsics :: #code if word_name == {
         x := pop(.number, "x");
         push(log(x.value), stack);
 
+    case "random_int";
+        high := pop(.int_number, "max");
+        r := random_int(high.int_value);
+        push(r, stack);
+
+    case "random";
+        push(cast(float)random_get(), stack);
+
+
     // utils
 
     case "words?";
@@ -1678,16 +1687,12 @@ intrinsics :: #code if word_name == {
         for line_split(text)
             push_already_unique_string(it, stack);
 
-    // Focus info
+    // Locus info
 
     case "version?";
         push(VERSION, stack);
 
-    case "focus_build?";
-        if DEBUG push("debug", stack);
-        else     push("release", stack);
-
-    case "focus_executable?";
+    case "locus_executable?";
         push(executable_name, stack);
 
     case "frame_time?";
@@ -1699,7 +1704,11 @@ intrinsics :: #code if word_name == {
     case "fps?";
         push(get_fps(), stack);
 
-    // Focus settings
+    case "locus_build?";
+        if DEBUG push("debug", stack);
+        else     push("release", stack);
+
+    // Locus settings
 
     case "console_location!";
         floating_area_position = xx pop(.int_number).int_value;
@@ -1719,7 +1728,7 @@ intrinsics :: #code if word_name == {
         push(window_width, stack);
         push(window_height, stack);
 
-    // Focus commands
+    // Locus commands
 
     case "open_project";
         item := pop(.text, "project");

@@ -245,7 +245,7 @@ commands := #run Command.[
     .{ .build_release,                                      "Build Release",                      0, .None },
     .{ .clear_build_errors,                                 "Clear Build Errors",                 0, .None },
 
-    .{ .quit,                                               "Quit Focus",                         0, .None },
+    .{ .quit,                                               "Quit Locus",                         0, .None },
 ];
 
 Command :: struct {

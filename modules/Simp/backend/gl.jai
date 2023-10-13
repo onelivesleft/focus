@@ -181,6 +181,9 @@ backend_init_shaders :: () {
     shader_cool.gl_handle = get_shader_program(SHADER_COOL);
     shader_cool.alpha_blend = true;
 
+    shader_cool_shmokin.gl_handle = get_shader_program(SHADER_COOL_SHMOKIN);
+    shader_cool.alpha_blend = true;
+
     shader_text.gl_handle   = get_shader_program(SHADER_TEXT);
     shader_text.alpha_blend = true;
 
@@ -275,6 +278,152 @@ out vec4 color;
 
 void main () {
     color = iterated_color;
+}
+#endif // FRAGMENT_SHADER
+glsl
+
+
+SHADER_COOL_SHMOKIN :: #string glsl
+OUT_IN vec4 iterated_color;
+
+#ifdef VERTEX_SHADER
+in vec2 vert_position;
+in vec4 vert_color;
+
+uniform mat4 projection;
+
+void main() {
+    gl_Position = projection * vec4(vert_position, 0.0, 1.0);
+    iterated_color = vert_color;
+}
+#endif // VERTEX_SHADER
+
+#ifdef FRAGMENT_SHADER
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform float jiggle;
+uniform int lightsource_count;
+uniform vec3 lightsources[512];
+uniform vec4 lightsource_color;
+uniform float lightsource_intensity;
+uniform float lightsource_fade_duration;
+uniform float half_line_height;
+
+out vec4 color;
+
+float random (in vec2 _st) {
+    return fract(sin(dot(_st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+}
+
+vec4 random4(vec2 co) {
+    vec4 result;
+    result.x = random(co); co *= 2;
+    result.y = random(co); co *= 2;
+    result.z = random(co); co *= 2;
+    result.w = random(co);
+    return result;
+}
+
+// Based on Morgan McGuire @morgan3d
+// https://www.shadertoy.com/view/4dS3Wd
+float noise (in vec2 _st) {
+    vec2 i = floor(_st);
+    vec2 f = fract(_st);
+
+    // Four corners in 2D of a tile
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(a, b, u.x) +
+            (c - a)* u.y * (1.0 - u.x) +
+            (d - b) * u.x * u.y;
+}
+
+#define NUM_OCTAVES 5
+
+float fbm ( in vec2 _st) {
+    float v = 0.0;
+    float a = 0.5;
+    vec2 shift = vec2(100.0);
+    // Rotate to reduce axial bias
+    mat2 rot = mat2(cos(0.5), sin(0.5),
+                    -sin(0.5), cos(0.50));
+    for (int i = 0; i < NUM_OCTAVES; ++i) {
+        v += a * noise(_st);
+        _st = rot * _st * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec4 smoke(vec2 st) {
+    // st += st * abs(sin(u_time*0.1)*3.0);
+    vec3 color = vec3(0.0);
+
+    vec2 q = vec2(0.);
+    q.x = fbm( st + 0.00*u_time);
+    q.y = fbm( st + vec2(1.0));
+
+    vec2 r = vec2(0.);
+    r.x = fbm( st + 1.0*q + vec2(1.7,9.2)+ 0.15*u_time );
+    r.y = fbm( st + 1.0*q + vec2(8.3,2.8)+ 0.126*u_time);
+
+    float f = fbm(st+r);
+
+    color = mix(vec3(0.101961,0.619608,0.666667),
+                vec3(0.666667,0.666667,0.498039),
+                clamp((f*f)*4.0,0.0,1.0));
+
+    color = mix(color,
+                vec3(0,0,0.164706),
+                clamp(length(q),0.0,1.0));
+
+    color = mix(color,
+                vec3(0.666667,1,1),
+                clamp(length(r.x),0.0,1.0));
+
+    return vec4((f*f*f+.6*f*f+.5*f)*color,1.);
+}
+
+
+void main () {
+    vec2 uv = gl_FragCoord.xy / u_resolution;
+    vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-jiggle), 0.0);
+    vec4 mixed = mix(iterated_color, perm, 0.05);
+
+    if (lightsource_count > 0) {
+        float max_brightness = 0.0;
+        for (int i = 0; i < lightsource_count; i++) {
+            float d = distance(lightsources[i].xy, gl_FragCoord.xy);
+            float t = 1.0 - ((u_time - lightsources[i].z) / lightsource_fade_duration);
+            float brightness = 1 - clamp(t * lightsource_intensity / d, 0, 1);
+            brightness = 1 - (brightness * brightness * brightness);
+
+            for (int j = 0; j < lightsource_count; j++) {
+                if (lightsources[j].z == u_time
+                 && lightsources[j].y > gl_FragCoord.y - half_line_height
+                 && lightsources[j].y < gl_FragCoord.y + half_line_height) {
+                    brightness /= 2;
+                    break;
+                }
+            }
+
+            if (brightness > max_brightness)
+                max_brightness = brightness;
+        }
+        vec4 smoke_color = mix(lightsource_color, smoke(gl_FragCoord.xy/u_resolution.xy*3.), 0.5);
+        mixed = mix(mixed, smoke_color, lightsource_color.a * max_brightness);
+    }
+
+    // When color is between two displayable values, round it up or down randomly, proportionate to
+    // which it is nearer to.
+    vec4 remainder = fract(mixed * 255.0);
+    color = mixed - (remainder / 255.0) + (1.0 / 255.0) - (step(remainder, random4(uv)) / 255.0);
+    color.a = iterated_color.a;
 }
 #endif // FRAGMENT_SHADER
 glsl

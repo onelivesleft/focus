@@ -49,7 +49,7 @@ main :: () {
 
     args := get_command_line_arguments();
     executable_name = args[0];
-    is_standalone_debug_build := contains(executable_name, "focus_debug");
+    is_standalone_debug_build := contains(executable_name, "locus_debug");
     debug_change_color &= is_standalone_debug_build;
     debug_small_window &= is_standalone_debug_build;
 
@@ -132,7 +132,7 @@ main :: () {
     }
     CODE_COLOR_MAP = refresh_code_color_map();
 
-    window_generic_title = ifx DEBUG then "Focus (debug mode)" else "Focus";
+    window_generic_title = ifx DEBUG then "Locus (debug mode)" else "Locus";
     platform_create_window();
 
     // This may generate window resize events if DPI/scaling settings need to be
@@ -861,7 +861,7 @@ toggle_profiling :: () {
         iprof_active = !iprof_active;
     }
     else {
-        add_user_message_error("Profiling is not available in this build of Focus", duration_in_seconds = 2, icon="\ue55d");
+        add_user_message_error("Profiling is not available in this build of Locus", duration_in_seconds = 2, icon="\ue55d");
     }
 }
 

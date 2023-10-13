@@ -39,11 +39,11 @@ __pycache__
 on_load:
     #0 0 2736 1824 window_location!
     4 console_location!
-     "Focus" open_project
-    #if_else [ focus_executable? "focus_debug" contains ]
+     "Locus" open_project
+    #if_else [ locus_executable? "locus_debug" contains ]
             #[ "Escape Room" open_project ]
     #        [ "GUI" open_project ]
-    #        [ "Focus" open_project ]
+    #        [ "Locus" open_project ]
 
 on_editor:
     editor_filename? "TODO.md" !=
@@ -75,6 +75,7 @@ scroll_to_cursor_line_offset            5
 highlight_line_with_cursor              false
 cursor_glow_intensity                   5
 cursor_glow_percent                     33
+cursor_glow_fade_ms                     50
 
 max_editor_width:                       -1
 line_wrap_is_on_by_default:             false
@@ -112,7 +113,7 @@ zen_mode_blend_percent                  100
 zen_mode_minimal                        true
 zen_mode_width_in_chars                 70
 
-ficus_debug_on_error                    false
+ficus_debug_on_error                    true
 
 [[keymap]]
 

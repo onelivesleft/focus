@@ -12,7 +12,11 @@ build_debug/
 focus
 focus_debug
 focus-trace.json
+locus
+locus_debug
+locus-trace.json
 install.bat
 install_debug.bat
 focus-crash-report.txt
+locus-crash-report.txt
 global.focus-config

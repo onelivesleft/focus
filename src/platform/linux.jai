@@ -62,7 +62,7 @@ platform_setup :: inline () {
     app_id     :: "dev.focus-editor.focus";  // needs to be lower-case as (some?) Wayland compositors seem to lower-case app ids anyway and we need the desktop entry file name to match the app id
     app_ver_id :: 2;   // ID that we can increment if we need to change the desktop entry in any way
     ver_id     :: #run sprint("%-%", app_id, app_ver_id);
-    ver_id_key :: #run sprint("X-Focus-Ver-Id=%", ver_id);
+    ver_id_key :: #run sprint("X-Locus-Ver-Id=%", ver_id);
 
     sa := sigaction_t.{
         sa_sigaction = (sig: s32, info: *siginfo_t, ctx: *void) #c_call {
@@ -113,11 +113,11 @@ platform_setup :: inline () {
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Focus editor (application icon entry)
+Name=Locus editor (application icon entry)
 Terminal=false
 NoDisplay=true
 DBusActivatable=false
-Exec=focus-linux
+Exec=locus-linux
 Icon=%
 %
 DONE;

@@ -3,3 +3,33 @@
 #"" 100 to_string 1 toast
 #print
 
+YZ:
+    stash'push copy stash'copy stash'pop swap stash'pop
+
+inc:
+    1 +
+
+sort_with_compare:
+    compare'push
+    while [true] [
+        0 stash'push
+        temp'clear
+        while [spent? not] [temp'push]
+        \
+        temp'pop
+        while [temp'stack_count? temp'pop] [
+            temp'pop
+            if [YZ compare'copy compare'pop apply] [swap stash'inc]
+        ]
+        if [stash'pop 0 =] [break]
+    ]
+    compare'discard
+
+sort:
+    [YZ >] sort_with_compare
+
+
+[100 random_int] 20 times
+frame_time? time'push
+[2 % swap 2 % <] sort_with_compare print
+"It only took" frame_time? time'pop - "seconds!" " " join print

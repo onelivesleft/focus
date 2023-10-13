@@ -22,7 +22,7 @@ init_console_buffer :: () {
     buffer.flags |= .readonly | .ignore | .manual_coloring;
     buffer.file.name = "<console>";
     buffer.file.icon = .console;
-    print_console_header(tprint("Focus % built on %", VERSION, RELEASE_DATE), false);
+    print_console_header(tprint("Locus % built on %", VERSION, RELEASE_DATE), false);
     editors.floating = -1;
 }
 

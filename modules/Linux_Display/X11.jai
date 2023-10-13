@@ -360,7 +360,7 @@ X11_Lib :: struct #type_info_no_size_complaint {
     XIMStatusNone       :: 0x0800;
 
     XNClientWindow :: "clientWindow".data;
-    XNFocusWindow :: "focusWindow".data;
+    XNFocusWindow :: "locusWindow".data;
     XNInputStyle :: "inputStyle".data;
 
     XBufferOverflow :: -1;

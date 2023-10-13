@@ -401,8 +401,13 @@ Settings :: struct {
     ficus_debug_on_error                   := false;
     cursor_glow_intensity                  := 5;
     cursor_glow_percent                    := 33;
+    cursor_glow_fade_ms                    := 50;
+    cursor_glow_bananas_intensity          := 20;
+    cursor_glow_bananas_percent            := 60;
+    cursor_glow_bananas_fade_ms            := 50;
     show_fps                               := false;
     show_cursor_position                   := false;
+    go_bananas                             := false;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false
