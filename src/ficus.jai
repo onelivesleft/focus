@@ -1375,7 +1375,7 @@ intrinsics :: #code if word_name == {
         pop_message(item, *main_stack);
         push(item, stack);
 
-    case "take";
+    case "push_all";
         if stack == *main_stack
             return "Cannot take onto main stack (which stack would the items come from?)";
         index, new_count := index_after_separator(*main_stack);
@@ -1386,7 +1386,7 @@ intrinsics :: #code if word_name == {
         }
         main_stack.count = new_count;
 
-    case "retrieve";
+    case "pop_all";
         if stack == *main_stack
             return "Cannot retrieve from main stack (which stack would the items go to?)";
         while stack.count {

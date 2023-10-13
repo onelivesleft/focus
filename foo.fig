@@ -1,10 +1,15 @@
+
+..:
+    . .
+
 #1 while [true] [1 +]
 #1 2 3 4 5 reverse
-#"" 100 to_string 1 toast
 #print
+#"" 100 to_string 1 toast
 
 YZ:
     stash'push copy stash'copy stash'pop swap stash'pop
+
 
 inc:
     1 +
@@ -29,7 +34,8 @@ sort:
     [YZ >] sort_with_compare
 
 
-[100 random_int] 20 times
+[100 random_int] 10 times
 frame_time? time'push
 [2 % swap 2 % <] sort_with_compare print
 "It only took" frame_time? time'pop - "seconds!" " " join print
+1 2 <.

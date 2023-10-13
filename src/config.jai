@@ -405,6 +405,7 @@ Settings :: struct {
     cursor_glow_bananas_intensity          := 20;
     cursor_glow_bananas_percent            := 60;
     cursor_glow_bananas_fade_ms            := 50;
+    cursor_glow_bananas_shadow             := 500;
     show_fps                               := false;
     show_cursor_position                   := false;
     go_bananas                             := false;

@@ -4,6 +4,14 @@ This is a fork of [Focus](https://github.com/focus-editor/focus/), highly person
 
 Note that this fork is developed and used on Windows: not all features are present on other platforms (and the fork may not work on them either!)
 
+## Contributing
+
+* *DO NOT* create a PR - PRs will not be merged!
+* If you find a bug in the basic editor behaviour, submit it on the
+[main fork](https://github.com/focus-editor/focus/).
+* If you have a feature request, do that too.
+* If you find a bug specific to this version of Focus you can create an Issue, or message me directly.
+
 ## How this fork is different:
 
 In a lot of ways! Some big, some small:

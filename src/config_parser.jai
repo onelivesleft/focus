@@ -144,6 +144,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "scrollbar_background";               return *config.colors.SCROLLBAR_BACKGROUND;
         case "cursor";                             return *config.colors.CURSOR;
         case "cursor_inactive";                    return *config.colors.CURSOR_INACTIVE;
+        case "cursor_shadow";                      return *config.colors.CURSOR_SHADOW;
         case "paste_animation";                    return *config.colors.PASTE_ANIMATION;
         case "splitter";                           return *config.colors.SPLITTER;
         case "splitter_hover";                     return *config.colors.SPLITTER_HOVER;

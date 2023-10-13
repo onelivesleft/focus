@@ -12,6 +12,7 @@ cursor_lightsources: [] Vector3;
 cursor_lightsources_persisting: Table(u64, Vector3);
 cursor_lightsource_background_intensity: float;
 cursor_lightsource_foreground_intensity: float;
+cursor_lightsource_screen_offset: Vector2;
 
 draw_frame :: () {
     if !simp_initialized  return;
@@ -84,7 +85,7 @@ draw_frame :: () {
             }
 
             split_x := screen.w * splitter_pos;
-            left_rect, right_rect = cut_left(screen, split_x, margin = 2);
+            left_rect, right_rect = cut_left(screen, split_x, margin = 0);
 
             if just_dropped_file {
                 if mouse_pointer_is_within(left_rect)  then editors_open_file(just_dropped_file, .left);
@@ -674,10 +675,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
     }
     else {
-        if active_global_widget == .editors && !search_bar_is_open(editor)
-            draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources, line_height);
-        else
-            draw_cool_rect(rect, Colors.BACKGROUND, shader_value, null, line_height);
+        //if active_global_widget == .editors && !search_bar_is_open(editor)
+        draw_cool_rect(rect, Colors.BACKGROUND, shader_value, *cursor_lightsources, line_height);
+        //else
+        //    draw_cool_rect(rect, Colors.BACKGROUND, shader_value, null, line_height);
     }
 
     // Calculate text origin in screen coordinates
@@ -1039,14 +1040,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             array_reset_keeping_memory(*editor.highlights);
         }
 
-        if editors.floating == editor_id {
-            shader_value = (visible_lines_start % 200) / 100.0;
-            if shader_value > 1.0  shader_value = 2.0 - shader_value;
-        }
-        else {
-            shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
-        }
-
         // Scrollbar
         new_scroll_target := draw_scrollbar(rect, scrollbar_size, rect.h + xx max_y_scroll, viewport.top, viewport.scroll_y.target, max_y_scroll - xx rect.h, scrollbar_id, draw=!HIDE_SCROLLBARS);
         if new_scroll_target != viewport.scroll_y.target {
@@ -1101,6 +1094,17 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             start = get_line_start_offset(editor, buffer, visible_lines_start),
             end   = get_line_start_offset(editor, buffer, visible_lines_end + 1),
         };
+
+        if editors.floating == editor_id {
+            shader_value = (visible_lines_start % 200) / 100.0;
+            if shader_value > 1.0  shader_value = 2.0 - shader_value;
+        }
+        else {
+            shader_value = cast(float)viewport.scroll_y.target / max_y_scroll;
+        }
+
+        if editor_id != editors.floating && editor_id != editors.right
+            cursor_lightsource_screen_offset = .{xx viewport.left, xx -viewport.top};
 
         max_line_pixel_width: s32 = 0;    // max horizontal scroll in pixels - for horizontal scrolling
         min_prefix_spaces := 99999;
@@ -1185,8 +1189,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if region.inclusive  start -= 1;
                 if start > visible_lines_end  break; // @TODO this should work because regions are sorted but if regions are now wonky switch this back to continue
 
-                start_is_visible := start >= visible_lines_start;
-                start = max(start, visible_lines_start);
+                start_is_visible := start >= visible_lines_start || start == -1 && visible_lines_start == 0; //???
+                if start >= 0 || visible_lines_start > 0
+                    start = max(start, visible_lines_start);
                 end_is_visible := end <= visible_lines_end;
                 end   = min(end,   visible_lines_end);
 
@@ -1236,7 +1241,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
+                            draw_cool_rect(cut_left(header_rect, text_origin.x + char_x_advance * scope_line_count), Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
                             draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PRIVATE, shader_value, *cursor_lightsources, line_height);
                         }
                         else {
@@ -1266,7 +1271,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         if start_is_visible {
                             header_rect, remainder_rect := cut_top(region_rect, line_height);
                             scope_line_count := get_line_start_offset(editor, buffer, start + 2) - get_line_start_offset(editor, buffer, start + 1);
-                            draw_cool_rect(cut_left(header_rect, line_number_panel_width + char_x_advance * (scope_line_count + 1)), Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
+                            draw_cool_rect(cut_left(header_rect, text_origin.x + char_x_advance * scope_line_count), Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
                             draw_cool_rect(remainder_rect, Colors.BACKGROUND_REGION_PUBLIC, shader_value, *cursor_lightsources, line_height);
                         }
                         else {
@@ -1640,12 +1645,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     break;
             }
         }
-        if cursors_active && active_global_widget == .editors && should_draw_cursors() && !search_bar_is_open(editor) {
-            Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left, *cursor_lightsources, cursor_lightsource_foreground_intensity, white);
-        }
-        else {
-            Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
-        }
+        lightsource_hits_text := cursors_active && active_global_widget == .editors && should_draw_cursors() && !search_bar_is_open(editor);
+        do_shadow := config.settings.go_bananas && editor_id != editors.floating;
+        Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left,
+                       *cursor_lightsources, cursor_lightsource_foreground_intensity, white, lightsource_hits_text,
+                       xx ifx do_shadow then config.settings.cursor_glow_bananas_shadow else 0, Colors.CURSOR_SHADOW);
 
         // Draw continuation markers for wrapped lines
         if line_wrap_is_active(editor) && !actually_show_line_numbers && !zen_mode {
@@ -4400,7 +4404,7 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
     lightsource_color.a = 0.01 * ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_percent else config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, config.settings.go_bananas);
+    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, cursor_lightsource_screen_offset, config.settings.go_bananas);
     draw_rect_raw(rect, color);
 }
 

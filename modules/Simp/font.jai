@@ -145,7 +145,7 @@ convert_to_temporary_glyphs :: (font: *Dynamic_Font, s: string) -> width_in_pixe
     return width_in_pixels;
 }
 
-draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_height: float, visible_lines: [] Code_Line, color_map: [] Vector4, tab_size: s64 = 4, start_col := 0, lightsources : *[] Vector3 = null, lightsource_intensity := 0.0, lightsource_color := Vector4.{1.0, 1.0, 1.0, 1.0}) {
+xdraw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_height: float, visible_lines: [] Code_Line, color_map: [] Vector4, tab_size: s64 = 4, start_col := 0, lightsources : *[] Vector3 = null, lightsource_intensity := 0.0, lightsource_color := Vector4.{1.0, 1.0, 1.0, 1.0}) {
     // Setup OpenGL stuff. We do it all in one place because it's easier and there will be only one backend - GL.
     // Otherwise we would have to create temporary glyphs and pass them on to the backend draw function.
     CheckInit();
@@ -237,6 +237,271 @@ draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_h
                     col += chars_to_tabstop;
                     color.w = 0.1;  // don't make it too bright
                 }
+                immediate_letter_quad(quad, color);
+                if bold_offset {
+                    k := cast(float)bold_offset / 255;
+                    quad.p0.x += k; quad.p1.x += k;
+                    quad.p2.x += k; quad.p3.x += k;
+                    immediate_letter_quad(quad, color);
+                }
+            }
+
+            t = unicode_next_character(t);
+        }
+
+        sy -= line_height;
+    }
+
+    immediate_flush();
+
+    glDisable(GL_BLEND);
+}
+
+draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_height: float, visible_lines: [] Code_Line, color_map: [] Vector4, tab_size: s64 = 4, start_col := 0, lightsources : *[] Vector3 = null, lightsource_intensity := 0.0, lightsource_color := Vector4.{1.0, 1.0, 1.0, 1.0}, lightsource_hits_text := false, shadow_strength := 0.0, shadow_color := Vector4.{0, 0, 0, 0.5}) {
+    // Setup OpenGL stuff. We do it all in one place because it's easier and there will be only one backend - GL.
+    // Otherwise we would have to create temporary glyphs and pass them on to the backend draw function.
+    CheckInit();
+    if lightsource_hits_text && lightsources && lightsources.count > 0
+        set_shader_for_text(lightsources, lightsource_intensity, lightsource_color);
+    else
+        set_shader_for_text();
+    glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
+    glEnable(GL_BLEND);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    last_texture: GLuint = 0xFFFFFFFF;
+    sy := cast(float) y;
+
+    // Draw all lines for shadows
+    actual_shadow_strength := shadow_strength * 0.001;
+
+    if shadow_strength && lightsources  for visible_lines {
+        line   := it.line;
+        colors := it.colors;
+        bold_offset := it.bold_offset;
+
+        sx  := cast(float) (x + it.tab_spaces * char_x_advance);
+        col := start_col + it.tab_spaces;
+
+        // Draw one line
+        t := line.data;
+        while t < line.data + line.count {
+            // Convert current char to glyph
+            utf32 := character_utf8_to_utf32(t, line.data + line.count - t);
+            glyph := find_or_create_glyph(font, utf32);
+            assert(glyph != null, "find_or_create_glyph returned null");
+            assert(glyph.page != null, "glyph has no font page");
+
+            texture := *glyph.page.texture;
+            if glyph.page.dirty {
+                glyph.page.dirty = false;
+                texture_load_from_bitmap(texture, glyph.page.bitmap_data);
+            }
+
+            if texture.gl_handle != last_texture {
+                immediate_flush();
+                last_texture = texture.gl_handle;
+
+                shader := state.current_shader;
+                loc := glGetUniformLocation(shader.gl_handle, "text_sampler");
+                if loc < 0  log_error("Unable to find text_sampler in shader_text!");
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texture.gl_handle);  // Bind handle to slot 0.
+                glUniform1i(loc, 0);
+            }
+
+            // Draw glyph
+            {
+                x1 := sx + cast(float) glyph.offset_x;
+                x2 := x1 + cast(float) glyph.width;
+
+                y2 := sy + cast(float) glyph.ascent;
+                y1 := y2 - cast(float) glyph.height;
+
+                // Create quad
+                quad: Font_Quad = ---;
+                quad.glyph = glyph;
+                quad.p0.x  = x1;
+                quad.p1.x  = x2;
+                quad.p2.x  = x2;
+                quad.p3.x  = x1;
+                quad.p0.y  = y1;
+                quad.p1.y  = y1;
+                quad.p2.y  = y2;
+                quad.p3.y  = y2;
+
+                quad.u0 = glyph.x0 / cast(float) texture.width;
+                quad.u1 = (cast(float) glyph.x0 + glyph.width) / texture.width;
+                quad.v0 = glyph.y0 / cast(float) texture.height;
+                quad.v1 = (cast(float) glyph.y0 + glyph.height) / texture.height;
+
+                assert(colors.count > t - line.data);
+                assert(color_map.count > colors[t - line.data]);
+                color := color_map[colors[t - line.data]];
+                if utf32 != #char "\t" {
+                    sx  += char_x_advance;
+                    col += 1;
+                } else {
+                    // Draw tabs wide
+                    chars_to_tabstop := tab_size - col % tab_size;
+                    sx  += chars_to_tabstop * char_x_advance;
+                    col += chars_to_tabstop;
+                    color.w = 0.1;  // don't make it too bright
+                }
+                if lightsources && lightsources.count > 0 {
+                    /*
+                    rad_to_deg :: (r: float) -> float {
+                        return r * (180 / PI);
+                    }
+
+                    deg_to_rad :: (d: float) -> float {
+                        return PI * d / 180;
+                    }
+                    point_direction :: (vec1: Vector2, vec2: Vector2) -> float {
+                        return rad_to_deg(atan2(vec2.y - vec1.y, vec2.x - vec1.x));
+                    }
+                    point_distance :: (vec1: Vector2, vec2: Vector2) -> float {
+                        return sqrt(pow(vec2.x - vec1.x, 2.0) + pow(vec2.y - vec1.y, 2.0));
+                    }
+
+                    lengthdir_x :: (distance: float, angle: float) -> float {
+                        return distance * cos(angle * PI / 180);
+                    }
+
+                    lengthdir_y :: (distance: float, angle: float) -> float {
+                        return distance * sin(angle * PI / 180);
+                    }
+
+                    dir := point_direction(.{lightsources.*[0].x, lightsources.*[0].y}, .{quad.p0.x, quad.p0.y});
+                    distance := shadow_strength * point_distance(.{lightsources.*[0].x, lightsources.*[0].y}, .{quad.p0.x, quad.p0.y});
+
+                    offset := Vector2.{2, -2};
+
+                    offset.x = lengthdir_x(distance/glyph.width, dir);
+                    offset.y = lengthdir_y(distance/glyph.height, dir);
+
+                    quad.p0.x += offset.x;
+                    quad.p0.y += offset.y;
+                    quad.p1.x += offset.x;
+                    quad.p1.y += offset.y;
+                    quad.p2.x += offset.x;
+                    quad.p2.y += offset.y;
+                    quad.p3.x += offset.x;
+                    quad.p3.y += offset.y;
+                    */
+
+                    light := lightsources.*[0].xy;
+                    if abs(light.y - quad.p0.y) > 10 {
+                        offset :: (p: *Vector2, k: float, light: Vector2) #expand {
+                            dx := (p.x - light.x);
+                            dy := (p.y - light.y);
+                            biggest := 4.0;
+                            if dx > biggest then dx = biggest; else if dx < -biggest then dx = -biggest;
+                            if dy > biggest then dy = biggest; else if dy < -biggest then dy = -biggest;
+                            p.x += dx * k;
+                            p.y += dy * k;
+                        }
+
+                        if quad.p0.y < light.y {
+                            offset(*quad.p0, actual_shadow_strength, light);
+                            offset(*quad.p2, actual_shadow_strength, light);
+                        }
+                        else {
+                            offset(*quad.p1, actual_shadow_strength, light);
+                            offset(*quad.p3, actual_shadow_strength, light);
+                        }
+
+                        immediate_letter_quad(quad, shadow_color);
+                    }
+                }
+            }
+
+            t = unicode_next_character(t);
+        }
+
+        sy -= line_height;
+    }
+
+    last_texture = 0xFFFFFFFF;
+    sy = cast(float) y;
+
+    // Draw all lines for real
+    for visible_lines {
+        line   := it.line;
+        colors := it.colors;
+        bold_offset := it.bold_offset;
+
+        sx  := cast(float) (x + it.tab_spaces * char_x_advance);
+        col := start_col + it.tab_spaces;
+
+        // Draw one line
+        t := line.data;
+        while t < line.data + line.count {
+            // Convert current char to glyph
+            utf32 := character_utf8_to_utf32(t, line.data + line.count - t);
+            glyph := find_or_create_glyph(font, utf32);
+            assert(glyph != null, "find_or_create_glyph returned null");
+            assert(glyph.page != null, "glyph has no font page");
+
+            texture := *glyph.page.texture;
+            if glyph.page.dirty {
+                glyph.page.dirty = false;
+                texture_load_from_bitmap(texture, glyph.page.bitmap_data);
+            }
+
+            if texture.gl_handle != last_texture {
+                immediate_flush();
+                last_texture = texture.gl_handle;
+
+                shader := state.current_shader;
+                loc := glGetUniformLocation(shader.gl_handle, "text_sampler");
+                if loc < 0  log_error("Unable to find text_sampler in shader_text!");
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texture.gl_handle);  // Bind handle to slot 0.
+                glUniform1i(loc, 0);
+            }
+
+            // Draw glyph
+            {
+                x1 := sx + cast(float) glyph.offset_x;
+                x2 := x1 + cast(float) glyph.width;
+
+                y2 := sy + cast(float) glyph.ascent;
+                y1 := y2 - cast(float) glyph.height;
+
+                // Create quad
+                quad: Font_Quad = ---;
+                quad.glyph = glyph;
+                quad.p0.x  = x1;
+                quad.p1.x  = x2;
+                quad.p2.x  = x2;
+                quad.p3.x  = x1;
+                quad.p0.y  = y1;
+                quad.p1.y  = y1;
+                quad.p2.y  = y2;
+                quad.p3.y  = y2;
+
+                quad.u0 = glyph.x0 / cast(float) texture.width;
+                quad.u1 = (cast(float) glyph.x0 + glyph.width) / texture.width;
+                quad.v0 = glyph.y0 / cast(float) texture.height;
+                quad.v1 = (cast(float) glyph.y0 + glyph.height) / texture.height;
+
+                assert(colors.count > t - line.data);
+                assert(color_map.count > colors[t - line.data]);
+                color := color_map[colors[t - line.data]];
+                if utf32 != #char "\t" {
+                    sx  += char_x_advance;
+                    col += 1;
+                } else {
+                    // Draw tabs wide
+                    chars_to_tabstop := tab_size - col % tab_size;
+                    sx  += chars_to_tabstop * char_x_advance;
+                    col += chars_to_tabstop;
+                    color.w = 0.1;  // don't make it too bright
+                }
+
                 immediate_letter_quad(quad, color);
                 if bold_offset {
                     k := cast(float)bold_offset / 255;

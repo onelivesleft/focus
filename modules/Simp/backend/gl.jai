@@ -308,6 +308,7 @@ uniform vec4 lightsource_color;
 uniform float lightsource_intensity;
 uniform float lightsource_fade_duration;
 uniform float half_line_height;
+uniform vec2 screen_offset;
 
 out vec4 color;
 
@@ -415,7 +416,9 @@ void main () {
             if (brightness > max_brightness)
                 max_brightness = brightness;
         }
-        vec4 smoke_color = mix(lightsource_color, smoke(gl_FragCoord.xy/u_resolution.xy*3.), 0.5);
+        vec2 screen_xy = gl_FragCoord.xy;
+        screen_xy += screen_offset;
+        vec4 smoke_color = mix(lightsource_color, smoke(screen_xy/u_resolution.xy*3.), 0.5);
         mixed = mix(mixed, smoke_color, lightsource_color.a * max_brightness);
     }
 

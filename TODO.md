@@ -1,5 +1,8 @@
 # Mine
 
+- [x] Fix scope tab not drawing if scope directive is first line, fix tab drawing incorrectly when scrolled horizontally
+- [ ] Add ficus runtime allocator, allow cons words, pick
+
 - [ ] Clean up icon strings: have constants! or an enum! or a struct!
 - [x] Show external build errors as toasts (like read-only exe)
 

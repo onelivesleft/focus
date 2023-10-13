@@ -30,6 +30,7 @@ Color_Values :: struct {
     SCROLLBAR_HOVER         := Color.{ r = 0.20, g = 0.80, b = 0.80, a = 0.3 };
     SCROLLBAR_BACKGROUND    := Color.{ r = 0.065, g = 0.101, b = 0.125, a = 0.3 };
     CURSOR                  := Color.{ r = 0.15, g = 0.7, b = 0.7 };
+    CURSOR_SHADOW           := Color.{ r = 0.0, g = 0.0, b = 0.0, a = 0.5 };
     CURSOR_INACTIVE         := Color.{ r = 0.10, g = 0.4, b = 0.4 };
     PASTE_ANIMATION         := Color.{ r = 0.11, g = 0.267, b = 0.29 };
     SPLITTER                := Color.{ r = 0.131, g = 0.202, b = 0.25 };
