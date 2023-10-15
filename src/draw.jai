@@ -4403,6 +4403,11 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
+    if config.settings.cursor_glow_bananas_rotate_hue {
+        h, s, l := hsl_from_rgb(lightsource_color);
+        h = fmod_cycling(config.settings.cursor_glow_bananas_rotate_hue * cast(float)frame_time * 0.00001, 1.0);
+        lightsource_color = rgb_from_hsl(h, s, l);
+    }
     lightsource_color.a = 0.01 * ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_percent else config.settings.cursor_glow_percent;
     Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, cursor_lightsource_screen_offset, config.settings.go_bananas);
     draw_rect_raw(rect, color);

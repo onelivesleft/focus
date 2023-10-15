@@ -37,9 +37,8 @@ __pycache__
 [[script]]
 
 on_load:
-    #0 0 2736 1824 window_location!
     4 console_location!
-     "Locus" open_project
+    "Locus" open_project
     #if_else [ locus_executable? "locus_debug" contains ]
             #[ "Escape Room" open_project ]
     #        [ "GUI" open_project ]
@@ -76,6 +75,7 @@ highlight_line_with_cursor              false
 cursor_glow_intensity                   5
 cursor_glow_percent                     33
 cursor_glow_fade_ms                     50
+cursor_glow_bananas_shadow              500
 
 max_editor_width:                       -1
 line_wrap_is_on_by_default:             false
@@ -151,11 +151,12 @@ Shift-F5                    ficus_halt
 F7                          toggle_show_keystrokes
 F9                          ficus_toggle_breakpoint
 Ctrl-F10                    ficus_debug_current
-F10                         ficus_step
-F11                         toggle_zen_mode#toggle_show_filename#parse_file
+F10                         ficus_step_over
+F11                         ficus_step_into
 F12                         jump_to_definition
 
-Ctrl-F11                    toggle_profiling
+Alt-F11                    toggle_profiling
+Ctrl-F11                     toggle_zen_mode#toggle_show_filename#parse_file
 
 
 Ctrl-Shift-Backspace        do_nothing #delete_to_start_of_line

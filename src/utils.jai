@@ -742,3 +742,59 @@ count_leading_spaces :: (s: string) -> count: int, has_text: bool {
     }
     return s.count, false;
 }
+
+rgb_from_hsl :: (h: float, s: float, l: float) -> Color {
+    r, g, b : float;
+
+    if s == 0 {
+        r, g, b = l, l, l; // achromatic
+    }
+    else {
+        rgb_from_hue :: (p: float, q: float, t: float) -> float {
+            if t < 0  t += 1;
+            if t > 1  t -= 1;
+            if t < 1.0/6.0  return p + (q - p) * 6 * t;
+            if t < 1.0/2.0  return q;
+            if t < 2.0/3.0  return p + (q - p) * (2.0/3.0 - t) * 6;
+            return p;
+        }
+
+        q := ifx l < 0.5 then l * (1 + s) else l + s - l * s;
+        p := 2 * l - q;
+        r = rgb_from_hue(p, q, h + 1.0/3.0);
+        g = rgb_from_hue(p, q, h);
+        b = rgb_from_hue(p, q, h - 1.0/3.0);
+    }
+
+    return .{r=r, g=g, b=b, a=1.0};
+}
+
+hsl_from_rgb :: (using color: Color) -> h: float, s: float, l: float{
+    h, s, l: float;
+
+    _min := min(min(r, g), b);
+    _max := max(max(r, g), b);
+
+    c := _max - _min;
+    l = (_min + _max) / 2;
+
+    if c < 0.00001
+        return h, s, l;
+
+    if _max > 0.0
+        s = c / (1 - abs(2 * l - 1));
+    else
+        return h, s, l;
+
+    if r >= _max
+        h = (g - b ) / c;
+    else if g >= _max
+        h = 2.0 + (b - r ) / c;
+    else
+        h = 4.0 + (r - g ) / c;
+
+    h /= 6.0;
+    if h < 0.0  h += 1.0;
+
+    return h, s, l;
+}

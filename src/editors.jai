@@ -1436,7 +1436,7 @@ make_editor_active :: (editor_id: s64) {
     buffer_id := open_editors[editor_id].buffer_id;
     update_window_title(buffer_id);
     touch_buffer(editor_id, buffer_id);
-    if editor_id != editors.floating
+    if editor_id != editors.floating && !is_ficus_running()
         ficus_execute_event("on_editor");
 }
 

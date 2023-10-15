@@ -1,7 +1,16 @@
 # Mine
 
+- [.] Ficus
+    - [ ] better assert
+    - [ ] settings toggle
+    - [.] step over / call stack
+    - [ ] break points
+    - [ ] modal hotkeys (instead of run_or_step w/e)
+    - [ ] Add command to Execute command popup (ctrl-shift-p)
+
+- [x] Banana rotation
+
 - [x] Fix scope tab not drawing if scope directive is first line, fix tab drawing incorrectly when scrolled horizontally
-- [ ] Add ficus runtime allocator, allow cons words, pick
 
 - [ ] Clean up icon strings: have constants! or an enum! or a struct!
 - [x] Show external build errors as toasts (like read-only exe)
@@ -14,6 +23,7 @@
 - [x] Add fade to light when cursor jumps
 
 - [x] Calculator
+    - [x] Hitting right-arrow at end of input adds a space (for one-handed numpad typing)
 - [x] Hitting down on bottom line of buffer should become `end`
 - [x] Fix move by word left in text input
 - [x] Fix unsymmetrical footer rects
@@ -69,6 +79,9 @@
     - [x] don't show in open dialogs
 
 - [.] Ficus
+    - [x] Fix .. not parsing in declaration
+    - [ ] Add ficus runtime allocator, allow cons words, pick
+    - [.] Rename apply_if et al
     - [ ] Add commands to ctrl-shift-p
     - [ ] toggle events enabled
     - [ ] error message for pop(.type)
@@ -76,7 +89,7 @@
         - [x] on_load - when config file is loaded (global/project)
         - [x] on_editor [needs editor_path?, editor_language?] - when editor is switched-to
         - [x] on_frame
-    - [ ] zen_mode? zen_mode!
+    - [x] zen_mode? zen_mode!
     - [ ] execute_editor: context aware ([[script]], #string fig at cursor)
     - [ ] open_file take project relative path
     - [ ] open_files

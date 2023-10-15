@@ -4,23 +4,26 @@
 # control flow
 
 if:
-    [apply_code_if] 2 expect_then_apply
+    [code.if] 2 expect_then_apply
 
 if_else:
-    [apply_code_if_else] 3 expect_then_apply
+    [code.if_else] 3 expect_then_apply
 
-apply_code_while:
+code.while: (code'condition code'body --)
     code'swap code'peek
     apply code'push
     [
         jump_target
         code'swap code'peek apply
-        code'swap code'copy [jump] code'push apply_code_if
-    ] code'push apply_code_if
+        code'swap code'copy [jump] code'push code.if
+    ] code'push code.if
     code'discard code'discard
 
 while:
-    [apply_code_while] 2 expect_then_apply
+    [code.while] 2 expect_then_apply
+
+.while: (body condition --)
+    code'push code'push code.while
 
 times:
     swap code'push(body) number? code'push(count) code'peek
@@ -29,8 +32,8 @@ times:
         jump_target
         code'swap code'peek apply
         code'swap 1 code'push code'- code'peek
-        0 > code'push [jump] code'push apply_code_if
-    ]  code'push apply_code_if
+        0 > code'push [jump] code'push code.if
+    ]  code'push code.if
     code'discard code'discard
 
 map:

@@ -44,9 +44,14 @@ ficus_run :: () {
     ficus_machine_state = .continue_running;
 }
 
-ficus_step :: () {
+ficus_step_into :: () {
     is_ficus_debugging = true;
-    ficus_machine_state = .step;
+    ficus_machine_state = .step_into;
+}
+
+ficus_step_over :: () {
+    is_ficus_debugging = true;
+    ficus_machine_state = .step_over;
 }
 
 ficus_pause :: () {
@@ -111,7 +116,8 @@ ficus_tick :: (request_result := false) -> is_error: bool, result: string {
             if #complete ficus_machine_state == {
                 case .running; #through;
                 case .continue_running; #through;
-                case .step;
+                case .step_into;
+                case .step_over;
                     add_status_part(editor, .icon, play_icon);
 
                 case .paused; #through;
@@ -195,8 +201,13 @@ ficus_tick :: (request_result := false) -> is_error: bool, result: string {
                 break;
             }
 
-            if ficus_machine_state == .step  ficus_machine_state = .pause_request;
-            if ficus_machine_state == .continue_running  ficus_machine_state = .running;
+            if ficus_machine_state == .step_into || ficus_machine_state == .step_over {
+                if ficus_machine_state == .step_over
+                    ficus_pause_depth = ficus_execution_stack.count;
+                ficus_machine_state = .pause_request;
+            }
+            else if ficus_machine_state == .continue_running
+                ficus_machine_state = .running;
         }
         else {
             array_reset(*ficus_execution_stack);
@@ -421,7 +432,7 @@ ficus_execute_editor_or_continue :: (editor: *Editor, buffer: *Buffer, output :=
 
 ficus_execute_editor_or_step :: (editor: *Editor, buffer: *Buffer, output := Volume.default, $loc := #caller_location) {
     if is_ficus_running() {
-        ficus_step();
+        ficus_step_over();
     }
     else {
         ficus_execute_editor(editor, buffer, output);
@@ -668,8 +679,11 @@ ficus_machine_state : enum {
     paused;
     pause_request;
     pause_just_happened;
-    step;
+    step_over;
+    step_into;
 }
+
+ficus_pause_depth := 0;
 
 is_ficus_debugging := false;
 
@@ -805,13 +819,17 @@ execute_one_frame :: (request_result := false) -> Ficus_Execution_State, error: 
     previous_token = token;
     previous_tokenizer = tokenizer;
 
+    is_ficus_stepping :: () -> bool #expand {
+        return ficus_machine_state == .step_into || ficus_machine_state == .step_over;
+    }
+
     pause_check :: () #expand {
         token_string : string = ---;
         token_string.data = buf.data + token.start;
         token_string.count = token.len;
         host_string, space := ficus_stored_string(token_string);
-        should_pause := ficus_machine_state == .pause_request && space;
-        if !should_pause && ficus_breakpoints && ficus_machine_state != .step && ficus_machine_state != .continue_running {
+        should_pause := space && ficus_machine_state == .pause_request && (ficus_pause_depth == 0 || ficus_pause_depth >= stack_depth);
+        if !should_pause && ficus_breakpoints && !is_ficus_stepping() && ficus_machine_state != .continue_running {
             // @TODO @Speed cache breakpoints per frame
             if space == .user {
                 if user_words_buffer_id == -1  return;
@@ -836,6 +854,7 @@ execute_one_frame :: (request_result := false) -> Ficus_Execution_State, error: 
             `token = previous_token;
             `tokenizer = previous_tokenizer;
             ficus_machine_state = .pause_just_happened;
+            ficus_pause_depth = 0;
             `return .active, "", "";
         }
     }
@@ -1196,11 +1215,20 @@ is_executable :: (item: Stack_Item) -> bool {
 intrinsics :: #code if word_name == {
     // Word names have a very broad lattitude for characters, the only reserved characters are:
     //  [ ] ( ) # "
+
     // Conventions for naming:
     //   Do not start a word with !, as all the locus actions are loaded into words starting with !
     //   (for instance, `!copy` performs ctrl-c, while `copy` duplicates the last item on the stack)
     //   End words with a `?` if they return a value but do not consume any items from the stack
     //   End words with a `!` if they set something
+    //   Control flow words operate against-the-grain of the language, being written prefix like
+    //   in most other languages.  For example:
+    //      if [2 1 >] ["Two is greater than One!" .]
+    //   ...the condition and body follow the `if`.  However, sometimes the code might be written
+    //   easier by using a postfix control flow word, so by convention every control flow word
+    //   has a postfix twin, and it is named identically but with a period prefix.  So, the
+    //   above can be written:
+    //      ["Two is greater than One!" .] [2 1 >] .if
 
     case "true";
         push(true, stack);
@@ -1375,25 +1403,6 @@ intrinsics :: #code if word_name == {
         pop_message(item, *main_stack);
         push(item, stack);
 
-    case "push_all";
-        if stack == *main_stack
-            return "Cannot take onto main stack (which stack would the items come from?)";
-        index, new_count := index_after_separator(*main_stack);
-        for i: index .. main_stack.count - 1 {
-            item := pop(*main_stack);
-            pop_message(item, *main_stack);
-            push(item, stack);
-        }
-        main_stack.count = new_count;
-
-    case "pop_all";
-        if stack == *main_stack
-            return "Cannot retrieve from main stack (which stack would the items go to?)";
-        while stack.count {
-            item := pop();
-            push(item, *main_stack);
-        }
-
     case "discard";
         item := pop();
 
@@ -1401,11 +1410,57 @@ intrinsics :: #code if word_name == {
         item := peek();
         push(item, stack);
 
+    case "rotate";
+        z := pop("z");
+        y := pop("y");
+        x := pop("x");
+        push(y, stack);
+        push(z, stack);
+        push(x, stack);
+
+    case "at";
+        index := pop(.int_number).int_value;
+        if stack.count <= index
+            return tprint("% tried to look at item % from bottom of stack, but the stack only has % items (the top item of the stack would be %)", word_name, index, stack.count, stack.count - 1);
+        push(stack.*[index], stack);
+
+    case "pick";
+        index_back := pop(.int_number).int_value;
+        if stack.count <= index_back
+            return tprint("% tried to look at item % from top of stack, but the bottom item in the stack is item % (the top item of the stack would be 0)", word_name, index_back, stack.count - 1);
+        push(stack.*[stack.count - index_back - 1], stack);
+
     case "swap";
         a := pop();
         b := pop();
         push(a, stack);
         push(b, stack);
+
+    case "swap_at";
+        a := pop(.int_number).int_value;
+        b := pop(.int_number).int_value;
+        if stack.count <= a
+            return tprint("% tried to look at item % from bottom of stack, but the stack only has % items (the top item of the stack would be %)", word_name, a, stack.count, stack.count - 1);
+        if stack.count <= b
+            return tprint("% tried to look at item % from bottom of stack, but the stack only has % items (the top item of the stack would be %)", word_name, b, stack.count, stack.count - 1);
+        t := stack.*[a];
+        stack.*[a] = stack.*[b];
+        stack.*[b] = t;
+
+    case "assert_x";
+        if stack.count < 3
+            return tprint("Expected 3 items on the stack but only saw %", stack.count);
+
+    case "assert_y";
+        if stack.count < 2
+            return tprint("Expected 3 items on the stack but only saw %", stack.count);
+
+    case "assert_z";
+        if stack.count < 1
+            return tprint("Expected 3 items on the stack but only saw %", stack.count);
+
+    case "panic";
+        return "Panic!";
 
     case "reverse";
         index, found := index_after_separator();
@@ -1451,11 +1506,17 @@ intrinsics :: #code if word_name == {
         else
             push(item, stack);
 
-    case "apply_code_if";
-        // code stack is <condition> <then_body>
-        execute_string("code'swap code'pop apply apply_code_if_true", stack, space, output);
+    case "assert";
+        value := pop("value");
+        if !to_bool(value)
+            return "Assert failed!";
 
-    case "apply_code_if_true";
+    case "code.if";
+        // code stack is <condition> <then_body>
+        execute_string("code'swap code'pop apply code.if_true", stack, space, output);
+
+    case "code.if_true";
+        // code stack is then_body, stack is true/false
         code_stack := get_stack("code");
         if code_stack.count == 0
             return tprint("% expected parameter 'then_body' but stack was empty", word_name);
@@ -1467,11 +1528,16 @@ intrinsics :: #code if word_name == {
             execute_string("apply", stack, space, output);
         }
 
-    case "apply_code_if_else";
-        // code stack is <condition> <then_body> <else_body>
-        execute_string("code'pop code'swap code'push code'swap code'pop apply apply_code_if_else_true", stack, space, output); // execute condition
+    case ".if";
+        // stack is <then_body> <condition>
+        execute_string("apply swap code'push code.if_true", stack, space, output);
 
-    case "apply_code_if_else_true";
+    case "code.if_else";
+        // code stack is <condition> <then_body> <else_body>
+        execute_string("code'pop code'swap code'push code'swap code'pop apply code.if_else_true", stack, space, output); // execute condition
+
+    case "code.if_else_true";
+        // code stack is then_body else_body, stack is true/false
         code_stack := get_stack("code");
         if code_stack.count == 0
             return tprint("% expected parameter 'else_body' but stack was empty", word_name);
@@ -1487,6 +1553,10 @@ intrinsics :: #code if word_name == {
         else
             push(else_body, stack);
         execute_string("apply", stack, space, output);
+
+    case ".if_else";
+        // stack is <then_body> <else_body> <condition>
+        execute_string("apply swap code'push swap code'push code'swap code.if_else_true", stack, space, output); // execute condition
 
     case "debug_print_stack";
         if DEFAULT {
@@ -1570,6 +1640,27 @@ intrinsics :: #code if word_name == {
     case "random";
         push(cast(float)random_get(), stack);
 
+    case "floor";
+        x := pop(.number, "x").value;
+        push(cast(int) x, stack);
+
+    case "rgb_to_hsl";
+        b := pop(.number, "blue").value;
+        g := pop(.number, "green").value;
+        r := pop(.number, "red").value;
+        h, s, l := hsl_from_rgb(.{r=r, g=g, b=b});
+        push(h, stack);
+        push(s, stack);
+        push(l, stack);
+
+    case "hsl_to_rgb";
+        l := pop(.number, "blue").value;
+        s := pop(.number, "green").value;
+        h := pop(.number, "red").value;
+        color := rgb_from_hsl(h, s, l);
+        push(color.r, stack);
+        push(color.g, stack);
+        push(color.b, stack);
 
     // utils
 

@@ -235,7 +235,6 @@ commands := #run Command.[
     .{ .ficus_run_current,                                  "Ficus Run Current",                  0, .Single },
     .{ .ficus_run_current_verbose,                          "Ficus Run Current (Verbose)",        0, .Single },
     .{ .ficus_debug_current,                                "Ficus Debug Current",                0, .Single },
-    .{ .ficus_step,                                         "Ficus Step",                         0, .None },
     .{ .ficus_halt,                                         "Ficus Halt",                         0, .None },
     .{ .ficus_continue,                                     "Ficus Continue",                     0, .None },
     .{ .ficus_open_baked_words_buffer,                      "Ficus Open Baked Words",             0, .None },

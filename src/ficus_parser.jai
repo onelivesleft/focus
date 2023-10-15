@@ -55,63 +55,70 @@ ficus_get_next_token :: (using tokenizer: *Ficus_Tokenizer) -> Ficus_Token {
         token.type = .eol;
         t += 1;
     }
-    else if t.* == {
-        case #char "\0";
-        token.type = .eof;
+    else {
+        done := true;
+        if t.* == {
+            case #char "\0";
+            token.type = .eof;
 
-        case #char "'";
-        token.type = .error;
-        t += 1;
+            case #char "'";
+            token.type = .error;
+            t += 1;
 
-        case #char "#";
-        ficus_parse_line_comment(tokenizer, *token);
+            case #char "#";
+            ficus_parse_line_comment(tokenizer, *token);
 
-        case #char "(";
-        ficus_parse_block_comment(tokenizer, *token);
+            case #char "(";
+            ficus_parse_block_comment(tokenizer, *token);
 
-        case #char "[";
-        token.type = ifx !syntax_highlight_mode then .begin_sequence else .punctuation;
-        t += 1;
+            case #char "[";
+            token.type = ifx !syntax_highlight_mode then .begin_sequence else .punctuation;
+            t += 1;
 
-        case #char "]";
-        token.type = ifx !syntax_highlight_mode then .end_sequence else .punctuation;
-        t += 1;
+            case #char "]";
+            token.type = ifx !syntax_highlight_mode then .end_sequence else .punctuation;
+            t += 1;
 
-        case #char "\"";
-        ficus_parse_string(tokenizer, *token);
+            case #char "\"";
+            ficus_parse_string(tokenizer, *token);
 
-        case #char "0"; #through;
-        case #char "1"; #through;
-        case #char "2"; #through;
-        case #char "3"; #through;
-        case #char "4"; #through;
-        case #char "5"; #through;
-        case #char "6"; #through;
-        case #char "7"; #through;
-        case #char "8"; #through;
-        case #char "9"; #through;
-        case #char "."; #through;
-        case #char "-"; #through;
-        case #char "+";
-        ficus_parse_number(tokenizer, *token);
+            case #char "0"; #through;
+            case #char "1"; #through;
+            case #char "2"; #through;
+            case #char "3"; #through;
+            case #char "4"; #through;
+            case #char "5"; #through;
+            case #char "6"; #through;
+            case #char "7"; #through;
+            case #char "8"; #through;
+            case #char "9"; #through;
+            case #char "."; #through;
+            case #char "-"; #through;
+            case #char "+";
+            done = ficus_parse_number(tokenizer, *token);
 
-        case;
-        if was_start_of_line {
-            ficus_parse_word(tokenizer, *token, maybe_declaration = true);
-            if token.type != .error && t < max_t && t.* == #char ":" {
-                token.type = .declaration;
-                ptr := start_t;
-                while ptr < t {
-                    if ptr.* == #char "'" {
-                        token.type = .error;
-                        break;
+            case;
+            done = false;
+        }
+
+        if !done {
+            if was_start_of_line {
+                ficus_parse_word(tokenizer, *token, maybe_declaration = true);
+                if token.type != .error && t < max_t && t.* == #char ":" {
+                    token.type = .declaration;
+                    ptr := start_t;
+                    while ptr < t {
+                        if ptr.* == #char "'" {
+                            token.type = .error;
+                            break;
+                        }
+                        ptr += 1;
                     }
-                    ptr += 1;
                 }
             }
-        }
-        else {
-            ficus_parse_word(tokenizer, *token);
+            else {
+                ficus_parse_word(tokenizer, *token);
+            }
         }
     }
 
@@ -269,14 +276,13 @@ ficus_parse_string :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
     token.type = ifx !syntax_highlight_mode then .error else .string_error;
 }
 
-ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
+ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) -> bool {
     has_period := false;
     if t.* == #char "-" || t.* == #char "+" {
         t += 1;
         if t >= max_t || (t.* < #char "0" || t.* > #char "9") && t.* != #char "." {
             t = start_t;
-            ficus_parse_word(tokenizer, token);
-            return;
+            return false;
         }
     }
     if t.* == #char "." {
@@ -284,8 +290,7 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
         t += 1;
         if t >= max_t || (t.* < #char "0" || t.* > #char "9") {
             t = start_t;
-            ficus_parse_word(tokenizer, token);
-            return;
+            return false;
         }
     }
 
@@ -297,7 +302,7 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
             if has_period {
                 token.type = .error;
                 t += 1;
-                return;
+                return true;
             }
             else {
                 has_period = true;
@@ -308,10 +313,11 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) {
                 token.type = .error;
                 t += 1;
             }
-            return;
+            return true;
         }
         t += 1;
     }
+    return true;
 }
 
 

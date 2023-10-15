@@ -1,18 +1,83 @@
-
-..:
-    . .
-
-#1 while [true] [1 +]
-#1 2 3 4 5 reverse
-#print
-#"" 100 to_string 1 toast
-
-YZ:
-    stash'push copy stash'copy stash'pop swap stash'pop
+->temp:
+    temp'clear
+    while [spent? not] [temp'push]
+    temp'reverse
 
 
-inc:
-    1 +
+!=: = not
+
+assert_stack_identical_to_temp:
+    stack_count? temp'stack_count? temp'pop = assert
+    while [stack_count?] [
+        copy temp'copy temp'pop = assert
+        discard temp'discard
+    ]
+
+test: ->temp assert_stack_identical_to_temp
+
+x: rotate
+y: swap
+z: assert_z
+
+1 2 3 x \ 2 3 1 test
+1 2 3 y \ 1 3 2 test
+1 2 3 z \ 1 2 3 test
+
+X: 2 pick
+Y: 1 pick
+Z: copy
+
+1 2 3 X \ 1 2 3 1 test
+1 2 3 Y \ 1 2 3 2 test
+1 2 3 Z \ 1 2 3 3 test
+
+yz: assert_y
+zy: swap
+xz: rotate swap
+zx: xz swap
+xy: swap rotate swap
+yx: xy swap
+
+1 2 3 yz \ 1 2 3 test
+1 2 3 zy \ 1 3 2 test
+1 2 3 xz \ 2 1 3 test
+1 2 3 zx \ 2 3 1 test
+1 2 3 xy \ 3 1 2 test
+1 2 3 yx \ 3 2 1 test
+
+YZ: copy 2 pick swap
+ZY: copy 2 pick
+XZ: 2 pick 1 pick
+ZX: copy 3 pick
+XY: 2 pick 2 pick
+YX: 1 pick 3 pick
+
+1 2 3 YZ \ 1 2 3 2 3 test
+1 2 3 ZY \ 1 2 3 3 2 test
+1 2 3 XZ \ 1 2 3 1 3 test
+1 2 3 ZX \ 1 2 3 3 1 test
+1 2 3 XY \ 1 2 3 1 2 test
+1 2 3 YX \ 1 2 3 2 1 test
+
+xyz: assert_x
+xzy: assert_x swap
+yxz: xz
+yzx: zx
+zxy: xy
+zyx: yx
+
+1 2 3 yz \ 1 2 3 test
+1 2 3 zy \ 1 3 2 test
+1 2 3 xz \ 2 1 3 test
+1 2 3 zx \ 2 3 1 test
+1 2 3 xy \ 3 1 2 test
+1 2 3 yx \ 3 2 1 test
+
+
+"All tests passed!" .
+
+inc: 1 +
+dec: 1 -
 
 sort_with_compare:
     compare'push
@@ -31,11 +96,101 @@ sort_with_compare:
     compare'discard
 
 sort:
-    [YZ >] sort_with_compare
+    [>] sort_with_compare
+
+
+run:
+    push apply
+
+code.for: (code'start_index code'end_index code'body --)
+    [zxy YZ <=] code'run code'yxz (body end start t/f)
+    [
+        jump_target
+        [Z inc swap pop X pop] code'run
+        apply # run body
+        code'YZ code'>= [jump] code'push code.if
+    ] code'push code.if
+    code'discard code'discard code'discard
+
+for:
+    [code'x code'apply code'x code'apply code'x code.for] 3 expect_then_apply
+
+.for: (body start end --)
+    swap code'push code'push code'push code.for
+
+code.for<: (code'start_index code'end_index code'body --)
+    [zxy YZ <] code'run code'yxz (body end start t/f)
+    [
+        jump_target
+        [Z inc swap pop X pop] code'run
+        apply # run body
+        code'YZ code'> [jump] code'push code.if
+    ] code'push code.if
+    code'discard code'discard code'discard
+
+for<:
+    [code'x code'apply code'x code'apply code'x code.for<] 3 expect_then_apply
+
+.for<: (body start end --)
+    swap code'push code'push code'push code.for<
+
+
+
+quicksort: (A lo hi -- A')
+    # Ensure indices are in correct order
+    # if lo >= hi || lo < 0 then return
+    # if lo < hi && lo >= 0
+    if [Y 0 >=  XY < and] [
+        # Partition array and get the pivot index
+        #p := partition(A, lo, hi)
+        partition
+
+        # // Sort the two partitions
+        # quicksort(A, lo, p - 1) // Left side of pivot
+        stash'push(p) stash'peek dec swap stash'push(hi) (A lo p-1 | p hi) quicksort (A)
+
+        # quicksort(A, p + 1, hi) // Right side of pivot
+        stash'pop stash'pop inc swap quicksort
+    ]
+    discard discard
+
+partition: (A lo hi -- A lo hi p)
+    # pivot := A[hi] // Choose the last element as the pivot
+    Z at (A lo hi p)
+
+    # i := lo - 1 // Temporary pivot index
+    X 1 - stash'push stash'push (stash: lo-1 p)
+
+    # for j := lo to hi - 1 do
+    [ (A lo hi p j)
+        # // If the current element is less than or equal to the pivot
+        # if A[j] <= pivot then
+        if [at Y <=] [
+            # // Move the temporary pivot index forward
+            stash'inc
+        ]
+        # // Swap the current element with the element at the temporary pivot index
+        # swap A[i] with A[j]
+        stash'peek Y swap_at
+    ] zxy stash'pop .for<
+    discard(p)
+
+    # // Move the pivot element to the correct pivot position (between the smaller and larger elements)
+    # i := i + 1
+    stash'inc
+
+    # swap A[i] with A[hi]
+    Z stash'peek swap_at
+    # return i // the pivot index
+    stash'pop
 
 
 [100 random_int] 10 times
 frame_time? time'push
-[2 % swap 2 % <] sort_with_compare print
+#[2 % swap 2 % <] sort_with_compare print
+sort print
+#stack_count? 1 - 0 swap quicksort
 "It only took" frame_time? time'pop - "seconds!" " " join print
-1 2 <.
+
+
+

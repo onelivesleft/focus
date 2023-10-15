@@ -510,7 +510,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .build_debug;                                      run_build_script(.Debug);                           return true;
         case .build_release;                                    run_build_script(.Release);                         return true;
 
-        case .ficus_step;                                       ficus_step();                                       return true;
+        case .ficus_step_into;                                  ficus_step_into();                                  return true;
+        case .ficus_step_over;                                  ficus_step_over();                                  return true;
         case .ficus_continue;                                   ficus_run();                                        return true;
         case .ficus_halt;                                       ficus_halt();                                       return true;
         case .ficus_open_baked_words_buffer;                    open_baked_words_buffer();                          return true;

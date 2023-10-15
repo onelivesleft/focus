@@ -4,6 +4,7 @@ calculator_dialog_handle_event :: (event: Input.Event) -> handled: bool {
     if event.type == .KEYBOARD && event.key_pressed {
         action, mapping := map_event_to_action(event, Action_Search_Dialog);
         if action == {
+            case .move_right;              if maybe_add_space_to_end(input) return true;
             case .close_dialog;            close_calculator(); return true;
             case .open_entry_in_place;     #through;
             case .open_entry_on_the_side;  select_all(); return true;
@@ -56,6 +57,17 @@ maybe_handle_text_input_event :: (using input: *Text_Input, event: Input.Event) 
         return input_text != to_string(input.text);
     else
         return false;
+}
+
+maybe_add_space_to_end :: (input: Text_Input) -> bool {
+    input_text := to_string(input.text);
+    if !input_text
+    || input.cursor.pos != input_text.count
+    || input_text[input_text.count - 1] == #char " "
+        return false;
+
+    text_input_type_char(*input, cast(u32) #char " ");
+    return true;
 }
 
 select_all :: () {
