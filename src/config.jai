@@ -92,7 +92,8 @@ refresh_config :: (path: string) {
     run_config_refresh_hooks();
 
     dont_ignore_next_window_resize = true;
-    platform_apply_config(*config.platform);
+
+    platform_apply_config(*config);
 }
 
 is_our_config_file :: (path: string) -> bool {
@@ -185,11 +186,26 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     // Maybe update hash if changed
     new_hash := calculate_hash(to_bytes(file_data));
     changed := new_hash != <<hash;
-    if changed then <<hash = new_hash;
+    if changed {
+        <<hash = new_hash;
+    } else {
+        return true, false, false;
+    }
+
+    result := parse_config(file_path, file_path, file_data);
+    if !result.success {
+        if !result.error_msg assert(false, "No error message on a config error. This is a bug.");
+        add_user_error(result.error_msg);
+        return false, false, false;
+    }
+    if result.warnings {
+        add_success_message(tprint("Config file % loaded with warnings", file_path), dismiss_in_seconds = 60);
+        for result.warnings add_user_warning(it, dismiss_in_seconds = 60);
+    }
 
     // Merge configs
     config = into;
-    merge_configs(*config, parsed_config);
+    merge_configs(*config, result.config);
 
     // Apply colors
     Colors = config.colors;
@@ -240,7 +256,7 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
 
     if !file_is_watched(file_path) start_watching_file(file_path);
 
-    return true, changed, warnings.count > 0 || clamp_warnings;
+    return true, changed, result.warnings.count > 0 || clamp_warnings;
 }
 
 merge_configs :: (dst: *Config, parsed: Parsed_Config) {
@@ -256,6 +272,9 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
         dst.workspace.ignore_file_extensions          = parsed.ignore_file_extensions;
         dst.workspace.ignore_file_extension_wildcards = parsed.ignore_file_extension_wildcards;
     }
+
+    // Build config completely overrides the previous config if present
+    if parsed.build.commands then dst.build = parsed.build;
 
     // Keymap
     merge_keymaps :: (dst_keymap: *[] Key_Mapping, src_keymap: *[..] Key_Mapping) #expand {
@@ -313,7 +332,7 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
     }
 
     // Platform config
-    platform_copy_config(*parsed.platform, *dst.platform);
+    dst.linux = parsed.linux;
 }
 
 load_font_by_name :: (name: string) -> font_data: string, success: bool {
@@ -348,7 +367,14 @@ Config :: struct {
     settings:  Settings;
     style:     Style;
     colors:    Color_Values;
-    platform:  Platform_Config;
+    build:     Build_Config;
+    linux:     Linux_Config;
+}
+
+Linux_Config :: struct {
+    scaling_factor: float = 0.0;
+    explorer_command: string;
+    explorer_reveal_command: string;
 }
 
 Workspace :: struct {
@@ -422,6 +448,8 @@ Keymap :: struct {
     open_file_dialog: [] Key_Mapping;
     search_dialog:    [] Key_Mapping;
     script:           [] Key_Mapping;
+
+    build:            [] Key_Mapping;  // treated specially, it's not in the keymap config, but in the build config for convenience
 }
 
 Style :: struct {
@@ -430,12 +458,30 @@ Style :: struct {
     font_console_size := -1;
 }
 
-style: Style;
+Build_Config :: struct {
+    defaults: Command;
+    defaults.name = "Default Build Command";
+    commands: [..] Command;
+    keymap: [..] Key_Mapping;  // separate from the other keymaps because it should never merge with the previous config
+                               // (because the build commands don't merge so we can't use the previous config's keymaps)
 
-Setting :: struct {
-    name: string;
-    type: enum { boolean; integer; };
+    Command :: struct {
+        name:                   string;  @dontparse
+
+        build_command:          string;
+        build_working_dir:      string;
+
+        run_command:            string;
+        run_working_dir:        string;
+
+        error_regex:            string;
+        auto_jump_to_error:     bool;
+        open_panel:             bool;
+        close_panel_on_success: bool;
+    }
 }
+
+style: Style;
 
 DEFAULT_CONFIG_FILE_DATA  :: #run read_entire_file(DEFAULT_CONFIG_NAME);
 EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(EXAMPLE_PROJECT_CONFIG_NAME);
@@ -451,16 +497,16 @@ EXAMPLE_PROJECT_CONFIG_NAME :: "config/example-project.focus-config";
 
 #scope_export
 
-DEFAULT_CONFIG :: #run -> Config {
+DEFAULT_CONFIG :: #run,stallable -> Config {
     parsed_config, success := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA, .global, false);
     assert(success, "Couldn't parse the default config file '%'", DEFAULT_CONFIG_NAME);
     default_config: Config;
-    merge_configs(*default_config, parsed_config);
+    merge_configs(*default_config, result.config);
     return default_config;
 };
 
 // Validate the example project config
-#run {
+#run,stallable {
     _, success := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA, .none, false);
     assert(success, "Couldn't parse the example project config file '%'", EXAMPLE_PROJECT_CONFIG_NAME);
 }

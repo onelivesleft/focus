@@ -115,10 +115,10 @@ move_cursor :: (delta: s64, wrap := false, snap := true) {
 }
 
 maybe_handle_text_input_event :: (using input: *Text_Input, event: Input.Event) -> handled: bool {
-    input_text := copy_temporary_string(to_string(text));
+    input_text := copy_temporary_string(cast(string) text);
     handled := text_input_handle_event(input, event);
     if handled {
-        if input_text != to_string(input.text) then refresh_entries();
+        if input_text != cast(string) input.text then refresh_entries();
         return true;
     }
     return false;
@@ -146,6 +146,7 @@ commands := #run Command.[
     .{ .open_project_config,                                "Open Project Config",                0, .None },
     .{ .open_global_config,                                 "Open Global Config",                 0, .None },
     .{ .show_default_config,                                "Show Default Config (readonly)",     0, .None },
+    .{ .show_troubleshooting_info,                          "Show troubleshooting information",   0, .None },
 
     .{ .show_icon_search,                                   "Show Icon Search",                   0, .None },
     .{ .convert_buffer_to_colors,                           "Convert Current Buffer To [colors]", 0, .Single },

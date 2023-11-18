@@ -65,6 +65,7 @@ main :: () {
     assert(!ends_with(config_dir, "/"), "Config dir '%' ends with a '/'. This is a bug.", config_dir);
     assert(data_dir.count > 0, "Empty data dir");
     assert(!ends_with(data_dir, "/"), "Data dir '%' ends with a '/'. This is a bug.", data_dir);
+    platform_get_fonts_dir();  // warm-up the fonts dir so that the config highlighter can later use it without heap allocations
 
     temp_dir     = sprint("%/temp",     data_dir);
     projects_dir = sprint("%/projects", config_dir);
@@ -137,7 +138,7 @@ main :: () {
 
     // This may generate window resize events if DPI/scaling settings need to be
     // applied, so make sure to only call it after the window is created.
-    platform_apply_config(*config.platform);
+    platform_apply_config(*config);
 
     #if OS == .MACOS {
         // On macOS, attempting to maximize the window before a frame has been drawn results in a crash, so we delay it until the end of the first frame.
@@ -291,9 +292,9 @@ main :: () {
         // If we handle it as a keyboard event we will need to ignore its text input duplicates
         num_text_input_events_to_ignore := 0;
 
-        start_key_sequence_handling();
-
         for event : Input.events_this_frame {
+            if should_quit break;  // don't process any other events we might have in this frame if the previous one set this to true
+
             // General events
             if event.type == {
                 case .QUIT;
@@ -379,15 +380,13 @@ main :: () {
                     case .unsaved_buffers_dialog;   handled = unsaved_buffers_dialog_handle_event(event);
                     case .confirm_overwrite_dialog; handled = confirm_overwrite_dialog_handle_event(event);
                     case .commands_dialog;          handled = commands_dialog_handle_event(event);
+                    case .build_panel;              unimplemented(); //handled = commands_dialog_handle_event(event);
                     case .icon_search_dialog;       handled = icon_search_dialog_handle_event(event);
                 }
             }
 
-            if !handled {
-                action := map_event_to_action(event, Action_Script);
-                handled = handle_script_action(action);
-            }
-
+            if !handled then handled = maybe_execute_a_build_command(event);
+            
             if !handled {
                 action := map_event_to_action(event, Action_Script);
                 handled = handle_script_action(action);
@@ -396,12 +395,17 @@ main :: () {
             if handled && event.type == .KEYBOARD then num_text_input_events_to_ignore = event.text_input_count;
         }
 
-        end_key_sequence_handling();
+            if handled && event.type == .KEYBOARD then num_text_input_events_to_ignore = event.text_input_count;
+
+            key_sequence_input_process_event(event, handled);
+        }
 
         if should_quit && unsaved_buffers_exist() && !force_quit {
             show_unsaved_buffers_dialog();
             should_quit = false;
         }
+
+        process_buffer_save_queue();
 
         refresh_open_buffers();
         update_user_messages();
@@ -417,11 +421,18 @@ main :: () {
             hard_reload_workspace();
             should_reload_workspace = false;
             redraw_requested = true;
-            platform_apply_config(*config.platform);
+            platform_apply_config(*config);
         }
 
         reset_temporary_storage();
 
+        #if OS == .MACOS {
+            if should_maximize {
+                should_maximize = false;
+                platform_maximize_window(window);
+            }
+        }
+        
         if Input.input_application_has_focus {
             if cast(Time) get_time() - frame_time <= QUICK_FRAME_DT {
                 // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
@@ -463,6 +474,7 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .open_global_config;                               editors_open_global_config(placement);              return true;
         case .open_project_config;                              editors_open_project_config(placement);             return true;
         case .show_default_config;                              editors_show_default_config(placement);             return true;
+        case .show_troubleshooting_info;                        editors_show_troubleshooting_info(placement);       return true;
 
         case .show_icon_search;                                 show_icon_search_dialog();                          return true;
         case .open_console_buffer;                              editors_open_buffer(console_buffer_id);             return true;
@@ -484,8 +496,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .toggle_console;                                   toggle_console();                                   return true;
         case .toggle_console_maximize;                          toggle_console_maximize();
         case .toggle_fullscreen;                                editor_toggle_fullscreen();                         return true;
-
-        case .dump_key_mappings;                                dump_key_mappings();                                return true;
 
         case .move_to_previous_editor_history;                  move_to_previous_editor_history();                  return true;
         case .move_to_next_editor_history;                      move_to_next_editor_history();                      return true;
@@ -527,10 +537,22 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
 
         // TODO: search_in_buffer
         case .search_in_project;
-            if active_global_widget == .editors then finder_open_from_editor(); else finder_open();
-            return true;
+            if active_global_widget == .editors then finder_open_from_editor(); else finder_open();                 return true;
     }
     return false;
+}
+
+maybe_execute_a_build_command :: (event: Input.Event) -> handled: bool {
+    action := map_event_to_action(event, Action_Build);
+    if action == INVALID_KEYMAP_ACTION return false;
+
+    command_id := cast(s64) action;
+    assert(command_id <= config.build.commands.count, "A keymap was bound to a nonexistent build command %. Number of build commands: %. This is a bug", command_id, config.build.commands.count);
+
+    command := ifx command_id > 0 then *config.build.commands[command_id-1] else *config.build.defaults;
+    print("Executing build command: [%]\n", command.name);
+
+    return true;
 }
 
 handle_script_action :: (action: Action_Script) -> handled: bool {
@@ -1089,7 +1111,9 @@ Time :: #type,isa float64;
 
 project_dirs: [..] Project_Dir;
 
-active_global_widget: enum {
+active_global_widget: Active_Global_Widget = .editors;
+
+Active_Global_Widget :: enum {
     editors;
     finder;
     open_file_dialog;
@@ -1102,7 +1126,8 @@ active_global_widget: enum {
     icon_search_dialog;
     //save_file_dialog;
     confirm_overwrite_dialog;
-} = .editors;
+    build_panel;
+}
 
 Project_Dir :: struct {
     path: string;          // e.g. "C:/projects/focus"
@@ -1161,6 +1186,7 @@ dont_ignore_next_window_resize := false;
 #load "widgets/confirm_overwrite.jai";
 
 #load "langs.jai";
+#load "langs/common.jai";
 #load "langs/jai.jai";
 #load "langs/c.jai";
 #load "langs/csharp.jai";
@@ -1172,6 +1198,7 @@ dont_ignore_next_window_resize := false;
 #load "langs/odin.jai";
 #load "langs/python.jai";
 #load "langs/renpy.jai";
+#load "langs/xml.jai";
 #load "langs/worklog.jai";
 
 #if OS == .WINDOWS {
@@ -1219,6 +1246,7 @@ using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #imp
 #import "Thread";
 #import "Compiler";
 #import "Machine_X64";
+#import "Reflection";
 #import "Strings";
 temp_strings :: #import "Strings_Alloc"(temp);
 new_strings :: #import "Strings_Alloc";

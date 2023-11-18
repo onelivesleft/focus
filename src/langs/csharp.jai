@@ -109,19 +109,8 @@ tokenize_csharp_for_indentation :: (using buffer: Buffer) -> [] Indentation_Toke
 
 #scope_file
 
-get_tokenizer :: (using buffer: Buffer) -> Tokenizer {
-    tokenizer: Tokenizer;
-
-    tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
-    tokenizer.last_token = .{0, 0, .eof};
-
-    return tokenizer;
-}
-
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    t = eat_white_space(t, max_t);
+    eat_white_space(tokenizer);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -189,10 +178,6 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token, check_for_keywo
         kw_token, ok := table_find(*KEYWORD_MAP, identifier);
         if ok { token.type = kw_token.type; token.keyword = kw_token.keyword; return; }
     }
-}
-
-is_hex :: inline (c: u8) -> bool {
-    return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
 }
 
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/integral-numeric-types
@@ -402,7 +387,7 @@ parse_preprocessor_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
-    t = eat_white_space(t, max_t);  // There may be spaces between the # and the name
+    eat_white_space(tokenizer);  // There may be spaces between the # and the name
     if !is_alpha(<<t) return;
 
     directive := read_identifier_string(tokenizer);
@@ -651,36 +636,6 @@ parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
             token.operation = .caret_equal;
             t += 1;
     }
-}
-
-read_identifier_string :: (using tokenizer: *Tokenizer) -> string {
-    identifier: string;
-    identifier.data = t;
-
-    while t < max_t && is_alnum(<<t) {
-        t += 1;
-    }
-    if t >= max_t then t = max_t;
-    identifier.count = t - identifier.data;
-
-    return identifier;
-}
-
-eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
-    t := start;
-    while t < max_t && is_white_space(<<t) {
-        t += 1;
-    }
-    return t;
-}
-
-Tokenizer :: struct {
-    buf: string;
-    max_t:   *u8;
-    start_t: *u8;  // Cursor when starting parsing new token
-    t:       *u8;  // Cursor
-
-    last_token: Token;  // To retroactively highlight methods
 }
 
 Token :: struct {

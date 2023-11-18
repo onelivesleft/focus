@@ -1,8 +1,5 @@
 highlight_focus_config_syntax :: (using buffer: *Buffer) {
-    tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
+    memset(colors.data, xx COLOR_MAP[Focus_Config_Token.comment], colors.count);
 
     highlight_focus_config_syntax(buffer, *tokenizer, true);
 }
@@ -51,6 +48,23 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Token
         script_section_end = token.start + token.len;
     if script_section_end
         highlight_ficus_syntax(buffer, script_section_start, script_section_end - script_section_start);
+}
+
+Focus_Config_Token :: enum u16 {
+    error;
+    warning;
+    default;
+    comment;
+    header;
+    header_top_level;
+
+    // Keymap
+    modifier_key;
+    key_string;
+    action;
+
+    // Settings
+    value;
 }
 
 #scope_file
@@ -297,7 +311,12 @@ Token :: struct {
 
 // Must match the order of the types in the enum above
 COLOR_MAP :: Code_Color.[
-    .COMMENT,       // eof - obviously not used
+    .ERROR,          // error
+    .STRING,         // warning
+    .DEFAULT,        // default
+    .COMMENT,        // comment
+    .OPERATION,      // header
+    .KEYWORD,        // header_top_level
 
     .ERROR,         // error
     .DEFAULT,       // default

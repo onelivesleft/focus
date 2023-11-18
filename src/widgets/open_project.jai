@@ -151,10 +151,10 @@ move_cursor :: (delta: s64, wrap := false, snap := true) {
 }
 
 maybe_handle_text_input_event :: (using input: *Text_Input, event: Input.Event) -> handled: bool {
-    input_text := copy_temporary_string(to_string(text));
+    input_text := copy_temporary_string(cast(string) text);
     handled := text_input_handle_event(input, event);
     if handled {
-        if input_text != to_string(input.text) then refresh_entries();
+        if input_text != cast(string) input.text then refresh_entries();
         return true;
     }
     return false;

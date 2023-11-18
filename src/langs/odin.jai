@@ -39,10 +39,11 @@ highlight_odin_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, re
             if token.punctuation == .l_paren {
                 if prev.type == .identifier {
                     // Handle "func(" but not ":Type(" or "^Type(" or "$Type(" or "]Type("
-                    if      before_prev.type != .operation && before_prev.type != .punctuation {}
-                    else if before_prev.type == .operation && before_prev.operation == .colon {}
-                    else if before_prev.type == .punctuation && (before_prev.punctuation == .caret || before_prev.punctuation == .dollar || before_prev.punctuation == .r_bracket) {}
-                    else {
+                    if before_prev.type == .operation && before_prev.operation == .colon {
+                        // Do nothing.
+                    } else if before_prev.type == .punctuation && (before_prev.punctuation == .caret || before_prev.punctuation == .dollar || before_prev.punctuation == .r_bracket) {
+                        // Do nothing.
+                    } else {
                         memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
                     }
                 }
@@ -120,18 +121,19 @@ tokenize_odin_for_indentation :: (using buffer: Buffer) -> [] Indentation_Token 
 
 #scope_file
 
-get_tokenizer :: (using buffer: Buffer) -> Tokenizer {
-    tokenizer: Tokenizer;
+// A separate tokenizer for the same reasons as with Jai
+get_tokenizer :: (using buffer: Buffer) -> Odin_Tokenizer {
+    tokenizer: Odin_Tokenizer;
 
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
     return tokenizer;
 }
 
-get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    t = eat_white_space(t, max_t);
+get_next_token :: (using tokenizer: *Odin_Tokenizer) -> Token {
+    eat_white_space(tokenizer);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -202,7 +204,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     return token;
 }
 
-parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_identifier :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .identifier;
 
     mark := get_temporary_storage_mark();
@@ -217,7 +219,7 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-maybe_parse_attribute :: (using tokenizer: *Tokenizer, token: *Token) {
+maybe_parse_attribute :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     attr_str: string;
     attr_str.data  = start_t;
     attr_str.count = token.len;
@@ -230,7 +232,7 @@ maybe_parse_attribute :: (using tokenizer: *Tokenizer, token: *Token) {
     token.attribute = attr;
 }
 
-parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_number :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .number;
 
     t += 1;
@@ -279,10 +281,6 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     }
     else if t.* == #char "x" || t.* == #char "X" || t.* == #char "h" || t.* == #char "H" {
         // Hex
-        is_hex :: inline (c: u8) -> bool {
-            return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
-        }
-
         t += 1;
         while t < max_t && (is_hex(t.*) || t.* == #char "_") t += 1;
     }
@@ -304,11 +302,11 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     if t > max_t then t = max_t;
 }
 
-parse_directive :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_directive :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
-    t = eat_white_space(t, max_t);  // there may be spaces between the # and the name
+    eat_white_space(tokenizer);  // there may be spaces between the # and the name
     if !is_alpha(t.*) then return;
 
     mark := get_temporary_storage_mark();
@@ -328,7 +326,7 @@ parse_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_colon :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_colon :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .colon;
 
@@ -341,7 +339,7 @@ parse_colon :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_equal :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .equal;
 
@@ -353,7 +351,7 @@ parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_minus :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .minus;
 
@@ -382,7 +380,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_plus :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .plus;
 
@@ -396,7 +394,7 @@ parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_asterisk :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .asterisk;
 
@@ -410,7 +408,7 @@ parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_bang :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .bang;
 
@@ -424,7 +422,7 @@ parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_period :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_period :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type        = .punctuation;
     token.punctuation = .period;
 
@@ -455,7 +453,7 @@ parse_period :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_percent :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .percent;
 
@@ -479,7 +477,7 @@ parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_tilde :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_tilde :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .tilde;
 
@@ -493,7 +491,7 @@ parse_tilde :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_ampersand :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .ampersand;
 
@@ -517,7 +515,7 @@ parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_pipe :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .pipe;
 
@@ -538,7 +536,7 @@ parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_less_than :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .less_than;
 
@@ -559,7 +557,7 @@ parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_greater_than :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .greater_than;
 
@@ -577,13 +575,13 @@ parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_tab :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_tab :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .comment;
     t += 1;
     while t < max_t && t.* == #char "\t"   t += 1;
 }
 
-parse_slash_comment_or_filetag :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_slash_comment_or_filetag :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .slash;
 
@@ -625,18 +623,18 @@ parse_slash_comment_or_filetag :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
-    if t.* == #char "`" {
+parse_string_literal :: (using tokenizer: *Odin_Tokenizer, token: *Token) {
+    delimiter := t.*;   // Could be ' or "
+
+    if delimiter == #char "`" {
         // Handle raw_strings
         token.type = .raw_string;
         t += 1;
-        while t < max_t && t.* != #char "`" {
+        while t < max_t && t.* != delimiter {
             t += 1;
         }
     }
     else {
-        delimiter := t.*;   // Could be ' or "
-
         // Handle normal strings
         token.type = .string_literal;
         escape_seen := false;
@@ -653,7 +651,7 @@ parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
 }
 
-read_identifier_string_tmp :: (using tokenizer: *Tokenizer) -> string /* temp */ {
+read_identifier_string_tmp :: (using tokenizer: *Odin_Tokenizer) -> string /* temp */ {
     identifier: [..] u8;
     identifier.allocator = temp;
 
@@ -666,10 +664,10 @@ read_identifier_string_tmp :: (using tokenizer: *Tokenizer) -> string /* temp */
     }
 
     if t >= max_t then t = max_t;
-    return to_string(identifier);
+    return cast(string) identifier;
 }
 
-Tokenizer :: struct {
+Odin_Tokenizer :: struct {
     buf: string;
     max_t:   *u8;
     start_t: *u8;  // cursor when starting parsing new token
@@ -947,12 +945,10 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
     return xx result;
 }
 
-eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
-    t := start;
+eat_white_space :: (using tokenizer: *Odin_Tokenizer) {
     while t < max_t && is_white_space(t.*) {
         t += 1;
     }
-    return t;
 }
 
 #import "Hash_Table";

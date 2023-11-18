@@ -1,8 +1,5 @@
 highlight_worklog :: (using buffer: *Buffer) {
-    tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
+    tokenizer := get_tokenizer(buffer);
 
     highlight_worklog(buffer, *tokenizer, true);
 }
@@ -86,25 +83,6 @@ parse_line :: (using tokenizer: *Tokenizer, token: *Token) {
 
     t += 1;
     eat_until_newline(tokenizer);
-}
-
-eat_until_newline :: (using tokenizer: *Tokenizer) {
-    while t < max_t && <<t != #char "\n" {
-        t += 1;
-    }
-}
-
-eat_white_space :: (using tokenizer: *Tokenizer) {
-    while t < max_t && is_space(<< t) {
-        t += 1;
-    }
-}
-
-Tokenizer :: struct {
-    buf: string;
-    max_t:   *u8;
-    start_t: *u8;  // cursor when starting parsing new token
-    t:       *u8;  // cursor
 }
 
 Token :: struct {

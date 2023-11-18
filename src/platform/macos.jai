@@ -1,16 +1,4 @@
-PLATFORM_CONFIG_SECTION :: "[[macos]]";
-PLATFORM_SUBSECTION_ENUM :: enum {}
-PLATFORM_SUBSECTION_NAMES :: string.[];
-Platform_Config :: struct {}
-
-platform_parse_config_line :: (config: *Platform_Config, section: PLATFORM_SUBSECTION_ENUM, line: string) -> success: bool, error_msg: string {
-    return true, "";
-}
-
-platform_apply_config :: inline (config: *Platform_Config) {
-}
-
-platform_copy_config :: (src: *Platform_Config, dst: *Platform_Config) {
+platform_apply_config :: inline (config: *Config) {
 }
 
 platform_setup :: inline () {
@@ -50,8 +38,8 @@ platform_maximize_window :: inline (window: Window_Type) {
 }
 
 platform_enable_drag_and_drop :: inline (window: Window_Type) {
-    types := NSArray(NSPasteboardType).arrayWithObject(NSPasteboardTypeFileURL);
-    NSView.registerForDraggedTypes(window, types);
+    // Currently crashes. Which is strange, because this same line seems to work fine in Codex Viewer.
+    // NSView.registerForDraggedTypes(window, NSArray(NSPasteboardType).arrayWithObject(NSPasteboardTypeFileURL));
 }
 
 platform_get_dpi_scale :: (window: Window_Type) -> float {
@@ -104,7 +92,6 @@ platform_path_contains :: inline (path: string, subpath: string) -> bool {
 }
 
 platform_set_border_color :: inline () {
-
 }
 
 platform_normalize_path :: (path: string) -> string {
@@ -116,6 +103,10 @@ platform_show_cursor :: (show: bool) {
         NSCursor.unhide();
     else
         NSCursor.hide();
+}
+
+platform_get_troubleshooting_info :: () -> string {
+    return "<not implemented>";
 }
 
 #scope_file

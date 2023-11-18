@@ -19,15 +19,12 @@ highlight_c_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer) {
         // Maybe retroactively highlight a function
         if token.type == .punctuation && token.punctuation == .l_paren {
             // Handle "func("
-            prev := last_tokens[0];
-            if prev.type == .identifier {
-                memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
+            if last_token.type == .identifier {
+                memset(colors.data + last_token.start, xx Code_Color.FUNCTION, last_token.len);
             }
         }
 
-        // Remember last tokens
-        last_tokens[0] = token;
-
+        last_token = token;
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
@@ -114,18 +111,8 @@ tokenize_c_for_indentation :: (using buffer: Buffer) -> [] Indentation_Token /* 
 
 #scope_file
 
-get_tokenizer :: (using buffer: Buffer) -> Tokenizer {
-    tokenizer: Tokenizer;
-
-    tokenizer.buf   = to_string(bytes);
-    tokenizer.max_t = bytes.data + bytes.count;
-    tokenizer.t     = bytes.data;
-
-    return tokenizer;
-}
-
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    t = eat_white_space(t, max_t);
+    eat_white_space(tokenizer);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -264,11 +251,6 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
         }
 
     } else if << t == #char "x" || << t == #char "X" {
-        // Hex
-        is_hex :: inline (c: u8) -> bool {
-            return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
-        }
-
         t += 1;
         while t < max_t && (is_hex(<< t)) t += 1;
 
@@ -405,7 +387,7 @@ parse_preprocessor_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
-    t = eat_white_space(t, max_t);  // there may be spaces between the # and the name
+    eat_white_space(tokenizer);  // there may be spaces between the # and the name
     if !is_alpha(<<t) return;
 
     // mark := get_temporary_storage_mark();
@@ -558,25 +540,14 @@ parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-//~
-
-Tokenizer :: struct {
-    buf: string;
-    max_t:   *u8;
-    start_t: *u8;  // cursor when starting parsing new token
-    t:       *u8;  // cursor
-
-    last_tokens: [1] Token;  // to retroactively highlight functions
-}
-
 Token :: struct {
     start, len: s32;
     type: Type;
 
     union {
-        keyword:            Keyword;
-        punctuation:        Punctuation;
-        operation:          Operation;
+        keyword:                Keyword;
+        punctuation:            Punctuation;
+        operation:              Operation;
         preprocessor_directive: Directive;
     }
 
