@@ -7,10 +7,16 @@ init_color_preview :: () {
     buffer.internal = true;
 
     // Collect stats on most used languages in the workspace
-    array_resize(*languages, NUM_LANGUAGES);
+    array_resize(*languages, NUM_LANGUAGES, initialize = true);
     for enum_values_as_enum(Buffer.Lang) {
-        languages[xx it].lang = it;
-        languages[xx it].num_buffers = 0;
+        language := *languages[xx it];
+
+        language.lang = it;
+        language.num_buffers = 0;
+
+        if language.name then free(language.name);
+        language.name = sprint("%", it);
+        replace_chars(language.name, "_", xx #char " ");
     }
     for open_buffers {
         languages[xx it.lang].num_buffers += 1;
@@ -24,7 +30,12 @@ init_color_preview :: () {
                 remove it;
         }
     }
-    quick_sort(languages, (a, b) => (b.num_buffers - a.num_buffers));
+    compare_languages :: (a: Color_Preview_Language, b: Color_Preview_Language) -> s64 {
+        usage_diff := b.num_buffers - a.num_buffers;
+        if usage_diff != 0 return usage_diff;
+        return compare_strings(a.name, b.name);
+    }
+    quick_sort(languages, compare_languages);
 
     color_preview_set_language(0);
 
@@ -106,7 +117,7 @@ color_preview_begin_draw :: (editor_id: s64) {
     // Try to build it up as it would when the config is actually loaded
     reset_color_map_to_default();
 
-    if config.style.theme {
+    if config.style.theme && !is_current_theme(buffer.file.full_path) {
         color_preview_warning = tprint("There is an active theme '%'. Colors from this config are not applied.", config.style.theme);
         if config.style.theme != "default" {
             color_preview_warning = tprint("% You can edit the theme using the 'Edit Current Theme' command.", color_preview_warning);
@@ -172,11 +183,7 @@ color_preview_get_languages :: () -> [] string /* temp */, selected: int {
     lang_names: [..] string;
     lang_names.allocator = temp;
 
-    for languages {
-        name := tprint("%", it.lang);
-        replace_chars(name, "_", xx #char " ");
-        array_add(*lang_names, name);
-    }
+    for languages  array_add(*lang_names, it.name);
 
     return lang_names, selected_language_id;
 }
@@ -191,8 +198,7 @@ color_preview_get_editor_id :: inline () -> s64 {
 }
 
 color_preview_draw_color_picker :: (rect: Rect) {
-    if target_editor_id < 0 || target_buffer_id < 0
-        return;
+    if target_editor_id < 0 || target_buffer_id < 0 return;
 
     editor := *open_editors[target_editor_id];
     buffer := *open_buffers[target_buffer_id];
@@ -201,87 +207,70 @@ color_preview_draw_color_picker :: (rect: Rect) {
     offset := editor.cursors[editor.main_cursor].pos;
     if offset > buffer.bytes.count - 1  offset = cast(s32)buffer.bytes.count - 1;
     using config_extra := cast(*Focus_Config_Extra) buffer.extra;
-    if (colors_section_start < 0 || offset < colors_section_start) || (colors_section_end >= 0 && offset >= colors_section_end)
-        return;
+    if (colors_section_start < 0 || offset < colors_section_start) || (colors_section_end >= 0 && offset >= colors_section_end) return;
 
     // Try and find a color hex value on the cursor line.
     // Go to start of line, go forward to colon, go forward past whitespace, check value.
 
-    if buffer.bytes[offset] == #char "\n"
-        offset -= 1;
+    if buffer.bytes[offset] == #char "\n" then offset -= 1;
 
     while buffer.bytes[offset] != #char "\n" {
         offset -= 1;
-        if offset <= colors_section_start
-            return;
+        if offset <= colors_section_start return;
     }
 
     while is_unicode_space(buffer.bytes[offset]) {
         offset += 1;
-        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n"
-            return;
+        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n" return;
     }
 
-    if buffer.bytes[offset] == #char "#"
-        return;
+    if buffer.bytes[offset] == #char "#" return;
 
     while buffer.bytes[offset] != #char ":" {
         offset += 1;
-        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n"
-            return;
+        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n" return;
     }
 
     offset += 1;
     while is_unicode_space(buffer.bytes[offset]) {
         offset += 1;
-        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n"
-            return;
+        if offset >= buffer.bytes.count || buffer.bytes[offset] == #char "\n" return;
     }
 
     color_start := offset;
     offset += 1;
     while offset < buffer.bytes.count && is_hex(buffer.bytes[offset]) {
         offset += 1;
-        if offset - color_start > 8
-            return;
+        if offset - color_start > 8 return;
     }
 
     color_end := offset;
     count := color_end - color_start;
-    if count != 6 && count != 8
-        return;
+    if count != 6 && count != 8 return;
 
     on_left := saved_position == .left;
     draw_color_picker(editor, buffer, rect, .{color_start, color_end}, on_left);
 }
 
-color_preview_jump_to_color_name :: (color_name_with_colon: string) {
+color_preview_jump_to_color_name :: (color_name: string) {
     assert(target_editor_id >= 0 && target_buffer_id >= 0);
     editor := *open_editors[target_editor_id];
     buffer := *open_buffers[target_buffer_id];
     assert(buffer.lang == .Focus_Config || buffer.lang == .Focus_Theme);
 
-    using config_extra := cast(*Focus_Config_Extra) buffer.extra;
-    offset := colors_section_start;
-    buffer_str := cast(string) buffer.bytes;
-    case_sensitive :: true;
-    skip_table := bmh_prepare_skip_table(color_name_with_colon, case_sensitive);
-    offset = inline bmh_find_index_from_left(buffer_str, color_name_with_colon, start_index = offset, skip_table, case_sensitive = case_sensitive);
-
-    if (colors_section_start < 0 || offset < colors_section_start) || (colors_section_end >= 0 && offset >= colors_section_end)
+    offset := parse_config_and_get_offset_of_color_value(buffer, color_name);
+    if offset < 0 {
+        clear_user_messages(.config);
+        add_user_warning("Color '%' is not found in config", color_name, tag = .config, dismiss_in_seconds = 5);
         return;
-
-    offset += color_name_with_colon.count;
-    while offset < buffer_str.count && is_unicode_space(buffer_str[offset])
-        offset += 1;
+    }
 
     cursor := leave_only_original_cursor(editor);
     cursor.pos = cast(s32) offset;
     cursor.sel = cursor.pos;
-    add_paste_animation(editor, .{cursor.pos, cursor.sel});
+    add_paste_animation(editor, get_real_line_range(buffer, offset_to_real_line(buffer, cursor.pos)));
     editor.cursor_moved = .jumped;
     editor.scroll_to_cursor = .yes;
-    make_editor_active(target_editor_id);
 }
 
 color_preview_is_shown := true;
@@ -326,6 +315,39 @@ get_language_sample_text :: (lang: Buffer.Lang) -> string {
     return "";
 }
 
+parse_config_and_get_offset_of_color_value :: (buffer: Buffer, color_name: string) -> offset: s32 {
+    // Do some very superficial parsing, not super robust but better than plain search
+    handler: Text_File_Handler;
+    trimmed_data := trim_left(cast(string) buffer.bytes, " \t\n\r");  // skip empty lines, otherwise the handler will crash!
+    start_from_memory(*handler, "colors", "colors", trimmed_data);
+    if handler.failed return -1;
+
+    colors_section := false;
+
+    while true {
+        line, found := consume_next_line(*handler);
+        if !found break;
+
+        if begins_with(line, "[[") && ends_with(line, "]]") {
+            colors_section = false;
+        } else if begins_with(line, "[") && ends_with(line, "]") {
+            if equal_nocase(trim(line, " \t[]"), "colors") {
+                colors_section = true;
+            } else {
+                colors_section = false;
+            }
+        }
+        if !colors_section continue;
+
+        color, value := break_by_spaces(line);
+        color = trim_right(color, ":");
+
+        if equal_nocase(color, color_name)  return cast(s32) (value.data - buffer.bytes.data);
+    }
+
+    return -1;
+}
+
 
 // The ids of the editor and buffer with the color section which triggered the widget
 target_editor_id := -1;
@@ -338,6 +360,7 @@ languages: [..] Color_Preview_Language;
 Color_Preview_Language :: struct {
     lang: Buffer.Lang;
     num_buffers: s32;  // the number of buffers in the current workspace which use it
+    name: string;
 }
 
 panel_buffer_id := -1;

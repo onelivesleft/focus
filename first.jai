@@ -8,9 +8,9 @@ RELEASE_DATE :: #run -> string {
     return calendar_to_string(current_time);
 }
 
-// NOTE: Uncomment when releasing, comment out when not releasing
-// VERSION :: "0.3.5";
-// RELEASE_DATE :: "5 May 2024";
+// // NOTE: Uncomment when releasing, comment out when not releasing
+// VERSION :: "0.3.6";
+// RELEASE_DATE :: "26 August 2024";
 
 #run,stallable build();
 
