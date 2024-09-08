@@ -487,6 +487,9 @@ Session :: struct {
     editors: Editor_State;
     last_edit: Apollo_Time;
 
+    user_colors: [48] Vector4;
+    recent_colors: [16] Vector4;
+
     modified_buffers: [..] s64;
     last_modified_time: Apollo_Time;
 }

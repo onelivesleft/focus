@@ -1,10 +1,15 @@
 color_picker_dialog : struct {
     mode := Gradient_Mode.hue_controlled_2d;
+    show_palette: enum { hidden; on_left; on_right; }
+
     value: float;
     point: Vector2;
 
     rgba: Vector4;
     hsl:  Vector3;
+
+    store_recent := false;
+    prev_drawn_frame_index: u64;
 
     color_change_callback: #type (rgba: Vector4, hsl: Vector3, finalize: bool);
     color_change_callback_data: *void;
@@ -36,6 +41,10 @@ Gradient_Mode :: enum u8 {
     saturation_horizontal_1d :: 0x24;
     lightness_horizontal_1d  :: 0x25;
     alpha_horizontal_1d      :: 0x26;
+
+    checkered_2              :: 0x30;
+    checkered_4              :: 0x31;
+    palette_entry            :: 0x32;
 }
 
 color_picker_set_mode :: (mode: Gradient_Mode) {
@@ -72,6 +81,7 @@ color_picker_set_value :: (new_value: float, finalize: bool) {
     }
 
     if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
+    color_picker_dialog.store_recent = true;
 }
 
 color_picker_set_point :: (new_point: Vector2, finalize: bool) {
@@ -105,6 +115,7 @@ color_picker_set_point :: (new_point: Vector2, finalize: bool) {
     }
 
     if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
+    color_picker_dialog.store_recent = true;
 }
 
 color_picker_set_alpha :: (alpha: float, finalize: bool) {
@@ -160,9 +171,51 @@ color_picker_set_color :: (color: Vector4, finalize := false) {
     if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
 }
 
+color_picker_frame_check :: () {
+    using color_picker_dialog;
+    if prev_drawn_frame_index != frame_index - 1 {
+        if store_recent {
+            store_recent = false;
+            maybe_add_recent_color(rgba);
+        }
+    }
+    prev_drawn_frame_index = frame_index;
+}
 
 Color_Change_Buffer_Info :: struct {
     editor: *Editor;
     buffer: *Buffer;
     range: Offset_Range;
+}
+
+#scope_file
+
+remove_recent_color :: (index_to_remove: int) {
+    using session;
+    for i : index_to_remove .. recent_colors.count - 2 {
+        c := recent_colors[i + 1];
+        recent_colors[i] = c;
+        if c == .{}  return;
+    }
+    recent_colors[recent_colors.count - 1] = .{};
+}
+
+maybe_add_recent_color :: (rgba: Vector4) {
+    using session;
+    if rgba == .{} || rgba == recent_colors[0]  return;
+
+    end_index := recent_colors.count - 1;
+
+    for i : 1 .. recent_colors.count - 2 {
+        c := recent_colors[i];
+        if c == rgba || c == .{} {
+            end_index = i;
+            break;
+        }
+    }
+
+    for < i : end_index .. 1 {
+        recent_colors[i] = recent_colors[i - 1];
+    }
+    recent_colors[0] = rgba;
 }

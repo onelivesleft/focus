@@ -184,6 +184,7 @@ main :: () {
         current_time := current_time_monotonic();
         frame_dt   = cast(Time) min(to_float64_seconds(current_time - frame_time), MAX_FRAME_DT);
         frame_time = current_time;
+        frame_index += 1;
 
         old_line_height = line_height;
         for Input.get_window_resizes() {
@@ -718,6 +719,7 @@ automatic_workspace_reload  := false;
 
 frame_time: Apollo_Time;          // ever-increasing time since start in seconds
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
+frame_index: u64;                 // ever-increasing count of frames
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
 QUICK_FRAME_DT: Time : xx (1.0 / 300);  // sorry 300Hz monitor users
 // MAX_TIME_BEFORE_RESETTING: Time : xx (60 * 60 * 24 * 7);  // reset timer after a week to avoid losing timer precision

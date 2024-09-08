@@ -498,6 +498,7 @@ maybe_draw_color_preview_panel :: () {
 }
 
 draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range: Offset_Range, on_left: bool) {
+    color_picker_frame_check();
     if !is_valid(picker_rect)  return;
 
     color_change_callback :: (rgba: Vector4, hsl: Vector3, finalize: bool) {
@@ -573,7 +574,42 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range
     draw_gradient_rect(alpha_rect, .alpha_horizontal_1d, 1.0);
     draw_gradient_rect(main_rect, color_picker_dialog.mode, color_picker_dialog.value);
 
-    Simp.set_shader_for_color(enable_blend = true);
+    color_picker_dialog.show_palette = .on_left;
+    if color_picker_dialog.show_palette {
+        palette_rect := rect;
+        if color_picker_dialog.show_palette == .on_left {
+            palette_rect.x -= (palette_rect.w + line_height / 2);
+        } else {
+            palette_rect.x += (palette_rect.w + line_height / 2);
+        }
+        output_color_height := line_height;
+        top, bottom := cut_top(palette_rect, line_height);
+        opaque, translucent := cut_left(top, top.w / 2);
+        opaque.w -= dpi_scale;
+        translucent.x += dpi_scale; translucent.w -= dpi_scale;
+        output_color := color_picker_dialog.rgba;
+
+        palette_entries_per_row :: 8;
+        palette_entry_size_with_padding := bottom.w / palette_entries_per_row;
+        palette_entry_size := palette_entry_size_with_padding - dpi_scale;
+
+        r := Rect.{0, 0, palette_entry_size, palette_entry_size};
+        for session.recent_colors {
+            r.x = palette_entry_size_with_padding * (it_index % palette_entries_per_row);
+            r.y = palette_entry_size_with_padding * (it_index / palette_entries_per_row);
+            r.x += bottom.x;
+            r.y = bottom.y + bottom.h - r.y - palette_entry_size_with_padding;
+            draw_gradient_rect(r, .palette_entry, 1.0, it);
+        }
+
+        draw_gradient_rect(translucent, .checkered_4, output_color_height / 4 + 1 / dpi_scale);
+        Simp.set_shader_for_color(enable_blend = true);
+        draw_rect_with_raw_color(translucent, output_color);
+        output_color.w = 1;
+        draw_rect_with_raw_color(opaque, output_color);
+    } else {
+        Simp.set_shader_for_color(enable_blend = true);
+    }
 
     inner := axis_rect;
     inner.y += inner.h * color_picker_dialog.value - dpi_scale;
