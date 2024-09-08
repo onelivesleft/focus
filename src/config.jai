@@ -73,6 +73,7 @@ load_project_config :: (file_path: string, force := false) -> success: bool, cha
 
 refresh_config :: (path: string) {
     if build_command_is_running() {
+        // TODO: show another dialog here
         add_user_warning("Couldn't refresh config because a build command is currently running. Please let it finish or kill it before refreshing config.");
         return;
     }
@@ -152,16 +153,12 @@ refresh_config :: (path: string) {
     }
 
     if members_changed || allow_ignore_changed {
-        should_reload_workspace = true;
-        automatic_workspace_reload = true;
         if unsaved_buffers_exist() {
-            show_unsaved_buffers_dialog(.reload_workspace);
             clear_user_messages();
-
             if members_changed      then add_user_warning("Workspace members have changed in the config.\nWorkspace will need to reload, however there are unsaved changes.", tag = .workspace);
             if allow_ignore_changed then add_user_warning("Workspace ignore rules have changed in the config.\nWorkspace will need to reload, however there are unsaved changes.", tag = .workspace);
-            should_reload_workspace = false;
         }
+        defer_action_reload_workspace(automatic = true);
     }
 
     // Detect changes in file associations
@@ -219,18 +216,7 @@ close_project :: () {
         return;
     }
 
-    success := load_global_config(force = true);
-    if success {
-        project_config.loaded = false;
-        if unsaved_buffers_exist() {
-            show_unsaved_buffers_dialog(.reload_workspace);
-        } else {
-            should_reload_workspace = true;
-        }
-        automatic_workspace_reload = false;
-    } else {
-        add_user_error("Couldn't close project because the global config failed to load", dismiss_in_seconds = 10);
-    }
+    defer_action_close_project();
 }
 
 find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp */ {
@@ -557,56 +543,58 @@ Workspace :: struct {
 }
 
 Settings :: struct {
-    maximize_on_start                             := false;
-    open_on_the_biggest_monitor                   := true;
-    window_width                                  := -1;
-    window_height                                 := -1;
-    window_x                                      := -1000;  // using -1000 because -1 could be a valid value someone might want
-    window_y                                      := -1000;
-    cursor_as_block                               := true;
-    cursor_blink_time_in_seconds                  := 5;
-    highlight_selection_occurrences               := true;
-    highlight_line_with_cursor                    := false;
-    highlight_matching_brackets                   := false;
-    disable_that_annoying_paste_effect            := false;
-    disable_file_open_close_animations            := false;
-    disable_viewport_chasing_cursor_near_the_edge := false;
-    double_shift_to_search_in_workspace           := false;
-    tab_size                                      := 4;
-    insert_spaces_when_pressing_tab               := true;
-    strip_trailing_whitespace_on_save             := false;
-    insert_final_newline_on_save                  := false;
-    smooth_scrolling                              := true;
-    scroll_beyond_last_line                       := true;
-    line_height_scale_percent                     := 120;
-    max_editor_width                              := -1;
-    can_cancel_go_to_line                         := true;
-    copy_whole_line_without_selection             := false;
-    editor_history_size                           := 128;
-    line_wrap_is_on_by_default                    := false;
-    show_line_numbers                             := false;
-    dark_titlebar                                 := false;
-    colored_titlebar                              := true;
-    hide_mouse_when_typing                        := true;
-    draw_indent_guides                            := false;
-    auto_surround_with_brackets_and_quotes        := false;
-    auto_close_brackets                           := false;
-    prefer_system_file_dialogs                    := false;
-    show_cursors_off_screen                       := true;
-    persist_local_search_results                  := false;
-    show_selected_text_length                     := false;
-    load_most_recent_project_on_start             := false;
+    maximize_on_start                                       := false;
+    open_on_the_biggest_monitor                             := true;
+    window_width                                            := -1;
+    window_height                                           := -1;
+    window_x                                                := -1000;  // using -1000 because -1 could be a valid value someone might want
+    window_y                                                := -1000;
+    cursor_as_block                                         := true;
+    cursor_blink_time_in_seconds                            := 5;
+    highlight_selection_occurrences                         := true;
+    highlight_line_with_cursor                              := false;
+    highlight_matching_brackets                             := false;
+    disable_that_annoying_paste_effect                      := false;
+    disable_file_open_close_animations                      := false;
+    disable_viewport_chasing_cursor_near_the_edge           := false;
+    double_shift_to_search_in_workspace                     := false;
+    tab_size                                                := 4;
+    insert_spaces_when_pressing_tab                         := true;
+    strip_trailing_whitespace_on_save                       := false;
+    insert_final_newline_on_save                            := false;
+    smooth_scrolling                                        := true;
+    scroll_beyond_last_line                                 := true;
+    line_height_scale_percent                               := 120;
+    max_editor_width                                        := -1;
+    can_cancel_go_to_line                                   := true;
+    copy_whole_line_without_selection                       := false;
+    editor_history_size                                     := 128;
+    line_wrap_is_on_by_default                              := false;
+    show_line_numbers                                       := false;
+    dark_titlebar                                           := false;
+    colored_titlebar                                        := true;
+    hide_mouse_when_typing                                  := true;
+    draw_indent_guides                                      := false;
+    auto_surround_with_brackets_and_quotes                  := false;
+    auto_close_brackets                                     := false;
+    prefer_system_file_dialogs                              := false;
+    show_cursors_off_screen                                 := true;
+    persist_local_search_results                            := false;
+    search_is_case_sensitive_when_uppercase_present         := false;
+    show_selected_text_length                               := false;
+    load_most_recent_project_on_start                       := false;
 
-    build_panel_width_percent                     := 50;
-    build_panel_height_percent                    := 50;
-    build_panel_stays_in_one_place                := false;
-    build_panel_line_wrap_always_on               := true;
+    build_panel_width_percent                               := 50;
+    build_panel_height_percent                              := 50;
+    build_panel_stays_in_one_place                          := false;
+    build_panel_line_wrap_always_on                         := true;
 
-    save_current_buffer_on_build                  := false;
-    save_all_file_backed_buffers_on_build         := false;
+    save_current_buffer_on_build                            := false;
+    save_all_file_backed_buffers_on_build                   := false;
 
-    status_bar_position                           := Status_Bar_Position.bottom;
-    color_preview_popup                           := Color_Preview_Popup.enabled;
+    status_bar_position                                     := Status_Bar_Position.bottom;
+    color_preview_popup                                     := Color_Preview_Popup.enabled;
+    projects_sorting_order                                  := Projects_Sorting_Order.most_recent_first;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false
@@ -622,6 +610,11 @@ Color_Preview_Popup :: enum {
     enabled;
     minimized;
     disabled;
+}
+
+Projects_Sorting_Order :: enum {
+    most_recent_first;
+    alphabetical;
 }
 
 Keymap :: struct {

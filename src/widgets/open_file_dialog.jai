@@ -5,7 +5,8 @@ open_file_dialog_handle_event :: (event: Input.Event) -> handled: bool {
         action := map_event_to_action(event, Action_Open_File_Dialog);
         if action == {
             case .escape;                   #through;
-            case .close_dialog;             hide_open_file_dialog(manual = true);                                          return true;
+            case .close_dialog;             close_open_file_dialog(.CANCEL);                                               return true;
+            case .close_current_editor;     maybe_close_file_under_cursor();                                               return true;
 
             case .open_entry_in_place;      open_file_dialog_open_entry(entries.selected, .in_place);                      return true;
             case .open_entry_on_the_side;   if mode != .save  open_file_dialog_open_entry(entries.selected, .on_the_side); return true;
@@ -61,7 +62,7 @@ deinit_open_file_dialog :: () {
     array_reset(*entries.filtered,, allocator = Allocator.{ proc = flat_pool_allocator_proc, data = *memory_pool });
 }
 
-show_open_file_dialog :: (mode: Open_File_Dialog.Mode, buffer_id_to_save: s64 = -1, from_root := false) {
+show_open_file_dialog :: (mode: Open_File_Dialog.Mode, buffer_id_to_save: s64 = -1, triggered_by: Deferred_Action_Id = -1, from_root := false) {
     if !from_root {
         // Derive the path chunks from the current open file
         editor, buffer := get_active_editor_and_buffer();
@@ -71,6 +72,12 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, buffer_id_to_save: s64 = 
     }
 
     active_global_widget = .open_file_dialog;
+
+    if mode == .save || mode == .move then assert(triggered_by >= 0);  // must only happen in deferred actions
+
+    open_file_dialog.triggered_by_action = triggered_by;
+    open_file_dialog.result = .PENDING;
+    open_file_dialog.selected_path = "";
     open_file_dialog.mode = mode;
     open_file_dialog.buffer_id_to_save = buffer_id_to_save;
 
@@ -85,16 +92,21 @@ show_open_file_dialog :: (mode: Open_File_Dialog.Mode, buffer_id_to_save: s64 = 
     refresh_entries();
 }
 
-hide_open_file_dialog :: (manual := false) {
-    using open_file_dialog;
+close_open_file_dialog :: (result: Open_File_Dialog.Result, selected_path := "") {
+    open_file_dialog.result = result;
 
-    if mode == .save && buffer_id_to_save >= 0 {
-        // If we were in the middle of saving something and closed the dialog, we don't want to save that,
-        // but also we don't want to proceed with whatever after-save action we had if we closed it ourselves
-        remove_buffer_from_save_queue(buffer_id_to_save, reset_after_save = manual);
+    if open_file_dialog.selected_path {
+        free(open_file_dialog.selected_path);
+        open_file_dialog.selected_path = "";
     }
+    if selected_path then open_file_dialog.selected_path = copy_string(selected_path);
 
     activate_editors();
+}
+
+open_file_dialog_get_result :: (action_id: Deferred_Action_Id) -> Open_File_Dialog.Result, string {
+    if action_id != open_file_dialog.triggered_by_action  return .UNINITTED, "";
+    return open_file_dialog.result, open_file_dialog.selected_path;
 }
 
 open_file_dialog_open_entry :: (selected: s64, placement: Editor_Placement, folder_only := false, slash_key_pressed := false) -> handled: bool {
@@ -121,32 +133,21 @@ open_file_dialog_open_entry :: (selected: s64, placement: Editor_Placement, fold
     if entry.type == {
         case .save;
             if folder_only return true;
-
-            if mode == .save {
-                full_path := tprint("%/%", get_current_folder_path(), cast(string) input.text);
-                buffer := *open_buffers[buffer_id_to_save];
-                save_buffer_to_file(buffer, buffer_id_to_save, full_path);
-                remove_buffer_from_save_queue(buffer_id_to_save);
-
-                hide_open_file_dialog();
+            if mode == .save || mode == .move {
+                close_open_file_dialog(.SELECTED_PATH, tprint("%/%", get_current_folder_path(), cast(string) input.text));
             }
-            return true;
 
         case .file;
             if folder_only return true;
-
-            if mode == .save {
-                show_confirm_overwrite_dialog(buffer_id_to_save, entry.full_path);
-                return true;
+            if mode != .save && mode != .move {
+                if entry.buffer_id >= 0 {
+                    editors_open_buffer(entry.buffer_id, placement);
+                } else {
+                    path := entry.full_path;
+                    editors_open_file(path, placement);
+                }
             }
-
-            if entry.buffer_id >= 0 {
-                editors_open_buffer(entry.buffer_id, placement);
-            } else {
-                path := entry.full_path;
-                editors_open_file(path, placement);
-            }
-            hide_open_file_dialog();
+            close_open_file_dialog(.SELECTED_PATH, entry.full_path);
 
         case .drive;
             clear_path_chunks();
@@ -217,6 +218,24 @@ maybe_handle_text_input_event :: (using input: *Text_Input, event: Input.Event) 
     return false;
 }
 
+maybe_close_file_under_cursor :: () {
+    using open_file_dialog;
+
+    if mode == .search then add_user_warning("Closing buffers in this dialog is not supported", dismiss_in_seconds=3);
+    if mode != .open_editors return;
+
+    if !entries.filtered return;
+
+    buffer_id  := entries.filtered[entries.selected].buffer_id;
+
+    for editor, editor_id : open_editors {
+        if editor.buffer_id != buffer_id continue;
+        close_editor_by_id(editor_id, skip_animation = true);
+    }
+
+    refresh_entries(clear_input = false);
+}
+
 move_cursor :: (delta: s64, wrap := false, snap := true) {
     using open_file_dialog.entries;
 
@@ -234,7 +253,7 @@ move_cursor :: (delta: s64, wrap := false, snap := true) {
 
 pop_directory :: () -> handled: bool {
     using open_file_dialog;
-    if (mode != .navigate && mode != .save) || input.text || !path_chunks return false;
+    if (mode != .navigate && mode != .save && mode != .move) || input.text || !path_chunks return false;
 
     last := pop(*path_chunks);
     free(last);
@@ -333,6 +352,7 @@ refresh_entries :: (clear_input := true) {
 
     if #complete mode == {
         case .save; #through;
+        case .move; #through;
         case .navigate;
             if !path_chunks {
                 // Display project dirs and drives
@@ -442,10 +462,16 @@ refresh_entries :: (clear_input := true) {
         quick_sort(entries.filtered, compare_entries);
     }
 
-    if mode == .save && input.text && path_chunks {
+    if (mode == .save || mode == .move) && input.text && path_chunks {
+        entry_name: string;
+        if mode == .save {
+            entry_name = sprint("Save as '%/%'", get_current_folder_path(), cast(string) input.text);
+        } else {
+            entry_name = sprint("Move to '%/%'", get_current_folder_path(), cast(string) input.text);
+        }
         array_add(*entries.filtered, Entry.{
             file = File_Info.{ full_path = "", name = "", path = "", icon = .save },
-            entry_name = sprint("Save as '%/%'", get_current_folder_path(), cast(string) input.text),
+            entry_name = entry_name,
             type = .save,
             name_highlights = .[],
             path_highlights = .[],
@@ -487,7 +513,9 @@ get_current_folder_path :: () -> string {
 
 scan_current_folder :: () {
     using open_file_dialog;
-    if (mode != .navigate && mode != .save) || !path_chunks return;
+    if (mode != .navigate && mode != .save && mode != .move) || !path_chunks return;
+
+    assert(context.allocator.proc == flat_pool_allocator_proc, "Open file dialog must use a pool allocator to scan folders. This is a bug.");
 
     dir_path := get_current_folder_path();
 
@@ -543,6 +571,10 @@ Open_File_Dialog :: struct {
     initted := false;
 
     mode: Mode;
+    triggered_by_action: Deferred_Action_Id = -1;
+    result: Result = .UNINITTED;
+    selected_path: string;
+
     scroll_to_cursor: Scroll_Mode = .no;
 
     input: Text_Input;
@@ -551,8 +583,7 @@ Open_File_Dialog :: struct {
     root_dir: string;
     current_files: [..] Entry;  // files in the current folder (used in .navigate mode only)
 
-    /* `buffer_id_to_save` is used when `mode` is `.save` */
-    buffer_id_to_save: s64;
+    buffer_id_to_save: s64;  // used when `mode` is `.save`
 
     entries: struct {
         filtered: [..] Entry;
@@ -574,6 +605,14 @@ Open_File_Dialog :: struct {
         open_editors;
         navigate;
         save;
+        move;
+    }
+
+    Result :: enum {
+        UNINITTED;
+        PENDING;
+        SELECTED_PATH;
+        CANCEL;
     }
 }
 

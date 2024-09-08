@@ -172,14 +172,15 @@ active_editor_handle_event :: (editor: *Editor, buffer: *Buffer, event: Input.Ev
         case .close_right_editor;               close_editor(.right);
 
         case .close_dialog;                     hide_build_panel();
-        case .escape;                           hide_build_panel();
+        case .escape;                           if editor.cursors.count == 1 hide_build_panel();
                                                 remove_additional_cursors(editor);
                                                 reset_search_results(*editor.search_bar);
                                                 editor.refresh_selection = true;
 
-        case .save;                             save    (editor.buffer_id);
-        case .save_as;                          save_as (editor.buffer_id);
+        case .save;                             save(editor.buffer_id);
         case .save_all;                         save_all();
+        case .save_as;                          defer_action_save_as(editor.buffer_id);
+        case .move_current_file;                defer_action_move   (editor.buffer_id);
 
         case .switch_to_left_editor;            switch_to_editor(.left);
         case .switch_to_right_editor;           switch_to_editor(.right);
@@ -800,28 +801,8 @@ close_editor :: (position: enum { current; other; left; right; }) {
 }
 
 close_current_editor :: () {
-    if build_panel_is_active() {
-        toggle_build_panel();
-        return;
-    }
-    if editors.layout == {
-        case .None;     return;
-        case .Single;
-            editors.layout = .None;  // close immediately
-            update_window_title();
-            do_things_on_editor_close(editors.active);
-
-        case .Double;
-            editor_closing_id = editors.active;
-            if !config.settings.disable_file_open_close_animations {
-                // Start the animation (the layout will change when the animation is finished)
-                editors_start_moving_splitter(ifx editors.active == editors.left then 0.0 else 1.0);
-                make_editor_active(ifx editors.active == editors.left then editors.right else editors.left);
-            } else {
-                make_editor_active(ifx editors.active == editors.left then editors.right else editors.left);
-                finish_closing_editor();
-            }
-    }
+    if build_panel_is_active() { toggle_build_panel(); return; }
+    close_editor_by_id(editors.active);
 }
 
 close_other_editor :: () {
@@ -830,13 +811,35 @@ close_other_editor :: () {
     if editors.layout == {
         case .None;     return;
         case .Single;   return;  // don't do anything
+        case .Double;   close_editor_by_id(ifx editors.active == editors.left then editors.right else editors.left);
+    }
+}
+
+close_editor_by_id :: (editor_id: s64, skip_animation := false) {
+    if editors.layout == {
+        case .None;
+            do_things_on_editor_close(editor_id);
+
+        case .Single;
+            if editor_id == editors.active {
+                editors.layout = .None;
+                update_window_title();
+            }
+            do_things_on_editor_close(editor_id);
+
         case .Double;
-            editor_closing_id = ifx editors.active == editors.left then editors.right else editors.left;
-            if !config.settings.disable_file_open_close_animations {
-                // Start the animation (the layout will change when the animation is finished)
-                editors_start_moving_splitter(ifx editors.active == editors.left then 1.0 else 0.0);
+            if editor_id == editors.left || editor_id == editors.right {
+                editor_closing_id = editor_id;
+                if !config.settings.disable_file_open_close_animations && !skip_animation {
+                    // Start the animation (the layout will change when the animation is finished)
+                    editors_start_moving_splitter(ifx editor_id == editors.left then 0.0 else 1.0);
+                    make_editor_active(ifx editor_id == editors.left then editors.right else editors.left);
+                } else {
+                    make_editor_active(ifx editor_id == editors.left then editors.right else editors.left);
+                    finish_closing_editor();
+                }
             } else {
-                finish_closing_editor();
+                do_things_on_editor_close(editor_id);
             }
     }
 }
@@ -852,15 +855,20 @@ finish_closing_editor :: () {
 }
 
 do_things_on_editor_close :: (editor_id: s64) {
+    if editor_id < 0 return;
     editor := *open_editors[editor_id];
     buffer := *open_buffers[editor.buffer_id];
 
-    // Remove buffer from the open buffers if it's not unsaved and if there's no editor with this buffer currently visible
-    assert(editors.layout != .Double, "An editor just closed but layout is still .Double. This is a bug.");
-    buffer_is_still_visible := editors.layout == .Single && editors.active != editor_id && open_editors[editors.active].buffer_id == editor.buffer_id;
-    if !buffer_is_still_visible && !buffer.modified {
+    buffer_is_still_visible := false;
+    if #complete editors.layout == {
+        case .None;
+        case .Single; buffer_is_still_visible = open_editors[editors.active].buffer_id == editor.buffer_id;
+        case .Double; buffer_is_still_visible = open_editors[editors.left].buffer_id == editor.buffer_id || open_editors[editors.right].buffer_id == editor.buffer_id;
+    }
+    if !buffer_is_still_visible {
         array_ordered_remove_by_value(*most_recent_buffers, editor.buffer_id);
-        buffer.num_times_opened = 0;  // deprioritise it in the full file list
+        if !buffer.modified then buffer.num_times_opened = 0;  // deprioritise it in the full file list
+        if !buffer.has_file { buffer.deleted = true; buffer.modified = false; }  // get rid of newly created buffers we're closing
     }
 }
 
@@ -890,6 +898,7 @@ open_search_bar :: (using editor: *Editor, buffer: Buffer, requested_mode: Searc
     using editor.search_bar;
     active = true;
     mode = requested_mode;
+    case_sensitive_toggled_manually = false;  // forget when reopening
 
     // If there was some text selected that doesn't span more than one line, use it for search
     if cursors.count == 1 {
@@ -961,6 +970,7 @@ search_bar_toggle_case_sensitive :: (using editor: *Editor, buffer: Buffer) {
 
     if !active return;
     case_sensitive = !case_sensitive;
+    case_sensitive_toggled_manually = true;
 
     search_and_update_results(editor, buffer);
     redraw_requested = true;
@@ -1031,6 +1041,10 @@ search_and_update_results :: (using editor: *Editor, buffer: Buffer, jump := fal
 
     needle := cast(string) search_bar.input.text;
     if !needle return;
+
+    if config.settings.search_is_case_sensitive_when_uppercase_present && !search_bar.case_sensitive_toggled_manually {
+        search_bar.case_sensitive = contains_uppercase_ascii(needle);
+    }
 
     assert(buffer.bytes.count < S32_MAX && needle.count < S32_MAX);
 
@@ -1393,19 +1407,6 @@ viewport_glue_to_point :: (editor: *Editor, buffer: Buffer) -> changed: bool {
     return top != old_top;
 }
 
-restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor) {
-    if cursor_state.count == 0 return;
-
-    array_resize(*cursors, cursor_state.count);
-    for * cursor, i : cursors {
-        cursor.* = cursor_state[i];
-        cursor.col_wanted = -1;
-    }
-    if main_cursor >= cursors.count then main_cursor = cursors.count - 1;  // maybe we should remember it too
-
-    editor.cursor_moved = .jumped;
-}
-
 make_editor_active :: (editor_id: s64) {
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
     if is_build_panel(editor_id)         then build_panel_on_activate();
@@ -1476,6 +1477,12 @@ new_edit_group :: (buffer: *Buffer, editor: *Editor) {
     for * cursor, i : buffer.cursors { cursor.* = editor.cursors[i]; }
 }
 
+save_all :: () {
+    for * buffer, buffer_id : open_buffers {
+        if buffer.modified  save(buffer_id);
+    }
+}
+
 #scope_file
 
 delete_cursor :: (using editor: *Editor, buffer: Buffer, where: enum { above; below; }) {
@@ -1539,6 +1546,19 @@ create_cursor :: (using editor: *Editor, buffer: Buffer, where: enum { above; be
     organise_cursors(editor);
 
     cursor_moved = .refresh_only;
+}
+
+restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor) {
+    if cursor_state.count == 0 return;
+
+    array_resize(*cursors, cursor_state.count);
+    for * cursor, i : cursors {
+        cursor.* = cursor_state[i];
+        cursor.col_wanted = -1;
+    }
+    if main_cursor >= cursors.count then main_cursor = cursors.count - 1;  // maybe we should remember it too
+
+    editor.cursor_moved = .jumped;
 }
 
 // @TODO: have another look at the code and at the very least avoid rescanning for each cursor.
@@ -1739,24 +1759,12 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer, search_str := 
 
 save :: (buffer_id: s64) {
     buffer := *open_buffers[buffer_id];
-    if buffer.readonly return;
+    if buffer.readonly || buffer.internal return;
 
     if buffer.has_file {
         save_buffer(buffer, buffer_id);
     } else {
-        add_buffer_to_save_queue(buffer_id, after_save = .do_nothing);
-        redraw_requested = true;
-    }
-}
-
-save_as :: (buffer_id: s64) {
-    add_buffer_to_save_queue(buffer_id, after_save = .do_nothing);
-    redraw_requested = true;
-}
-
-save_all :: () {
-    for * buffer, buffer_id : open_buffers {
-        if buffer.modified  save(buffer_id);
+        defer_action_save_as(buffer_id);
     }
 }
 
@@ -2934,9 +2942,21 @@ delete_line :: (editor: *Editor, buffer: *Buffer, go_up := false) {
 
 delete_to_start_of_line :: (editor: *Editor, buffer: *Buffer) {
     for * cursor : editor.cursors {
-        selection := get_selection(cursor);
-        cursor.sel = selection.end;
-        cursor.pos = get_real_line_start_offset(buffer, offset_to_real_line(buffer, selection.start));
+        if has_selection(cursor) continue;
+
+        line := offset_to_real_line(buffer, cursor.pos);
+        start, end := get_real_line_start_offset(buffer, line), get_real_line_end_offset(buffer, line);
+
+        text_start_col: s32 = 0;
+        i := start;
+        while i < end {
+            byte := buffer.bytes[i];
+            if byte != #char " " && byte != #char "\t" break;
+            text_start_col += 1;
+            i += 1 + trailingBytesForUTF8[byte];
+        }
+        if cursor.pos > i then cursor.pos = i; else cursor.pos = start;
+        cursor.col_wanted = -1;
     }
     organise_cursors(editor);  // resolve overlapping selections
     copy_selection_to_clipboard(editor, buffer, cut = true, cut_lines_without_selection = false);
@@ -2944,9 +2964,8 @@ delete_to_start_of_line :: (editor: *Editor, buffer: *Buffer) {
 
 delete_to_end_of_line :: (editor: *Editor, buffer: *Buffer) {
     for * cursor : editor.cursors {
-        selection := get_selection(cursor);
-        cursor.sel = selection.start;
-        cursor.pos = get_real_line_end_offset(buffer, offset_to_real_line(buffer, selection.end));
+        if has_selection(cursor) continue;
+        cursor.pos = get_real_line_end_offset(buffer, offset_to_real_line(buffer, cursor.pos));
     }
     organise_cursors(editor);  // resolve overlapping selections
     copy_selection_to_clipboard(editor, buffer, cut = true, cut_lines_without_selection = false);
@@ -3552,6 +3571,7 @@ Search_Bar :: struct {
     selected_result: s64 = -1;
     search_point_offset: s32;  // the point used to determine the next search result. Fixed so that we can set cursor without jumping around
     case_sensitive: bool;
+    case_sensitive_toggled_manually: bool;
     whole_word: bool;
     regex_search: bool;
     regex_is_valid: bool;
@@ -3817,9 +3837,8 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_
         return;
     }
 
+    make_editor_active(editors.active);
     editor := *open_editors[editors.active];
-
-    update_window_title(editor.buffer_id);
 
     // Animations
     if old_frame.layout == .Single && frame.layout == .Double {
