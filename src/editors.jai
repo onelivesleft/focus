@@ -243,6 +243,8 @@ active_editor_handle_event :: (editor: *Editor, buffer: *Buffer, event: Input.Ev
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
         case .copy;                             copy_selection_to_clipboard         (editor, buffer);
 
+        case .pick_color_at_cursor;             color_picker_edit_color_at_cursor   (editor, buffer); keep_selection = true;
+
         case;                                   handled = false;
     }
 
@@ -3522,6 +3524,13 @@ Editor :: struct {
     search_bar: Search_Bar;
 
     viewport: Viewport;
+
+    using last_draw_info : struct { // Updated every frame, when drawn.
+        main_rect: Rect;
+        status_bar_rect: Rect;
+        line_number_panel: Rect;
+        text_origin: Vector2;
+    }
 
     line_wrap: enum u8 { off; to_enable; to_disable; on; };
     last_width_in_chars: s32 = S32_MAX;

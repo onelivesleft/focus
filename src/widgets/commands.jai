@@ -159,6 +159,8 @@ base_commands := #run -> [] Command {
         cmd( "Move To Previous Cursor Position",  .move_to_previous_editor_history,  .None   ),
         cmd( "Move To Next Cursor Position",      .move_to_next_editor_history,      .None   ),
 
+        cmd( "Pick Color",                        .pick_color_at_cursor,             .None   ),
+
         cmd( "New Line Below Without Breaking",   .new_line_below_without_breaking,  .Single ),
         cmd( "New Line Above Without Breaking",   .new_line_above_without_breaking,  .Single ),
 

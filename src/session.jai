@@ -487,8 +487,11 @@ Session :: struct {
     editors: Editor_State;
     last_edit: Apollo_Time;
 
-    user_colors: [48] Vector4;
-    recent_colors: [16] Vector4;
+    color_picker : struct {
+        mode := Gradient_Mode.hue_controlled_2d;
+        recent_colors: [32] Vector4;
+        user_colors: [64] Vector4;
+    }
 
     modified_buffers: [..] s64;
     last_modified_time: Apollo_Time;

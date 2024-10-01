@@ -62,6 +62,7 @@ draw_frame :: () {
     }
 
     maybe_draw_color_preview_panel();
+    maybe_draw_color_picker();
     maybe_draw_build_panel();
 
     if #complete active_global_widget == {
@@ -333,7 +334,6 @@ maybe_draw_color_preview_panel :: () {
 
     // Switch the color map temporarily and then revert
     color_preview_begin_draw(editors.active);
-    defer color_preview_end_draw();
 
     // Drag panel title bar first before drawing
     if ui.active == .color_preview_title_bar {
@@ -494,21 +494,69 @@ maybe_draw_color_preview_panel :: () {
         }
     }
 
+    color_preview_end_draw();
+
     color_picker_rect = shrink_y(color_picker_rect, font_ui_line_height / 2);
     color_preview_draw_color_picker(color_picker_rect);
 }
 
-draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range: Offset_Range, on_left: bool) {
-    color_picker_frame_check();
-    if !is_valid(picker_rect)  return;
+maybe_draw_color_picker :: () {
+    if color_picker_dialog.last_drawn_frame_index == frame_index  return;
 
-    color_change_callback :: (rgba: Vector4, hsl: Vector3, finalize: bool) {
+    active_editor, active_buffer := get_active_editor_and_buffer();
+    if !active_editor return;
+    if active_buffer.readonly return;
+    if active_editor != color_picker_current_pick_info.editor  return;
+    if active_buffer != color_picker_current_pick_info.buffer  return;
+
+    if get_selection(active_editor.cursors[active_editor.main_cursor]) != color_picker_current_pick_info.range {
+        color_picker_current_pick_info = .{};
+        return;
+    }
+
+    cursor_coords := get_cursor_coords(active_editor, active_buffer, active_editor.cursors[active_editor.main_cursor]);
+    screen_pos := get_cursor_screen_pos(active_editor.text_origin, max(cursor_coords.pos, cursor_coords.sel));
+
+    default_picker_size := 300 * dpi_scale;
+    margin := 2 * dpi_scale;
+    rect := Rect.{screen_pos.x + margin, screen_pos.y + line_height + margin, default_picker_size, default_picker_size};
+    draw_color_picker(active_editor, active_buffer, rect, color_picker_current_pick_info.range, true);
+}
+
+draw_color_picker :: (editor: *Editor, buffer: *Buffer, rect: Rect, range: Offset_Range, on_left: bool) {
+    if !is_valid(rect)  return;
+    if color_picker_dialog.last_drawn_frame_index == frame_index  return;  // Only display the color picker for one thing per frame.
+    color_picker_dialog.last_drawn_frame_index = frame_index;
+
+    // Size the rects so that the picker itself is a square, with the palette to its right, and both fit inside the supplied rect.
+    // The palette is a fixed width, and will display as many user colors as it can.
+
+    padding := dpi_scale;
+    palette_entries_per_row :: 8;
+    palette_cell_size := line_height / 2;
+    palette_cell_size_with_padding := palette_cell_size + padding;
+    palette_width := palette_cell_size_with_padding * palette_entries_per_row + padding * 3; // 2 extra padding on left to create margin with picker
+
+    full_rect := rect;
+    if full_rect.w > full_rect.h + palette_width {
+        if on_left  full_rect = cut_left (full_rect, full_rect.h + palette_width);
+        else        full_rect = cut_right(full_rect, full_rect.h + palette_width);
+    }
+    if full_rect.h > full_rect.w - palette_width {
+        full_rect = cut_bottom(full_rect, full_rect.w - palette_width);
+    }
+
+    full_rect = keep_inside_if_possible(full_rect, editor.main_rect);
+    palette_rect, picker_rect := cut_right(full_rect, palette_width);
+    palette_rect.x += padding * 2; palette_rect.w -= padding * 2;
+
+    color_change_callback :: (rgba: Vector4, hsl: Vector3, update_status := Color_Picker_Update_Flags.none) {
         using buffer_info := cast(*Color_Change_Buffer_Info) color_picker_dialog.color_change_callback_data;
         str := color_to_hex(rgba, exclude_hash = true);
         for i : 0 .. str.count-1  str[i] = to_upper(str[i]);
         old_str := cast(string) array_view(buffer.bytes, range.start, range.end - range.start);
         if old_str != str then add_paste_animation(editor, .{ range.start, range.end});
-        if finalize {
+        if update_status & .finalize {
             new_edit_group(buffer, editor);
             replace_range(buffer, range, str);
         } else {
@@ -518,6 +566,12 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range
         }
         rescan_for_lines(buffer);
         if editor.line_wrap == .on then rescan_for_wrapped_lines(editor, buffer);
+
+        if update_status & .live {
+            to_hash := []u8.{size_of(Color_Change_Buffer_Info), xx buffer_info};
+            recent_color_hash := calculate_hash(to_hash);
+            update_color_picker_recent_color(recent_color_hash, rgba);
+        }
     }
 
     color_picker_dialog.color_change_callback = color_change_callback;
@@ -525,93 +579,144 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range
     color_picker_dialog.color_change_callback_data = *color_change_callback_data;
 
     ui_id    := Ui_Id.color_picker_dialog;
+    maybe_set_hot_or_active(ui_id, full_rect, .NORMAL); // To block any clicking through to editor below.
+
     axis_id  := get_ui_id_from_loc(parent_id = ui_id);
     alpha_id := get_ui_id_from_loc(parent_id = ui_id);
     main_id  := get_ui_id_from_loc(parent_id = ui_id);
 
-    if ui.active != axis_id && ui.active != alpha_id && ui.active != main_id then color_picker_set_color(buffer, range);
-
-    rect := picker_rect;
-    if rect.w > rect.h {
-        if on_left  rect = cut_left (rect, rect.h);
-        else        rect = cut_right(rect, rect.h);
-    }
-    if rect.h > rect.w {
-        rect = cut_bottom(rect, rect.w);
-    }
-
     Simp.immediate_flush();
 
-    draw_rounded_rect_with_shadow(rect, Color.BACKGROUND_0, radius = 0.1, shadow_size = char_size);
+    draw_rounded_rect_with_shadow(full_rect, Color.BACKGROUND_3, radius = 0.1, shadow_size = char_size);
     widget_size := line_height;
-    bottom, top := cut_bottom(rect, widget_size);
+    bottom, top := cut_bottom(picker_rect, widget_size);
     axis_rect, main_rect  := cut_left(top,    widget_size);
     mode_rect, alpha_rect := cut_left(bottom, widget_size);
 
-    maybe_set_hot_or_active(axis_id, axis_rect, .PRESSABLE);
-    if ui.active == axis_id || (ui.hot_last_frame == axis_id && mouse.left.just_released) {
+    flags := Color_Picker_Update_Flags.none;
+    if mouse.left.is_down then flags |= .live;
+    if mouse.left.just_pressed || mouse.left.just_released then flags |= .finalize;
+
+    scrollwheel_resolution :: (1.0/256) / 120;
+
+    maybe_set_hot_or_active(axis_id, axis_rect, .NORMAL);
+    if ui.active == axis_id || (ui.active_last_frame == axis_id && mouse.left.just_released) {
         v := clamp(mouse.pointer.y - axis_rect.y, 0, axis_rect.h) / axis_rect.h;
-        color_picker_set_value(v, mouse.left.just_pressed || mouse.left.just_released);
+        color_picker_set_value(v, flags);
+    } else if ui.hot_last_frame == axis_id && mouse_pointer_is_within(axis_rect) && mouse.scroll_y_delta != 0 {
+        v := clamp(color_picker_dialog.value + mouse.scroll_y_delta * scrollwheel_resolution, 0.0, 1.0);
+        color_picker_set_value(v, flags);
     }
 
-    maybe_set_hot_or_active(alpha_id, alpha_rect, .PRESSABLE);
-    if ui.active == alpha_id || (ui.hot_last_frame == alpha_id && mouse.left.just_released) {
+    maybe_set_hot_or_active(alpha_id, alpha_rect, .NORMAL);
+    if ui.active == alpha_id || (ui.active_last_frame == alpha_id && mouse.left.just_released) {
         v := clamp(mouse.pointer.x - alpha_rect.x, 0, alpha_rect.w) / alpha_rect.w;
-        color_picker_set_alpha(v, mouse.left.just_pressed || mouse.left.just_released);
+        color_picker_set_alpha(v, flags);
     }
 
-    maybe_set_hot_or_active(main_id, main_rect, .PRESSABLE);
-    if ui.active == main_id || (ui.hot_last_frame == main_id && mouse.left.just_released) {
+    maybe_set_hot_or_active(main_id, main_rect, .CROSS);
+    if ui.active == main_id || (ui.active_last_frame == main_id && mouse.left.just_released) {
         x := clamp(mouse.pointer.x - main_rect.x, 0, main_rect.w) / main_rect.w;
         y := clamp(mouse.pointer.y - main_rect.y, 0, main_rect.h) / main_rect.h;
-        color_picker_set_point(.{x, y}, mouse.left.just_pressed || mouse.left.just_released);
+        color_picker_set_point(.{x, y}, flags);
     }
 
     // Shrink the sliders a little so a gap is drawn between them and the main panel.
-    // We do this after the UI interactions above, so the user can't accidentally click
-    // in the gap (which would register in the editor window and move the cursor)
-    axis_rect.w  -= dpi_scale;
-    alpha_rect.h -= dpi_scale;
+    // We do this after the UI interactions above, so the user can't accidentally click in the gap.
+    axis_rect.w  -= padding;
+    alpha_rect.h -= padding;
 
-    draw_gradient_rect(axis_rect, color_picker_dialog.mode | .vertical_1d, color_picker_dialog.hsl.x);
+    palette_translucent, palette_opaque: Rect;
+
+    {
+        push_scissor(palette_rect);
+        defer pop_scissor();
+
+        bottom, top := cut_bottom(palette_rect, line_height - padding);
+        palette_translucent, palette_opaque = cut_left(bottom, bottom.w / 2);
+        palette_translucent.w -= padding;
+        palette_opaque.x += padding; palette_opaque.w -= padding;
+
+        r := Rect.{0, 0, palette_cell_size, palette_cell_size};
+        selected_recent_color := -1;
+        for session.color_picker.recent_colors {
+            r.x = palette_cell_size_with_padding * (it_index % palette_entries_per_row);
+            r.y = palette_cell_size_with_padding * (it_index / palette_entries_per_row);
+            r.x += top.x;
+            r.y = top.y + top.h - r.y - palette_cell_size_with_padding;
+            if it == .{} {
+                draw_gradient_rect(shrink(r, padding), .solid, 1.0, .{0, 0, 0, 0.1});
+                continue;
+            }
+
+            recent_color_id := get_ui_id_from_loc(parent_id = ui_id, offset = it_index);
+            maybe_set_hot_or_active(recent_color_id, r, .NORMAL);
+            if ui.active == recent_color_id {
+                ui.active = .none;
+                color_picker_set_color(it);
+                selected_recent_color = it_index;
+            }
+            draw_r := ifx ui.active == .none && ui.hot_last_frame == recent_color_id then expand(r, padding) else r;
+            draw_gradient_rect(draw_r, .palette_entry, 1.0, it);
+        }
+
+        if selected_recent_color >= 0 {
+            color_picker_select_recent_color(selected_recent_color);
+        }
+
+        index_offset := session.color_picker.recent_colors.count + palette_entries_per_row;
+
+        for session.color_picker.user_colors {
+            r.x = palette_cell_size_with_padding * ((it_index + index_offset) % palette_entries_per_row);
+            r.y = palette_cell_size_with_padding * ((it_index + index_offset) / palette_entries_per_row);
+            r.x += top.x;
+            r.y = top.y + top.h - r.y - palette_cell_size_with_padding;
+            user_color_id := get_ui_id_from_loc(parent_id = ui_id, offset = it_index);
+            maybe_set_hot_or_active(user_color_id, r, .NORMAL);
+            if ui.active == user_color_id {
+                ui.active = .none;
+                if mouse.left.just_pressed {
+                    if it == .{} {
+                        color_picker_add_user_color(it_index, color_picker_dialog.rgba);
+                    } else {
+                        color_picker_set_color(it);
+                    }
+                } else if mouse.right.just_pressed {
+                    color_picker_remove_user_color(it_index);
+                }
+            }
+            if ui.active == .none && ui.hot_last_frame == user_color_id {
+                if it == .{} {
+                    draw_gradient_rect(shrink(r, padding * 2), .palette_entry, 1.0, color_picker_dialog.rgba);
+                } else {
+                    draw_gradient_rect(expand(r, padding), .palette_entry, 1.0, it);
+                }
+            } else {
+                if it == .{} {
+                    draw_gradient_rect(shrink(r, padding * 3), .solid, 1.0, .{1, 1, 1, 0.1});
+                    //draw_gradient_rect(r, .box, padding, .{1, 1, 1, 0.1});
+                } else {
+                    draw_gradient_rect(r, .palette_entry, 1.0, it);
+                }
+            }
+        }
+
+        draw_gradient_rect(palette_translucent, .checkered_4, palette_cell_size / 4 + 1 / dpi_scale);
+    }
+
+    draw_gradient_rect(axis_rect, session.color_picker.mode | .vertical_1d, color_picker_dialog.hsl.x);
     draw_gradient_rect(alpha_rect, .alpha_horizontal_1d, 1.0);
-    draw_gradient_rect(main_rect, color_picker_dialog.mode, color_picker_dialog.value);
+    draw_gradient_rect(main_rect, session.color_picker.mode, color_picker_dialog.value);
 
-    color_picker_dialog.show_palette = .on_left;
-    if color_picker_dialog.show_palette {
-        palette_rect := rect;
-        if color_picker_dialog.show_palette == .on_left {
-            palette_rect.x -= (palette_rect.w + line_height / 2);
-        } else {
-            palette_rect.x += (palette_rect.w + line_height / 2);
-        }
-        output_color_height := line_height;
-        top, bottom := cut_top(palette_rect, line_height);
-        opaque, translucent := cut_left(top, top.w / 2);
-        opaque.w -= dpi_scale;
-        translucent.x += dpi_scale; translucent.w -= dpi_scale;
+    Simp.set_shader_for_color(enable_blend = true);
+
+    {
+        push_scissor(palette_rect);
+        defer pop_scissor();
         output_color := color_picker_dialog.rgba;
-
-        palette_entries_per_row :: 8;
-        palette_entry_size_with_padding := bottom.w / palette_entries_per_row;
-        palette_entry_size := palette_entry_size_with_padding - dpi_scale;
-
-        r := Rect.{0, 0, palette_entry_size, palette_entry_size};
-        for session.recent_colors {
-            r.x = palette_entry_size_with_padding * (it_index % palette_entries_per_row);
-            r.y = palette_entry_size_with_padding * (it_index / palette_entries_per_row);
-            r.x += bottom.x;
-            r.y = bottom.y + bottom.h - r.y - palette_entry_size_with_padding;
-            draw_gradient_rect(r, .palette_entry, 1.0, it);
-        }
-
-        draw_gradient_rect(translucent, .checkered_4, output_color_height / 4 + 1 / dpi_scale);
-        Simp.set_shader_for_color(enable_blend = true);
-        draw_rect_with_raw_color(translucent, output_color);
+        draw_rect_with_raw_color(palette_translucent, output_color);
         output_color.w = 1;
-        draw_rect_with_raw_color(opaque, output_color);
-    } else {
-        Simp.set_shader_for_color(enable_blend = true);
+        draw_rect_with_raw_color(palette_opaque, output_color);
     }
 
     inner := axis_rect;
@@ -639,9 +744,9 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, picker_rect: Rect, range
     draw_rect_with_raw_color(inner, .{1, 1, 1, 1});
 
     mode_id := get_ui_id_from_loc(parent_id = ui_id);
-    label   := slice("RGBHSL", xx color_picker_dialog.mode, 1);
+    label   := slice("RGBHSL", xx session.color_picker.mode, 1);
     pressed := draw_icon_button(mode_id, mode_rect, label, .square);
-    if pressed  color_picker_set_mode(color_picker_dialog.mode + 1);
+    if pressed  color_picker_set_mode(session.color_picker.mode + 1);
 
     Simp.immediate_flush();
 }
@@ -782,7 +887,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, status_bar_height: float, ui_id
 
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
 
-    rect, status_bar_rect, line_number_panel := get_editor_subrects(editor_id, main_area, status_bar_height);
+    main_rect, status_bar_rect, line_number_panel = get_editor_subrects(editor_id, main_area, status_bar_height);
+    rect := main_rect;
 
     if !is_valid(rect) return;
 
@@ -795,7 +901,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, status_bar_height: float, ui_id
 
     // Calculate text origin in screen coordinates
     text_offset := get_text_offset();
-    text_origin := top_left(rect) + text_offset - Vector2.{xx viewport.left, line_height - viewport.top};
+    text_origin = top_left(rect) + text_offset - Vector2.{xx viewport.left, line_height - viewport.top};
 
     width_in_chars := clamp(cast(s32) ((rect.w - 1.5 * text_offset.x) / char_x_advance), 1, S32_MAX);
     if width_in_chars != editor.last_width_in_chars {
@@ -2817,7 +2923,7 @@ draw_generic_confirm_dialog :: (dialog: *Generic_Confirm_Dialog, ui_id: Ui_Id, h
         buttons_row_rect := cut_bottom(buffers_rect, button_height);
 
         for < button : dialog.get_buttons() {
-            button_id := cast(s64) get_ui_id_from_loc(parent_id = ui_id) + it_index;  // could theoretically clash with something right below so don't get any ui ids close to here!
+            button_id := cast(s64) get_ui_id_from_loc(parent_id = ui_id, offset = it_index);
             activated, width := draw_button(font_ui, button.label, button.color, button.text_color, ui_id, buttons_row_rect, .right, margin / 2, margin, button_id = cast(Ui_Id) button_id);
             if activated close_dialog(dialog, button.result);
             buttons_row_rect.w -= width + margin;
@@ -3807,11 +3913,11 @@ set_scissor_rect :: (rect: Rect) {
     Simp.set_scissor(x0, y0, max(x0, x1), max(y0, y1));
 }
 
-get_ui_id_from_loc :: inline (loc := #caller_location, parent_id: Ui_Id = .none) -> Ui_Id {
+get_ui_id_from_loc :: inline (loc := #caller_location, parent_id: Ui_Id = .none, offset := 0) -> Ui_Id {
     if parent_id != .none {
-        return cast(Ui_Id) (loc.line_number + NUM_LINES_OF_CODE * cast(s64) parent_id);
+        return cast(Ui_Id) (loc.line_number + NUM_LINES_OF_CODE * offset + NUM_LINES_OF_CODE * NUM_LINES_OF_CODE * cast(s64) parent_id);
     }
-    return cast(Ui_Id) loc.line_number;
+    return cast(Ui_Id) (loc.line_number + NUM_LINES_OF_CODE * offset);
 }
 
 is_child :: (ui_id: Ui_Id, parent_id: Ui_Id) -> bool {

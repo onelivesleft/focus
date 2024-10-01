@@ -1195,6 +1195,11 @@ NSCursor :: struct {
         func = xx objc_msgSend;
         return func(class(NSCursor), _sel.resizeUpDownCursor);
     }
+    crosshairCursor :: () -> *NSCursor {
+        func: (*void, Selector) -> *NSCursor #c_call;
+        func = xx objc_msgSend;
+        return func(class(NSCursor), _sel.crosshairCursor);
+    }
 }
 
 NSAlert :: struct {
@@ -1562,6 +1567,7 @@ _sel: struct #type_info_no_size_complaint {
     screen: Selector;
     postEvent_atStart_: Selector;
     otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_: Selector;
+    crosshairCursor: Selector;
 }
 
 #import "Objective_C";

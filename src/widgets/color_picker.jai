@@ -1,18 +1,21 @@
 color_picker_dialog : struct {
-    mode := Gradient_Mode.hue_controlled_2d;
-    show_palette: enum { hidden; on_left; on_right; }
-
     value: float;
     point: Vector2;
 
     rgba: Vector4;
     hsl:  Vector3;
 
-    store_recent := false;
-    prev_drawn_frame_index: u64;
+    recent_color_hash: u64;
+    last_drawn_frame_index: u64;
 
-    color_change_callback: #type (rgba: Vector4, hsl: Vector3, finalize: bool);
+    color_change_callback: #type (rgba: Vector4, hsl: Vector3, update_flags := Color_Picker_Update_Flags.none);
     color_change_callback_data: *void;
+}
+
+Color_Picker_Update_Flags :: enum_flags u8 {
+    none     :: 0x00;
+    live     :: 0x01;
+    finalize :: 0x02;
 }
 
 Gradient_Mode :: enum u8 {
@@ -45,19 +48,21 @@ Gradient_Mode :: enum u8 {
     checkered_2              :: 0x30;
     checkered_4              :: 0x31;
     palette_entry            :: 0x32;
+    solid                    :: 0x33;
+    box                      :: 0x34; // `value` determines border width
 }
 
 color_picker_set_mode :: (mode: Gradient_Mode) {
-    color_picker_dialog.mode = mode % (Gradient_Mode.lightness_controlled_2d + 1);
+    session.color_picker.mode = mode % (Gradient_Mode.lightness_controlled_2d + 1);
     color_picker_set_color(color_picker_dialog.rgba);
 }
 
-color_picker_set_value :: (new_value: float, finalize: bool) {
+color_picker_set_value :: (new_value: float, update_flags := Color_Picker_Update_Flags.none) {
     using color_picker_dialog;
     changed := value != new_value;
     value = new_value;
 
-    if mode == {
+    if session.color_picker.mode == {
         case .red_controlled_2d;
             rgba.x = value;
 
@@ -80,16 +85,15 @@ color_picker_set_value :: (new_value: float, finalize: bool) {
             rgba.xyz = rgb_from_hsl(hsl);
     }
 
-    if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
-    color_picker_dialog.store_recent = true;
+    if color_change_callback && (changed || (update_flags & .finalize)) then color_change_callback(rgba, hsl, update_flags);
 }
 
-color_picker_set_point :: (new_point: Vector2, finalize: bool) {
+color_picker_set_point :: (new_point: Vector2, update_flags := Color_Picker_Update_Flags.none) {
     using color_picker_dialog;
     changed := new_point != point;
     point = new_point;
 
-    if mode == {
+    if session.color_picker.mode == {
         case .red_controlled_2d;
             rgba.yz = point;
 
@@ -114,17 +118,16 @@ color_picker_set_point :: (new_point: Vector2, finalize: bool) {
             rgba.xyz = rgb_from_hsl(hsl);
     }
 
-    if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
-    color_picker_dialog.store_recent = true;
+    if color_change_callback && (changed || (update_flags & .finalize)) then color_change_callback(rgba, hsl, update_flags);
 }
 
-color_picker_set_alpha :: (alpha: float, finalize: bool) {
+color_picker_set_alpha :: (alpha: float, update_flags := Color_Picker_Update_Flags.none) {
     using color_picker_dialog;
     changed := rgba.w != alpha;
 
     rgba.w = alpha;
 
-    if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
+    if color_change_callback && (changed || (update_flags & .finalize)) then color_change_callback(rgba, hsl, update_flags);
 }
 
 color_picker_set_color :: (buffer: *Buffer, range: Offset_Range) {
@@ -135,12 +138,12 @@ color_picker_set_color :: (buffer: *Buffer, range: Offset_Range) {
     if color_picker_dialog.rgba != rgba then color_picker_set_color(rgba);
 }
 
-color_picker_set_color :: (color: Vector4, finalize := false) {
+color_picker_set_color :: (color: Vector4, update_flags := Color_Picker_Update_Flags.none) {
     using color_picker_dialog;
     changed := rgba != color;
     rgba = color;
     hsl = hsl_from_rgb(color.xyz);
-    if mode == {
+    if session.color_picker.mode == {
         case .red_controlled_2d;
             value = rgba.x;
             point = rgba.yz;
@@ -168,18 +171,15 @@ color_picker_set_color :: (color: Vector4, finalize := false) {
             point = hsl.xy;
     }
 
-    if color_change_callback && (changed || finalize) then color_change_callback(rgba, hsl, finalize);
+    if color_change_callback && (changed || (update_flags & .finalize)) then color_change_callback(rgba, hsl, update_flags);
 }
 
-color_picker_frame_check :: () {
-    using color_picker_dialog;
-    if prev_drawn_frame_index != frame_index - 1 {
-        if store_recent {
-            store_recent = false;
-            maybe_add_recent_color(rgba);
-        }
+update_color_picker_recent_color :: (recent_color_hash: u64, color: Vector4) {
+    if color_picker_dialog.recent_color_hash != recent_color_hash {
+        new_recent_color();
+        color_picker_dialog.recent_color_hash = recent_color_hash;
     }
-    prev_drawn_frame_index = frame_index;
+    session.color_picker.recent_colors[0] = color;
 }
 
 Color_Change_Buffer_Info :: struct {
@@ -188,10 +188,45 @@ Color_Change_Buffer_Info :: struct {
     range: Offset_Range;
 }
 
+color_picker_select_recent_color :: (index: int) {
+    using session.color_picker;
+    c := recent_colors[index];
+    if index > 0 {
+        found := false;
+        for i : 1 .. recent_colors.count - 1 {
+            if recent_colors[i] == .{}  break;
+            if recent_colors[i] == recent_colors[0] {
+                found = true;
+                break;
+            }
+        }
+        if !found  new_recent_color();
+    }
+    recent_colors[0] = c;
+}
+
+color_picker_add_user_color :: (index: int, rgba: Vector4) {
+    session.color_picker.user_colors[index] = rgba;
+}
+
+color_picker_remove_user_color :: (index: int) {
+    session.color_picker.user_colors[index] = .{};
+}
+
+color_picker_edit_color_at_cursor :: (editor: *Editor, buffer: *Buffer) {
+    start := editor.cursors[editor.main_cursor].pos;
+    end := editor.cursors[editor.main_cursor].sel;
+    if end - start != 8  return;
+
+    color_picker_current_pick_info = .{editor, buffer, .{start, end}};
+}
+
+color_picker_current_pick_info: Color_Change_Buffer_Info;
+
 #scope_file
 
 remove_recent_color :: (index_to_remove: int) {
-    using session;
+    using session.color_picker;
     for i : index_to_remove .. recent_colors.count - 2 {
         c := recent_colors[i + 1];
         recent_colors[i] = c;
@@ -200,22 +235,12 @@ remove_recent_color :: (index_to_remove: int) {
     recent_colors[recent_colors.count - 1] = .{};
 }
 
-maybe_add_recent_color :: (rgba: Vector4) {
-    using session;
-    if rgba == .{} || rgba == recent_colors[0]  return;
+new_recent_color :: () {
+    using session.color_picker;
 
-    end_index := recent_colors.count - 1;
-
-    for i : 1 .. recent_colors.count - 2 {
-        c := recent_colors[i];
-        if c == rgba || c == .{} {
-            end_index = i;
-            break;
-        }
-    }
-
-    for < i : end_index .. 1 {
+    for < i : recent_colors.count - 1 .. 1 {
         recent_colors[i] = recent_colors[i - 1];
     }
-    recent_colors[0] = rgba;
+    recent_colors[0] = .{};
 }
+

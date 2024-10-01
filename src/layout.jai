@@ -201,6 +201,16 @@ align_to_grid :: (rect: Rect) -> Rect {
     return r;
 }
 
+keep_inside_if_possible :: (target_rect: Rect, containing_rect: Rect) -> Rect {
+    r := target_rect;
+    // This order of operations favors the top-left corner being visible.
+    if r.x + r.w > containing_rect.x + containing_rect.w then r.x = containing_rect.x + containing_rect.w - r.w;
+    if r.x < containing_rect.x then r.x = containing_rect.x;
+    if r.y < containing_rect.y then r.y = containing_rect.y;
+    if r.y + r.h > containing_rect.y + containing_rect.h then r.y = containing_rect.y + containing_rect.h - r.h;
+    return r;
+}
+
 Rect :: struct {
     x, y : float;
     w, h : float;

@@ -11,6 +11,8 @@ Pointer_Image :: enum u16 {
     DRAGGING_NE_SW        :: 7;
 
     TEXT_SELECT           :: 8;
+
+    CROSS                 :: 9;
 }
 
 #if OS == .WINDOWS {
@@ -45,6 +47,7 @@ Pointer_Image :: enum u16 {
         pointers[DRAGGING_NW_SE]        = w.LoadCursorW(null, w.IDC_SIZENWSE);
         pointers[DRAGGING_NE_SW]        = w.LoadCursorW(null, w.IDC_SIZENESW);
         pointers[TEXT_SELECT]           = w.LoadCursorW(null, w.IDC_IBEAM);
+        pointers[CROSS]                 = w.LoadCursorW(null, w.IDC_CROSS);
     }
 
     pointers: [NUM_POINTERS] Windows.HCURSOR;
@@ -76,6 +79,7 @@ Pointer_Image :: enum u16 {
         pointers[DRAGGING_NW_SE]        = NSCursor.openHandCursor();
         pointers[DRAGGING_NE_SW]        = NSCursor.openHandCursor();
         pointers[TEXT_SELECT]           = NSCursor.IBeamCursor();
+        pointers[CROSS]                 = NSCursor.crosshairCursor();
     }
 
     pointers: [NUM_POINTERS] *NSCursor;
@@ -116,6 +120,7 @@ pointer_end_frame :: () {
                 case .DRAGGING_NW_SE; LD.set_cursor_from_theme(window, "nw-resize");
                 case .DRAGGING_NE_SW; LD.set_cursor_from_theme(window, "se-resize");
                 case .TEXT_SELECT; LD.set_cursor_from_theme(window, "text");
+                case .CROSS; LD.set_cursor_from_theme(window, "crosshair");
             }
         }
     }

@@ -460,9 +460,21 @@ void main () {
         color.rgb = vec3(float(c) * 0.25);
         break;
 
-        case 0x32: // palette entry
+        case 0x32: // palette cell
         color.rgb = iterated_color.rgb;
         if (uv.x <= uv.y) output_alpha = 1.0;
+        break;
+
+        case 0x33: // solid (so we don't need to switch shader if we want to draw a simple rectangle)
+        color.rgb = iterated_color.rgb;
+        break;
+
+        case 0x34: // box (so we don't need to switch shader if we want to draw a simple rectangle)
+        float x = gl_FragCoord.x - rect.x;
+        float y = gl_FragCoord.y - rect.y;
+        if (x >= value && x < rect.z - value && y >= value && y < rect.w - value)
+            discard;
+        color.rgb = iterated_color.rgb;
         break;
     }
 

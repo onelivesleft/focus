@@ -1517,8 +1517,18 @@ Coords :: struct {
     line, col: s32;
 }
 
+max :: (a: Coords, b: Coords) -> Coords {
+    if a.line > b.line  return a;
+    if a.line < b.line  return b;
+    return ifx a.col > b.col then a else b;
+}
+
 Offset_Range :: struct {
     start, end: s32;  // we won't open large files anyway
+}
+
+operator == :: (a: Offset_Range, b: Offset_Range) -> bool {
+    return a.start == b.start && a.end == b.end;
 }
 
 Buffer_Region :: struct {

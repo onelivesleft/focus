@@ -412,6 +412,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_line_wrap",
     "toggle_line_numbers",
     "copy_current_line_info",
+    "pick_color_at_cursor",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[
