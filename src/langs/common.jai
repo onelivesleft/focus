@@ -1,7 +1,7 @@
 get_tokenizer :: (using buffer: Buffer, start_offset := -1, count := -1) -> Tokenizer {
     tokenizer: Tokenizer;
 
-    tokenizer.buf   = cast(string) bytes;
+    tokenizer.buf   = to_string(bytes);
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
@@ -247,6 +247,7 @@ get_lang_from_name :: (lang_name: string) -> Buffer.Lang, found: bool {
         case "cpp";          return .Cpp,        true;
         case "csharp";       return .CSharp,     true;
         case "css";          return .Css,        true;
+        case "d";            return .D,          true;
         case "glsl";         return .Glsl,       true;
         case "hlsl";         return .Hlsl,       true;
         case "go";           return .Golang,     true;
@@ -270,6 +271,7 @@ get_lang_from_name :: (lang_name: string) -> Buffer.Lang, found: bool {
         case "plain_text";   return .Plain_Text, true;
         case "md";           return .Markdown,   true;
         case "markdown";     return .Markdown,   true;
+        case "batch";        return .Batch,      true;
 
         // case "focus_config"; return .Focus_Config, true;  // disabled for now
         // case "focus_theme";  return .Focus_Theme,  true;

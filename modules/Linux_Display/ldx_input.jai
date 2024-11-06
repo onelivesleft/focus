@@ -64,6 +64,22 @@ x11_translate_key_code :: (xkey: X11.KeySym) -> Input.Key_Code {
         return F15;
     if key == XK_F16
         return F16;
+    if key == XK_F17
+        return F17;
+    if key == XK_F18
+        return F18;
+    if key == XK_F19
+        return F19;
+    if key == XK_F20
+        return F20;
+    if key == XK_F21
+        return F21;
+    if key == XK_F22
+        return F22;
+    if key == XK_F23
+        return F23;
+    if key == XK_F24
+        return F24;
     if key == XK_Home || key == XK_KP_Home
         return HOME;
     if key == XK_End || key == XK_KP_End
@@ -369,6 +385,9 @@ x11_handle_event :: (x11_display: *X11_Display, xev: *X11.XEvent) -> expect_more
                     array_add(*x11_display.base.events_this_frame, event);
                     x11_display.base.mouse_wheel_delta.horizontal += event.wheel_delta;
                     return;
+
+                case 8; event.key_code = .MOUSE_BUTTON_X1;
+                case 9; event.key_code = .MOUSE_BUTTON_X2;
             }
 
             event.type = .KEYBOARD;

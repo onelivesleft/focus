@@ -1,22 +1,26 @@
-tokenize_js :: (using buffer: *Buffer, start_offset := -1, count := -1) -> [] Buffer_Region {
+tokenize_d :: (using buffer: *Buffer, start_offset := -1, count := -1) -> [] Buffer_Region {
     tokenizer := get_tokenizer(buffer, start_offset, count);
 
-    last_token: Token;  // to retroactively highlight functions
+    // Allocate temporary space for tracking one previous token
+    tokenizer.prev_tokens[0] = New(Token,, temp);
 
     while true {
         token := get_next_token(*tokenizer);
         if token.type == .eof break;
 
         using tokenizer;
+
+        prev_token := cast(*Token) prev_tokens[0];
+
         // Maybe retroactively highlight a function
         if token.type == .punctuation && token.punctuation == .l_paren {
             // Handle "func("
-            if last_token.type == .identifier {
-                memset(tokens.data + last_token.start, xx Token_Type.function, last_token.len);
+            if prev_token.type == .identifier {
+                memset(tokens.data + prev_token.start, xx Token_Type.function, prev_token.len);
             }
         }
 
-        last_token = token;
+        prev_token.* = token;
 
         memset(tokens.data + token.start, xx token.type, token.len);
     }
@@ -24,7 +28,7 @@ tokenize_js :: (using buffer: *Buffer, start_offset := -1, count := -1) -> [] Bu
     return .[];
 }
 
-get_next_js_token :: get_next_token;  // export for indent tokenization
+get_next_d_token :: get_next_token;  // export for indent tokenization
 
 #scope_file
 
@@ -38,33 +42,35 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
 
     start_t = t;
 
-    // Look at the first char as if it's ASCII (if it isn't, this is just a text line)
-    char := << t;
+    // Look at the first char as if it's ASCII
+    char := t.*;
 
     if is_alpha(char) || char == #char "_" {
+        // Parse identifiers which start with an ASCII letter or _
+        // We'll look at identifiers which start with UTF8 letters later when we've already checked for more probable possibilities
         parse_identifier(tokenizer, *token);
     } else if is_digit(char) {
-        parse_number(tokenizer, *token);
+        parse_number_c_like(tokenizer, *token);
     } else if char == {
-        case #char ":";  parse_colon                       (tokenizer, *token);
-        case #char "?";  parse_question                    (tokenizer, *token);
-        case #char "=";  parse_equal                       (tokenizer, *token);
-        case #char "-";  parse_minus                       (tokenizer, *token);
-        case #char "+";  parse_plus                        (tokenizer, *token);
-        case #char "*";  parse_asterisk                    (tokenizer, *token);
-        case #char "<";  parse_less_than                   (tokenizer, *token);
-        case #char ">";  parse_greater_than                (tokenizer, *token);
-        case #char "!";  parse_bang                        (tokenizer, *token);
-        case #char "\""; parse_double_quote_string_literal (tokenizer, *token);
-        case #char "'";  parse_single_quote_string_literal (tokenizer, *token);
-        case #char "`";  parse_template_string_literal     (tokenizer, *token);
-        case #char "/";  parse_slash_or_comment            (tokenizer, *token);
-        case #char "&";  parse_ampersand                   (tokenizer, *token);
-        case #char "|";  parse_pipe                        (tokenizer, *token);
-        case #char "%";  parse_percent                     (tokenizer, *token);
-        case #char "^";  parse_caret                       (tokenizer, *token);
-        case #char "#";  parse_private_identifier          (tokenizer, *token);
-        case #char "@";  parse_decorator                   (tokenizer, *token);
+        case #char ":";  parse_colon                      (tokenizer, *token);
+        case #char "?";  parse_question                   (tokenizer, *token);
+        case #char "=";  parse_equal                      (tokenizer, *token);
+        case #char "-";  parse_minus                      (tokenizer, *token);
+        case #char "+";  parse_plus                       (tokenizer, *token);
+        case #char "*";  parse_asterisk                   (tokenizer, *token);
+        case #char "<";  parse_less_than                  (tokenizer, *token);
+        case #char ">";  parse_greater_than               (tokenizer, *token);
+        case #char "!";  parse_bang                       (tokenizer, *token);
+        case #char "\""; parse_string_literal             (tokenizer, *token);
+        case #char "`";  parse_backtick_string_literal    (tokenizer, *token);
+        case #char "#";  parse_shebang                    (tokenizer, *token);
+        case #char "'";  parse_char_literal               (tokenizer, *token);
+        case #char "/";  parse_slash_or_comment           (tokenizer, *token);
+        case #char "&";  parse_ampersand                  (tokenizer, *token);
+        case #char "|";  parse_pipe                       (tokenizer, *token);
+        case #char "%";  parse_percent                    (tokenizer, *token);
+        case #char "^";  parse_caret                      (tokenizer, *token);
+        case #char "~";  parse_tilde                      (tokenizer, *token);
 
         case #char ";";  token.type = .punctuation; token.punctuation = .semicolon; t += 1;
         case #char "\\"; token.type = .punctuation; token.punctuation = .backslash; t += 1;
@@ -76,10 +82,17 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         case #char ")";  token.type = .punctuation; token.punctuation = .r_paren;   t += 1;
         case #char "[";  token.type = .punctuation; token.punctuation = .l_bracket; t += 1;
         case #char "]";  token.type = .punctuation; token.punctuation = .r_bracket; t += 1;
+        case #char "@";  token.type = .punctuation; token.punctuation = .at;        t += 1;
 
-        case #char "~";  token.type = .operation;   token.operation   = .tilde;     t += 1;
 
-        case;            token.type = .invalid; t += 1;
+        case;
+            // It could still be an identifier which starts with a UTF8 character
+            utf32 := character_utf8_to_utf32(t, max_t - t);
+            if is_utf32_letter(utf32) {
+                parse_identifier(tokenizer, *token);
+            } else {
+                token.type = .invalid; t += 1;  // give up
+            }
     }
 
     if t >= max_t then t = max_t;
@@ -97,51 +110,6 @@ parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     if identifier_str.count <= MAX_KEYWORD_LENGTH {
         kw_token, ok := table_find(*KEYWORD_MAP, identifier_str);
         if ok { token.type = kw_token.type; token.keyword = kw_token.keyword; return; }
-    }
-}
-
-parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .number;
-
-    start_char := t.*;
-
-    t += 1;
-    if t >= max_t return;
-
-    if is_digit(t.*) || t.* == #char "." {
-        // Decimal
-        seen_decimal_point := false;
-        while t < max_t && (is_digit(t.*) || t.* == #char ".") {
-            if t.* == #char "." {
-                if seen_decimal_point break;
-                seen_decimal_point = true;
-            }
-            t += 1;
-        }
-        if t >= max_t return;
-
-        // Exponent
-        if t.* == #char "e" || t.* == #char "E" {
-            t += 1;
-            if t >= max_t return;
-
-            if t.* == #char "+" || t.* == #char "-" {
-              t += 1;
-              if t >= max_t return;
-            }
-
-            while t < max_t && is_digit(t.*) {
-                t += 1;
-            }
-            if t >= max_t return;
-        }
-    } else if start_char == #char "0" {
-        if t.* == #char "x" || t.* == #char "X" {
-            // Hex
-            t += 1;
-            while t < max_t && (is_hex(t.*)) t += 1;
-
-        }
     }
 }
 
@@ -164,7 +132,7 @@ parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";  token.operation = .equal_equal; t += 1;
     }
 }
@@ -176,7 +144,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .minus_equal;
             t += 1;
@@ -187,7 +155,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
             token.operation = .minus_minus;
             t += 1;
         case;
-            if is_digit(<< t) parse_number(tokenizer, token);
+            if is_digit(t.*) parse_number_c_like(tokenizer, token);
     }
 }
 
@@ -198,7 +166,7 @@ parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .plus_equal;
             t += 1;
@@ -215,7 +183,7 @@ parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .asterisk_equal;
             t += 1;
@@ -229,12 +197,9 @@ parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .less_than_equal;
-            t += 1;
-        case #char "<";
-            token.operation = .double_less_than;
             t += 1;
     }
 }
@@ -246,7 +211,7 @@ parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .greater_than_equal;
             t += 1;
@@ -260,20 +225,20 @@ parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .bang_equal;
             t += 1;
     }
 }
 
-parse_double_quote_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .string_literal;
 
     escape_seen := false;
 
     t += 1;
-    while t < max_t && << t != #char "\n" {
+    while t < max_t {
         if <<t == #char "\"" && !escape_seen break;
         escape_seen = !escape_seen && <<t == #char "\\";
         t += 1;
@@ -283,23 +248,7 @@ parse_double_quote_string_literal :: (using tokenizer: *Tokenizer, token: *Token
     t += 1;
 }
 
-parse_single_quote_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .string_literal;
-
-    escape_seen := false;
-
-    t += 1;
-    while t < max_t && << t != #char "\n" {
-        if <<t == #char "'" && !escape_seen break;
-        escape_seen = !escape_seen && <<t == #char "\\";
-        t += 1;
-    }
-    if t >= max_t return;
-
-    t += 1;
-}
-
-parse_template_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_backtick_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .string_literal;
 
     escape_seen := false;
@@ -315,6 +264,53 @@ parse_template_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
 }
 
+parse_shebang :: (using tokenizer: *Tokenizer, token: *Token) {
+    token.type = .string_literal;
+
+    if token.start != 0 {
+        // shebangs only occur at start of input
+        token.type = .invalid;
+    }
+
+    t += 1;
+    if t.* != #char "!" {
+      // shebang expects a bang
+      token.type = .invalid;
+    }
+
+    while t < max_t && t.* != #char "\n"  t += 1;
+    if t >= max_t return;
+
+    t += 1;
+}
+
+parse_char_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+    token.type = .char_literal;
+
+    escape_seen := false;
+
+    t += 1; //
+    if t >= max_t || t.* == #char "\n" return;
+
+    if t.* == #char "\\" {
+      escape_seen = true;
+      t += 1;
+      if t >= max_t || t.* == #char "\n" return;
+    }
+
+    if t.* == #char "'" && !escape_seen {
+      // not escaped single quote without a character
+      token.type = .invalid;
+      t += 1; // the invalid '
+      return;
+    }
+
+    t += 1; // the char
+    if t >= max_t || t.* == #char "\n" return;
+
+    t += 1; // ending '
+}
+
 parse_slash_or_comment :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .slash;
@@ -322,21 +318,39 @@ parse_slash_or_comment :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .slash_equal;
             t += 1;
         case #char "/";
             token.type = .comment;
             t += 1;
-            while t < max_t && << t != #char "\n" t += 1;
+            while t < max_t && t.* != #char "\n" t += 1;
         case #char "*";
             token.type = .multiline_comment;
             t += 1;
             while t + 1 < max_t {
-                if << t == #char "*" && << (t + 1) == #char "/" {
+                if t.* == #char "*" && << (t + 1) == #char "/" {
                   t += 2;
                   break;
+                }
+                t += 1;
+            }
+        case #char "+";
+            token.type = .multiline_comment;
+            t += 1;
+            num_open_comments := 0;
+            while t + 1 < max_t {
+                if << t == #char "+" && << (t + 1) == #char "/" {
+                    if num_open_comments == 0 {
+                        t += 2;
+                        break;
+                    } else {
+                        num_open_comments -= 1;
+                    }
+                } else if << t == #char "/" && << (t + 1) == #char "+" {
+                    num_open_comments += 1;
+                    t += 1;
                 }
                 t += 1;
             }
@@ -350,7 +364,7 @@ parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .ampersand_equal;
             t += 1;
@@ -367,7 +381,7 @@ parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .pipe_equal;
             t += 1;
@@ -384,7 +398,7 @@ parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .percent_equal;
             t += 1;
@@ -398,29 +412,25 @@ parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1;
     if t >= max_t return;
 
-    if << t == {
+    if t.* == {
         case #char "=";
             token.operation = .caret_equal;
             t += 1;
     }
 }
 
-parse_private_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .identifier;
+parse_tilde :: (using tokenizer: *Tokenizer, token: *Token) {
+    token.type = .operation;
+    token.operation = .tilde;
 
     t += 1;
-    if t < max_t && !is_alpha(<<t) && <<t != #char "_" return;
+    if t >= max_t return;
 
-    identifier_str := read_utf8_identifier_string(tokenizer);
-}
-
-parse_decorator :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .identifier;
-
-    t += 1;
-    if t < max_t && !is_alpha(<<t) && <<t != #char "_" return;
-
-    identifier_str := read_utf8_identifier_string(tokenizer);
+    if t.* == {
+        case #char "=";
+            token.operation = .tilde_equal;
+            t += 1;
+    }
 }
 
 Token :: struct {
@@ -428,36 +438,49 @@ Token :: struct {
     type: Token_Type;
 
     union {
-        keyword:                Keyword;
-        punctuation:            Punctuation;
-        operation:              Operation;
+        keyword:        Keyword;
+        punctuation:    Punctuation;
+        operation:      Operation;
     }
 }
 
 PUNCTUATION :: string.[
-    "semicolon", "backslash", "l_paren", "r_paren", "l_brace", "r_brace", "l_bracket", "r_bracket", "period", "comma",
+    "semicolon", "backslash", "l_paren", "r_paren", "l_brace", "r_brace", "l_bracket", "r_bracket", "period", "comma", "at",
 ];
 
 OPERATIONS :: string.[
     "arrow", "bang", "backtick", "pipe", "double_pipe", "pipe_equal", "equal", "equal_equal", "bang_equal", "percent",
     "percent_equal", "less_than", "double_less_than", "less_than_equal", "greater_than", "greater_than_equal", "minus",
     "minus_equal", "minus_minus", "asterisk", "asterisk_equal", "colon", "slash", "plus", "plus_equal", "plus_plus",
-    "slash_equal", "ampersand", "double_ampersand", "ampersand_equal", "tilde", "question", "unknown", "caret", "caret_equal",
+    "slash_equal", "ampersand", "double_ampersand", "ampersand_equal", "tilde", "tilde_equal", "question", "unknown", "caret", "caret_equal",
 ];
 
 KEYWORDS :: string.[
-    "as", "async", "abstract", "arguments", "await", "break", "case", "catch", "class", "const", "continue", "debugger", "default",
-    "delete", "do", "else", "enum", "eval", "export", "extends", "finally", "for", "from", "function", "if", "import", "in",
-    "instanceof", "interface", "keyof", "let", "new", "of", "private", "protected", "public", "return", "static", "super", "switch",
-    "throw", "try", "type", "typeof", "var", "while", "with", "yield",
+    "alias", "align", "asm", "assert", "auto", "break", "case", "cast", "catch", "class",
+    "continue", "debug", "default", "delegate", "do", "else", "enum",
+    "finally", "for", "foreach", "foreach_reverse", "function", "goto", "if", "import",
+    "in", "interface", "invariant", "is", "mixin", "module", "new", "out",
+    "override", "pragma", "return", "struct", "super", "switch", "template",
+    "this", "throw", "try", "typeid", "typeof", "union", "unittest", "version", "while", "with",
+    "__traits", "__vector", "__parameters",
 ];
 
 TYPE_KEYWORDS :: string.[
-    "any", "bigint", "boolean", "number", "object", "string", "unknown", "void",
+    // built-in types
+    "bool", "byte", "char", "dchar", "double", "float", "int", "long", "real", "short", "ubyte", "uint", "ulong",
+    "ushort", "void", "wchar",
+
+    // some object.d types
+    "dstring", "noreturn", "ptrdiff_t", "size_t", "string", "wstring",
 ];
 
 VALUE_KEYWORDS :: string.[
-    "false", "this", "true", "undefined", "null",
+    "false", "null", "true", "__FILE__", "__FILE_FULL_PATH__", "__MODULE__", "__LINE__", "__FUNCTION__", "__PRETTY_FUNCTION__",
+];
+
+MODIFIER_KEYWORDS :: string.[
+    "abstract", "const", "deprecated", "export", "extern", "final", "immutable", "inout", "lazy", "nothrow",
+    "package", "private", "protected", "public", "pure", "ref", "scope", "shared", "static", "synchronized", "__gshared",
 ];
 
 #insert -> string {
@@ -472,9 +495,9 @@ VALUE_KEYWORDS :: string.[
         print_to_builder(b, "}\n");
     }
 
-    define_enum(*b, "Punctuation",        "",           .[PUNCTUATION]);
-    define_enum(*b, "Operation",          "",           .[OPERATIONS]);
-    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, VALUE_KEYWORDS]);
+    define_enum(*b, "Punctuation",  "",    .[PUNCTUATION]);
+    define_enum(*b, "Operation",    "",    .[OPERATIONS]);
+    define_enum(*b, "Keyword",      "kw_", .[KEYWORDS, TYPE_KEYWORDS, VALUE_KEYWORDS, MODIFIER_KEYWORDS]);
 
     return builder_to_string(*b);
 }
@@ -491,9 +514,10 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
 
     #insert -> string {
         b: String_Builder;
-        for KEYWORDS        append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .keyword, keyword = .kw_%1 });\n", it));
-        for TYPE_KEYWORDS   append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .type,    keyword = .kw_%1 });\n", it));
-        for VALUE_KEYWORDS  append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .value,   keyword = .kw_%1 });\n", it));
+        for KEYWORDS           append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .keyword,  keyword = .kw_%1 });\n", it));
+        for TYPE_KEYWORDS      append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .type,     keyword = .kw_%1 });\n", it));
+        for VALUE_KEYWORDS     append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .value,    keyword = .kw_%1 });\n", it));
+        for MODIFIER_KEYWORDS  append(*b, sprint("table_add(*table, \"%1\", Keyword_Token.{ type = .modifier, keyword = .kw_%1 });\n", it));
         return builder_to_string(*b);
     }
 
@@ -502,9 +526,9 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
 
 MAX_KEYWORD_LENGTH :: #run -> s32 {
     result: s64;
-    for KEYWORDS       { if it.count > result then result = it.count; }
-    for TYPE_KEYWORDS  { if it.count > result then result = it.count; }
-    for VALUE_KEYWORDS { if it.count > result then result = it.count; }
+    for KEYWORDS          { if it.count > result then result = it.count; }
+    for TYPE_KEYWORDS     { if it.count > result then result = it.count; }
+    for VALUE_KEYWORDS    { if it.count > result then result = it.count; }
+    for MODIFIER_KEYWORDS { if it.count > result then result = it.count; }
     return xx result;
 }
-

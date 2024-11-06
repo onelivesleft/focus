@@ -30,6 +30,10 @@ get_key_code :: (wParam: WPARAM, extended := false) -> Key_Code {
         return MOUSE_BUTTON_MIDDLE;
     if wParam == VK_RBUTTON
         return MOUSE_BUTTON_RIGHT;
+    if wParam == VK_XBUTTON1
+        return MOUSE_BUTTON_X1;
+    if wParam == VK_XBUTTON2
+        return MOUSE_BUTTON_X2;
 
     if wParam == VK_SPACE   return xx 32;
 
@@ -58,6 +62,8 @@ get_key_code :: (wParam: WPARAM, extended := false) -> Key_Code {
         return SHIFT;
     if wParam == VK_CONTROL
         return CTRL;
+    if wParam == VK_APPS
+        return CMD;
     if wParam == VK_BACK
         return BACKSPACE;
     if wParam == VK_DELETE
@@ -91,7 +97,7 @@ get_key_code :: (wParam: WPARAM, extended := false) -> Key_Code {
     if wParam == VK_OEM_PERIOD  return xx #char ".";
     if wParam == VK_OEM_COMMA   return xx #char ",";
 
-    if (wParam >= VK_F1) && (wParam <= VK_F16) {
+    if (wParam >= VK_F1) && (wParam <= VK_F24) {
         delta := wParam - VK_F1;
         return xx(F1 + xx delta);
     }
@@ -300,6 +306,10 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             maybe_send_vkey_event(VK_MBUTTON, message == WM_MBUTTONDOWN);
             if message == WM_MBUTTONDOWN SetCapture(hwnd); else ReleaseCapture();
 
+         case WM_XBUTTONDOWN; #through;
+         case WM_XBUTTONUP;
+            maybe_send_vkey_event(cast(u64) ifx wParam < 1 << 17 then VK_XBUTTON1 else VK_XBUTTON2, message == WM_XBUTTONDOWN);
+            if message == WM_XBUTTONDOWN SetCapture(hwnd); else ReleaseCapture();
 
           case WM_MOUSEMOVE;
             // We don't have mouse move events yet, but we'll record the delta.
@@ -458,6 +468,14 @@ update_window_events :: () {
         }
     }
 
+    if cmd_state || (input_button_states[Key_Code.CMD] & .DOWN) { // Checking both just to be paranoid about desync between them.
+        state := GetAsyncKeyState(VK_APPS);  // GetAsyncKeyState actually checks the key, not to be confused with GetKeyState, which does nothing.
+        if !(state & 0x8000) {
+            cmd_state = false;
+            input_button_states[Key_Code.CMD] |= .END;
+        }
+    }
+
     while true {
         msg: MSG;
 
@@ -506,6 +524,7 @@ update_window_events :: () {
 shift_state := false;
 ctrl_state  := false;
 alt_state   := false;
+cmd_state   := false;
 
 
 // Nice tutorial about using raw input for games:
@@ -750,15 +769,17 @@ send_key_event :: (key_code: Key_Code, key_down: bool, repeat := false) {
     if key_code == .ALT     alt_state   = key_down;
     if key_code == .SHIFT   shift_state = key_down;
     if key_code == .CTRL    ctrl_state  = key_down;  // @Cleanup: Look at what I do in the Braid code because this is bananas.
+    if key_code == .CMD     cmd_state   = key_down;
 
     event: Event;
     event.type = .KEYBOARD;
     event.key_pressed = xx key_down;
     event.key_code = key_code;
     event.packed = 0;
-    event.shift_pressed = shift_state;
-    event.ctrl_pressed  = ctrl_state;
-    event.alt_pressed   = alt_state;
+    event.shift_pressed    = shift_state;
+    event.ctrl_pressed     = ctrl_state;
+    event.alt_pressed      = alt_state;
+    event.cmd_meta_pressed = cmd_state;
     event.repeat = repeat;
 
     utf32 := cast(u32) key_code;

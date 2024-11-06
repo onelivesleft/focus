@@ -54,7 +54,7 @@ refresh_dialog_entries :: (using dialog: *Generic_Choice_Dialog) {
     scroll_y = 0;
     selected = 0;
 
-    filter := construct_fuzzy_filter(cast(string) input.text);
+    filter := construct_fuzzy_filter(to_string(input.text));
 
     dialog.refresh_entries(filter);
 
@@ -87,10 +87,10 @@ move_dialog_cursor :: (using dialog: *Generic_Choice_Dialog, delta: s64, wrap :=
 }
 
 maybe_handle_dialog_input_event :: (dialog: *Generic_Choice_Dialog, using input: *Text_Input, event: Input.Event) -> handled: bool {
-    input_text := copy_temporary_string(cast(string) text);
+    input_text := copy_temporary_string(to_string(text));
     handled := text_input_handle_event(input, event);
     if handled {
-        if input_text != cast(string) input.text then refresh_dialog_entries(dialog);
+        if input_text != to_string(input.text) then refresh_dialog_entries(dialog);
         return true;
     }
     return false;
@@ -106,7 +106,7 @@ Generic_Choice_Dialog :: struct(Entry_Details: Type) {
     selected_by_mouse: s64 = -1;  // to remember which entry the left mouse button went down on
 
     scroll_y: s32;
-    scroll_anim := #run Tween_Animation(s32).{ speed = xx 0.1, func = .lerp };
+    scroll_anim := #run Tween_Animation(s32).{ speed = 0.1, func = .lerp };
     per_page: s64 = 10;
     scroll_to_cursor: Scroll_Mode = .no;
 

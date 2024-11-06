@@ -90,7 +90,17 @@ main :: () {
                 } else if starts_with(path, "-") {
                     add_user_error("Invalid command line parameter '%'.", path);
                 } else {
-                    add_user_error("Invalid command line parameter '%'.\nAttempted to load it as a file or a directory, but it doesn't exist.", path);
+                    opened := false;
+                    found, file, line_str := split_from_right(path, ":",, temp);
+                    if found {
+                        line, success := parse_int(*line_str);
+                        if success && line >= 0 && file_exists(file) && !is_directory(file) {
+                            editors_open_file(file, line = line);
+                            opened = true;
+                        }
+                    }
+
+                    if !opened add_user_error("Invalid command line parameter '%'.\nAttempted to load it as a file or a directory, but it doesn't exist.", path);
                 }
             }
         }
@@ -182,9 +192,10 @@ main :: () {
         Input.update_window_events();
 
         current_time := current_time_monotonic();
-        frame_dt   = cast(Time) min(to_float64_seconds(current_time - frame_time), MAX_FRAME_DT);
+        frame_dt   = min(to_float64_seconds(current_time - frame_time), MAX_FRAME_DT);
         frame_time = current_time;
         frame_index += 1;
+        frame_time64 = to_float64_seconds(frame_time);
 
         old_line_height = line_height;
         for Input.get_window_resizes() {
@@ -211,7 +222,6 @@ main :: () {
 
         redraw_requested = false;
         window_resized   = false;
-        dont_scroll_this_frame = false;
         window_has_focus = Input.input_application_has_focus;  // so that we always redraw when the window first loses focus
 
         workspace_update();
@@ -256,20 +266,9 @@ main :: () {
                         if event.key_pressed then last_press = frame_time;
                     }
 
-                case .MOUSE_V_WHEEL;
-                    #if OS != .MACOS {
-                        if ctrl_or_cmd_pressed() {
-                            if event.wheel_delta < 0  {
-                                decrease_font_size();
-                                dont_scroll_this_frame = true;
-                            } else if event.wheel_delta > 0 {
-                                increase_font_size();
-                                dont_scroll_this_frame = true;
-                            }
-                        }
-                    }
                 case .DRAG_AND_DROP_FILES;
                     editors_handle_file_drop(event.files);
+
                 case .TEXT_INPUT;
                     if num_text_input_events_to_ignore {
                         num_text_input_events_to_ignore -= 1;
@@ -290,7 +289,7 @@ main :: () {
                 case .delete_file_dialog;           handled = dialog_handle_event(*delete_file_dialog, event);
                 case .go_to_line_dialog;            handled = go_to_line_dialog_handle_event(event);
                 case .switch_to_project_dialog;     handled = switch_to_project_dialog_handle_event(event);
-                case .unsaved_buffers_dialog;       handled = unsaved_buffers_dialog_handle_event(event);
+                case .unsaved_buffers_dialog;       handled = dialog_handle_event(*unsaved_buffers_dialog, event);
                 case .confirm_overwrite_dialog;     handled = dialog_handle_event(*confirm_overwrite_dialog, event);
                 case .commands_dialog;              handled = dialog_handle_event(*commands_dialog, event);
                 case .kill_running_command_dialog;  handled = dialog_handle_event(*kill_running_command_dialog, event);
@@ -346,7 +345,7 @@ main :: () {
 
         if should_quit break;
 
-        if cast(Time) to_float64_seconds(current_time_monotonic() - frame_time) <= QUICK_FRAME_DT {
+        if to_float64_seconds(current_time_monotonic() - frame_time) <= QUICK_FRAME_DT {
             // It should be ok to sleep a bit after a quick frame to avoid pegging the core.
             sleep_milliseconds(2);
         }
@@ -435,8 +434,7 @@ maybe_execute_a_build_command :: (action: Action_Build) -> handled: bool {
         if editor && buffer.has_file save_buffer(buffer, editor.buffer_id);
     }
 
-    command := ifx command_id > 0 then *config.build.commands[command_id-1] else *config.build.defaults;
-    execute_build_command(command);
+    defer_action_build_command(command_id);
 
     return true;
 }
@@ -444,56 +442,61 @@ maybe_execute_a_build_command :: (action: Action_Build) -> handled: bool {
 init_fonts_and_dependent_things :: () {
     push_allocator(focus_allocator);  // we sometimes call this from within a temp allocator
 
-    font_size = clamp(font_size, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    delta := font_size - DEFAULT_FONT_SIZE;
-    font_ui_size            = clamp(DEFAULT_FONT_UI_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_ui_big_size        = clamp(DEFAULT_FONT_UI_BIG_SIZE        + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_ui_medium_size     = clamp(DEFAULT_FONT_UI_MEDIUM_SIZE     + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_ui_small_size      = clamp(DEFAULT_FONT_UI_SMALL_SIZE      + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_ui_very_small_size = clamp(DEFAULT_FONT_UI_VERY_SMALL_SIZE + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_icons_size         = clamp(DEFAULT_FONT_ICONS_SIZE         + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_icons_small_size   = clamp(DEFAULT_FONT_ICONS_SMALL_SIZE   + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
-    font_icons_tiny_size    = clamp(DEFAULT_FONT_ICONS_TINY_SIZE    + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    Simp.set_anti_aliasing(config.style.font_anti_aliasing);
+    Simp.set_hinting(config.style.font_hinting);
 
-    font = Simp.get_font_at_size(main_font_name, main_font_data, cast(int) (font_size * dpi_scale));
-    assert(font != null, "Couldn't init main text font\n");
+    font_main_size = clamp(font_main_size, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_ui_size   = clamp(font_ui_size  , MIN_FONT_SIZE, MAX_FONT_SIZE);
 
-    font_ui = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_size * dpi_scale));
+    delta := font_ui_size - DEFAULT_FONT_UI_SIZE;
+
+    font_ui_big_size           = clamp(DEFAULT_FONT_UI_BIG_SIZE           + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_ui_medium_size        = clamp(DEFAULT_FONT_UI_MEDIUM_SIZE        + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_ui_small_size         = clamp(DEFAULT_FONT_UI_SMALL_SIZE         + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_ui_very_small_size    = clamp(DEFAULT_FONT_UI_VERY_SMALL_SIZE    + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_icons_size            = clamp(DEFAULT_FONT_ICONS_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_icons_small_size      = clamp(DEFAULT_FONT_ICONS_SMALL_SIZE      + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_icons_very_small_size = clamp(DEFAULT_FONT_ICONS_VERY_SMALL_SIZE + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
+
+    font_main = Simp.get_font_at_size(loaded_fonts.main.name, loaded_fonts.main.data, cast(int) (font_main_size * dpi_scale));
+    assert(font_main != null, "Couldn't init main text font\n");
+
+    font_ui = Simp.get_font_at_size(loaded_fonts.ui.name, loaded_fonts.ui.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui != null, "Couldn't init main ui font\n");
     font_ui_line_height = cast(float) font_ui.default_line_spacing;
 
-    font_ui_big = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_big_size * dpi_scale));
+    font_ui_big = Simp.get_font_at_size(loaded_fonts.ui.name, loaded_fonts.ui.data, cast(int) (font_ui_big_size * dpi_scale));
     assert(font_ui_big != null, "Couldn't init big ui font\n");
     font_ui_big_line_height = cast(float) font_ui_big.default_line_spacing;
 
-    font_ui_medium = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_medium_size * dpi_scale));
+    font_ui_medium = Simp.get_font_at_size(loaded_fonts.ui.name, loaded_fonts.ui.data, cast(int) (font_ui_medium_size * dpi_scale));
     assert(font_ui_medium != null, "Couldn't init medium ui font\n");
     font_ui_medium_line_height = cast(float) font_ui_medium.default_line_spacing;
 
-    font_ui_bold = Simp.get_font_at_size(FONT_UI_BOLD.name, FONT_UI_BOLD.data, cast(int) (font_ui_size * dpi_scale));
+    font_ui_bold = Simp.get_font_at_size(loaded_fonts.ui_bold.name, loaded_fonts.ui_bold.data, cast(int) (font_ui_size * dpi_scale));
     assert(font_ui_bold != null, "Couldn't init bold ui font\n");
 
-    font_ui_small = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_small_size * dpi_scale));
+    font_ui_small = Simp.get_font_at_size(loaded_fonts.ui.name, loaded_fonts.ui.data, cast(int) (font_ui_small_size * dpi_scale));
     assert(font_ui_small != null, "Couldn't init small ui font\n");
 
-    font_ui_very_small = Simp.get_font_at_size(FONT_UI.name, FONT_UI.data, cast(int) (font_ui_very_small_size * dpi_scale));
-    assert(font_ui_very_small != null, "Couldn't init small ui font\n");
+    font_ui_very_small = Simp.get_font_at_size(loaded_fonts.ui.name, loaded_fonts.ui.data, cast(int) (font_ui_very_small_size * dpi_scale));
+    assert(font_ui_very_small != null, "Couldn't init very small ui font\n");
 
     font_icons = Simp.get_font_at_size(FONT_ICONS.name, FONT_ICONS.data, cast(int) (font_icons_size * dpi_scale));
     assert(font_icons != null, "Couldn't init main icon font\n");
 
     font_icons_small = Simp.get_font_at_size(FONT_ICONS.name, FONT_ICONS.data, cast(int) (font_icons_small_size * dpi_scale));
-    assert(font_icons_small != null, "Couldn't init main icon font\n");
+    assert(font_icons_small != null, "Couldn't init small icon font\n");
 
-    font_icons_tiny = Simp.get_font_at_size(FONT_ICONS.name, FONT_ICONS.data, cast(int) (font_icons_tiny_size * dpi_scale));
-    assert(font_icons_tiny != null, "Couldn't init tiny icon font\n");
+    font_icons_very_small = Simp.get_font_at_size(FONT_ICONS.name, FONT_ICONS.data, cast(int) (font_icons_very_small_size * dpi_scale));
+    assert(font_icons_very_small != null, "Couldn't init very small icon font\n");
 
     // WORKAROUND:
     // Make a dummy call with most common chars for each font so that
     // we have all the font atlases loaded in the GPU memory once
     // (TODO: maybe there's an easy way for Simp to only update textures on flush?)
     COMMON_CHARS :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789… ~!@#$%^&*()-|\"':;_+={}[]\\/`,.<>?АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчщъыьэюя¶•";
-    Simp.prepare_text(font,             COMMON_CHARS);
+    Simp.prepare_text(font_main,        COMMON_CHARS);
     Simp.prepare_text(font_ui,          COMMON_CHARS);
     Simp.prepare_text(font_ui_bold,     COMMON_CHARS);
     Simp.prepare_text(font_ui_small,    COMMON_CHARS);
@@ -510,16 +513,17 @@ init_fonts_and_dependent_things :: () {
     append(*common_icons, XMARK_ICON);
     icons_string := builder_to_string(*common_icons,, allocator = temp);
 
-    Simp.prepare_text(font_icons,       icons_string);
-    Simp.prepare_text(font_icons_tiny, icons_string);
+    Simp.prepare_text(font_icons,            icons_string);
+    Simp.prepare_text(font_icons_small,      icons_string);
+    Simp.prepare_text(font_icons_very_small, icons_string);
 
     // Things that depend on char size
-    char_size       = cast(float) font.em_width;
-    char_x_advance  = cast(float) font.x_advance;
-    old_line_height = line_height;
-    line_height     = floor(cast(float) font.default_line_spacing * cast(float)config.settings.line_height_scale_percent / 100.0);
-    scrollbar_size  = floor(1.5 * char_size);
-    rounding_radius = floor(char_size / 2);
+    char_size             = cast(float) font_main.em_width;
+    char_x_advance        = cast(float) font_main.x_advance;
+    old_line_height       = line_height;
+    line_height           = floor(cast(float) font_main.default_line_spacing * cast(float) config.settings.line_height_scale_percent / 100.0);
+    scrollbar_size        = floor(1.5 * char_size);
+    rounding_radius       = floor(char_size / 2);
     rounding_radius_large = floor(char_size / 1.5);
     rounding_radius_small = floor(char_size / 3);
 }
@@ -534,11 +538,42 @@ update_mouse_state :: () {
     }
     mouse.previous_position = mouse.pointer;
 
-    if shift_pressed() {
-        mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical * WHEEL_SENSITIVITY);
-    } else {
-        mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.horizontal * WHEEL_SENSITIVITY);
-        mouse.scroll_y_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical   * WHEEL_SENSITIVITY);
+    // If the user is spinning a mousewheel the mouse events will not update as fast as the frame rate, so even in
+    // the middle of a spin there will be frames where it is 0.  Additionally, (in Windows 11 at least) when a user
+    // with a laptop swipes with two-fingers on the touchpad, the OS will generate a series of scrollwheel events;
+    // this series decreases over time, but that time extends beyond the point the user is touching the pad.
+    // To take these things into account, we set a wheel mode, and persist it for a short duration even when the
+    // mousewheel reads 0; only when the mousewheel reads 0 for some amount of time do we treat it as finished.
+    // We do not allow the wheel mode to change mid operation: one operation has to finish before another can be
+    // started (i.e. you have to hold ctrl before spinning the wheel if you want to resize the font).
+    persist_scrollmode_duration :: 0.25;
+    if Input.mouse_wheel_delta.vertical {
+        mouse.last_wheel_y_time64 = frame_time64;
+        if mouse.wheel_y_mode == .none {
+            #if OS != .MACOS {
+                if ctrl_or_cmd_pressed()  mouse.wheel_y_mode = .sizing_font;
+                else                      mouse.wheel_y_mode = .scrolling;
+            } else {
+                mouse.wheel_y_mode = .scrolling;
+            }
+        }
+    } else if frame_time64 > mouse.last_wheel_y_time64 + persist_scrollmode_duration {
+        mouse.wheel_y_mode = .none;
+    }
+
+    if mouse.wheel_y_mode == .sizing_font {
+        if Input.mouse_wheel_delta.vertical < 0 {
+            increase_font_size();
+        } else if Input.mouse_wheel_delta.vertical > 0 {
+            decrease_font_size();
+        }
+    } else if mouse.wheel_y_mode == .scrolling {
+        if shift_pressed() {
+            mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical * WHEEL_SENSITIVITY);
+        } else {
+            mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.horizontal * WHEEL_SENSITIVITY);
+            mouse.scroll_y_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical   * WHEEL_SENSITIVITY);
+        }
     }
     mouse.smooth_scroll = (mouse.scroll_y_delta % 120) == 0;  // @Robustness: hard-coded typical delta, but it really should be ok for now
     if !config.settings.smooth_scrolling then mouse.smooth_scroll = false;
@@ -572,6 +607,8 @@ update_mouse_state :: () {
     update_button(*mouse.left,   .MOUSE_BUTTON_LEFT);
     update_button(*mouse.right,  .MOUSE_BUTTON_RIGHT);
     update_button(*mouse.middle, .MOUSE_BUTTON_MIDDLE);
+    update_button(*mouse.x1,     .MOUSE_BUTTON_X1);
+    update_button(*mouse.x2,     .MOUSE_BUTTON_X2);
 }
 
 editor_toggle_fullscreen :: () {
@@ -591,21 +628,34 @@ open_another_editor_instance :: () {
 }
 
 increase_font_size :: () {
-    if (font_size + 1) <= MAX_FONT_SIZE {
-        font_size += 1;
-        init_fonts_and_dependent_things();
+    should_reinit_fonts: bool;
+    if (font_main_size + 1) <= MAX_FONT_SIZE {
+        font_main_size += 1;
+        should_reinit_fonts = true;
     }
+    if (font_ui_size + 1) <= MAX_FONT_SIZE {
+        font_ui_size += 1;
+        should_reinit_fonts = true;
+    }
+    if should_reinit_fonts init_fonts_and_dependent_things();
 }
 
 decrease_font_size :: () {
-    if (font_size - 1) >= MIN_FONT_SIZE {
-        font_size -= 1;
-        init_fonts_and_dependent_things();
+    should_reinit_fonts: bool;
+    if (font_main_size - 1) >= MIN_FONT_SIZE {
+        font_main_size -= 1;
+        should_reinit_fonts = true;
     }
+    if (font_ui_size - 1) >= MIN_FONT_SIZE {
+        font_ui_size -= 1;
+        should_reinit_fonts = true;
+    }
+    if should_reinit_fonts init_fonts_and_dependent_things();
 }
 
 reset_font_size_to_default :: () {
-    font_size = default_font_size;
+    font_main_size = default_font_main_size;
+    font_ui_size   = default_font_ui_size;
     init_fonts_and_dependent_things();
 }
 
@@ -705,14 +755,15 @@ dpi_scale := 1.0;
 fullscreen: bool;
 fullscreen_state: Saved_Window_Info;
 
-redraw_requested            := true;  // set to true to render the first frame
-should_quit                 := false;
+redraw_requested := true;  // set to true to render the first frame
+should_quit      := false;
 
-frame_time: Apollo_Time;          // ever-increasing time since start in seconds
-frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
-frame_index: u64;                 // ever-increasing count of frames
-MAX_FRAME_DT:   Time : xx (1.0 / 60);
-QUICK_FRAME_DT: Time : xx (1.0 / 300);  // sorry 300Hz monitor users
+frame_time:   Apollo_Time;          // ever-increasing time since start in seconds
+frame_time64: float64;              // for when we don't need as much precision
+frame_dt: float64 = MAX_FRAME_DT;   // time delta since the last frame
+frame_index: u64;                   // ever-increasing count of frames
+MAX_FRAME_DT:   float64 : (1.0 / 60);
+QUICK_FRAME_DT: float64 : (1.0 / 300);  // sorry 300Hz monitor users
 
 EDIT_GROUP_TIMEOUT :: 0.3;  // for undo/redo
 
@@ -724,13 +775,22 @@ Mouse_State :: struct {
     pointer: Vector2;
     previous_position: Vector2;
     moved_this_frame: bool;
-    scroll_x_delta: s32;
-    scroll_y_delta: s32;
+    scroll_x_delta: s32; // These values are only set if the mousewheel is being used to scroll:
+    scroll_y_delta: s32; // if it's being used for something else then these will be zero.
     smooth_scroll: bool;
 
     left:   Mouse_Button_State;
     right:  Mouse_Button_State;
     middle: Mouse_Button_State;
+    x1: Mouse_Button_State;
+    x2: Mouse_Button_State;
+
+    last_wheel_y_time64: float64;
+    wheel_y_mode : enum {
+        none;
+        scrolling;
+        sizing_font;
+    }
 }
 
 Mouse_Button_State :: struct {
@@ -755,43 +815,47 @@ REGEX_SEARCH_ICON   :: #run to_string(*convert_utf32_to_utf8(0xf621));
 BULLET_ICON         :: #run to_string(*convert_utf32_to_utf8(0x2022));
 XMARK_ICON          :: #run to_string(*convert_utf32_to_utf8(0xf057));
 
-TAB_SIZE: s32 = 4;
+font_main:             *Simp.Dynamic_Font;
+font_ui:               *Simp.Dynamic_Font;
+font_ui_bold:          *Simp.Dynamic_Font;
+font_ui_big:           *Simp.Dynamic_Font;
+font_ui_small:         *Simp.Dynamic_Font;
+font_ui_very_small:    *Simp.Dynamic_Font;
+font_ui_medium:        *Simp.Dynamic_Font;
+font_icons:            *Simp.Dynamic_Font;
+font_icons_small:      *Simp.Dynamic_Font;
+font_icons_very_small: *Simp.Dynamic_Font;
 
-font:               *Simp.Dynamic_Font;
-font_ui:            *Simp.Dynamic_Font;
-font_ui_bold:       *Simp.Dynamic_Font;
-font_ui_big:        *Simp.Dynamic_Font;
-font_ui_small:      *Simp.Dynamic_Font;
-font_ui_very_small: *Simp.Dynamic_Font;
-font_ui_medium:     *Simp.Dynamic_Font;
-font_icons:         *Simp.Dynamic_Font;
-font_icons_small:   *Simp.Dynamic_Font;
-font_icons_tiny:    *Simp.Dynamic_Font;
+DEFAULT_FONT_MAIN_SIZE             :: 14;
+DEFAULT_FONT_UI_SIZE               :: 15;
+DEFAULT_FONT_UI_BIG_SIZE           :: 28;
+DEFAULT_FONT_UI_MEDIUM_SIZE        :: 18;
+DEFAULT_FONT_UI_SMALL_SIZE         :: 14;
+DEFAULT_FONT_UI_VERY_SMALL_SIZE    :: 12;
+DEFAULT_FONT_ICONS_SIZE            :: 16;
+DEFAULT_FONT_ICONS_SMALL_SIZE      :: 12;
+DEFAULT_FONT_ICONS_VERY_SMALL_SIZE :: 8;
 
-DEFAULT_FONT_SIZE               :: 14;
-DEFAULT_FONT_UI_SIZE            :: 15;
-DEFAULT_FONT_UI_BIG_SIZE        :: 28;
-DEFAULT_FONT_UI_MEDIUM_SIZE     :: 18;
-DEFAULT_FONT_UI_SMALL_SIZE      :: 14;
-DEFAULT_FONT_UI_VERY_SMALL_SIZE :: 12;
-DEFAULT_FONT_ICONS_SIZE         :: 16;
-DEFAULT_FONT_ICONS_SMALL_SIZE   :: 12;
-DEFAULT_FONT_ICONS_TINY_SIZE    :: 8;
+loaded_fonts: struct {
+    main:    Loaded_Font = FONT_MAIN;
+    ui:      Loaded_Font = FONT_UI;
+    ui_bold: Loaded_Font = FONT_UI_BOLD;
+};
 
-main_font_name := "default";
-main_font_data := #run FONT.data;
+// can be changed in the config file
+default_font_main_size  := DEFAULT_FONT_MAIN_SIZE;
+default_font_ui_size    := DEFAULT_FONT_UI_SIZE;
 
-default_font_size       := DEFAULT_FONT_SIZE;  // can be changed in the config
-
-font_size               := DEFAULT_FONT_SIZE;  // when changing font size, we change just this one and then derive the other ones from it
-font_ui_size            := DEFAULT_FONT_UI_SIZE;
-font_ui_big_size        := DEFAULT_FONT_UI_BIG_SIZE;
-font_ui_medium_size     := DEFAULT_FONT_UI_MEDIUM_SIZE;
-font_ui_small_size      := DEFAULT_FONT_UI_SMALL_SIZE;
-font_ui_very_small_size := DEFAULT_FONT_UI_VERY_SMALL_SIZE;
-font_icons_size         := DEFAULT_FONT_ICONS_SIZE;
-font_icons_small_size   := DEFAULT_FONT_ICONS_SMALL_SIZE;
-font_icons_tiny_size    := DEFAULT_FONT_ICONS_TINY_SIZE;
+// when changing font size, we change font_main_size and font_ui_size and then derive the other ones from it
+font_main_size             := DEFAULT_FONT_MAIN_SIZE;
+font_ui_size               := DEFAULT_FONT_UI_SIZE;
+font_ui_big_size           := DEFAULT_FONT_UI_BIG_SIZE;
+font_ui_medium_size        := DEFAULT_FONT_UI_MEDIUM_SIZE;
+font_ui_small_size         := DEFAULT_FONT_UI_SMALL_SIZE;
+font_ui_very_small_size    := DEFAULT_FONT_UI_VERY_SMALL_SIZE;
+font_icons_size            := DEFAULT_FONT_ICONS_SIZE;
+font_icons_small_size      := DEFAULT_FONT_ICONS_SMALL_SIZE;
+font_icons_very_small_size := DEFAULT_FONT_ICONS_VERY_SMALL_SIZE;
 
 // Depend on font size
 char_size:                  float;
@@ -806,8 +870,6 @@ rounding_radius_large:      float;
 rounding_radius_small:      float;
 scrollbar_size:             float;
 
-dont_scroll_this_frame := false;  // because e.g. a mouse wheel event has been handled
-
 // This will be set to `true` in `refresh_config()` to signal that the
 // next window resize event should be handled even if the window doesn't actually
 // change size. This is needed when changing DPI/scaling options which require
@@ -815,8 +877,6 @@ dont_scroll_this_frame := false;  // because e.g. a mouse wheel event has been h
 dont_ignore_next_window_resize := false;
 
 Mods :: Input.Event.Modifier_Flags;
-
-Time :: #type,isa float64;
 
 project_dirs:  [..] Project_Dir;
 project_files: [..] string;  // individual files added to project
@@ -873,6 +933,7 @@ cpu_info: Cpu_X86;
 focus_allocator: Allocator;
 
 
+#load "array.jai";
 #load "layout.jai";
 #load "editors.jai";
 #load "buffer.jai";
@@ -917,6 +978,7 @@ focus_allocator: Allocator;
 #load "langs/cpp.jai";
 #load "langs/css.jai";
 #load "langs/csharp.jai";
+#load "langs/d.jai";
 #load "langs/focus_config.jai";
 #load "langs/glsl.jai";
 #load "langs/hlsl.jai";
@@ -934,6 +996,7 @@ focus_allocator: Allocator;
 #load "langs/uxntal.jai";
 #load "langs/rust.jai";
 #load "langs/markdown.jai";
+#load "langs/batch.jai";
 
 #if OS == .WINDOWS {
     #load "platform/windows.jai";
@@ -1006,27 +1069,27 @@ DOUBLE_CLICK_SPEED     :: 0.3;  // how many seconds between clicks to consider i
 DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations are allowed
 
 // Embed default fonts
-FONT         :: #run load_font("FiraCode-Retina.ttf");
+FONT_MAIN    :: #run load_font("FiraCode-Retina.ttf");
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
+
+#scope_file
+
+load_font :: (name: string) -> Loaded_Font {
+    path := tprint("fonts/%", name);
+    data, success := read_entire_file(path);
+    assert(success, "Couldn't load font '%'", path);
+
+    return Loaded_Font.{ name = name, data = data};
+}
+
+#scope_export
 
 MIN_FONT_SIZE :: 4;
 MAX_FONT_SIZE :: 30;  // setting a larger size has caused freetype to crash - not sure yet why.
                       // Probably we don't give it enough memory for a glyph bitmap when rendering it?
 
-load_font :: (name: string) -> Embedded_Font {
-    path := tprint("fonts/%", name);
-    data, success := read_entire_file(path);
-    assert(success, "Couldn't load font '%'", path);
-
-    return Embedded_Font.{ name = name, data = data};
-}
-
-Embedded_Font :: struct {
-    name: string;
-    data: string;
-}
 
 DEBUG_FILE_REFRESH :: false;  // TODO: remove when done debugging
 DEBUG_MEMORY_LEAKS :: false;

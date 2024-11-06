@@ -1,4 +1,6 @@
-CURRENT_CONFIG_VERSION :: 5;
+// Increment this if your PR adds a setting, color or default keybinding (and amend the relevant array
+// in config_migrator.jai).  You don't need to increase it for each such change; once per PR is fine.
+CURRENT_CONFIG_VERSION :: 12;
 
 load_global_config :: (fallback_to_default_on_failure := false, force := false) -> success: bool, changed: bool, there_were_warnings: bool {
     config_path := tprint("%/global.focus-config", config_dir);
@@ -259,17 +261,36 @@ reset_color_map_to_default :: () {
 apply_style :: (parsed: Parsed_Config) {
     // Fonts
     if parsed.font {
-        loaded_data, success := load_font_by_name(parsed.font);
+        loaded_font, success := load_font_by_name(parsed.font, .main);
         if success {
-            main_font_data = loaded_data;
-            main_font_name = parsed.font;
+            loaded_fonts.main = loaded_font;
         } else {
             add_user_error("Couldn't load font %", parsed.font);
         }
     }
+    if parsed.font_ui {
+        loaded_font, success := load_font_by_name(parsed.font_ui, .ui);
+        if success {
+            loaded_fonts.ui = loaded_font;
+        } else {
+            add_user_error("Couldn't load font %", parsed.font_ui);
+        }
+    }
+    if parsed.font_ui_bold {
+        loaded_font, success := load_font_by_name(parsed.font_ui_bold, .ui_bold);
+        if success {
+            loaded_fonts.ui_bold = loaded_font;
+        } else {
+            add_user_error("Couldn't load font %", parsed.font_ui_bold);
+        }
+    }
     if parsed.font_size > 0 {
-        font_size = parsed.font_size;
-        default_font_size = font_size;
+        font_main_size = parsed.font_size;
+        default_font_main_size = font_main_size;
+    }
+    if parsed.font_ui_size > 0 {
+        font_ui_size = parsed.font_ui_size;
+        default_font_ui_size = font_ui_size;
     }
 
     apply_parsed_colors(parsed.colors);
@@ -301,6 +322,7 @@ get_current_project_dir :: () -> string {
 
     return trim_right(path_strip_filename(project_config.path), "/");
 }
+
 
 #scope_file
 
@@ -415,6 +437,8 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
 
     // Style
     if parsed.theme then dst.style.theme = copy_string(parsed.theme); /* @leak */  // TODO: rework how themes and styles are applied
+    if parsed.font_anti_aliasing.is_set then dst.style.font_anti_aliasing = parsed.font_anti_aliasing.value;
+    if parsed.font_hinting.is_set       then dst.style.font_hinting       = parsed.font_hinting.value;
     apply_style(parsed);
 
     // Platform config
@@ -423,17 +447,18 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
 
 apply_config :: () {
     // Make sure the values are within the acceptable range
-    old_tab_size := TAB_SIZE;
-    TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable mkay (though even 100 is unreasonable)
-    if config.settings.tab_size != TAB_SIZE then add_user_warning("Tab size clamped to %", TAB_SIZE);
+    unclamped_tab_size := config.settings.tab_size;
+    config.settings.tab_size = clamp(cast(s32) unclamped_tab_size, 1, 100);  // be reasonable mkay (though even 100 is unreasonable)
+    if config.settings.tab_size != unclamped_tab_size then add_user_warning("Tab size clamped to %", config.settings.tab_size);
 
-    if old_tab_size != TAB_SIZE {
+    if old_tab_size != config.settings.tab_size {
         // Refresh all editors which have line wrap on
         for * editor : open_editors {
             buffer := *open_buffers[editor.buffer_id];
             if line_wrap_is_active(editor) then rescan_for_wrapped_lines(editor, buffer);
         }
     }
+    old_tab_size = config.settings.tab_size;
 
     clamp_and_warn :: (setting: *$T, min: T, max: T, message: string) {
         old := setting.*;
@@ -468,27 +493,37 @@ apply_config :: () {
                                                        //       keep pointers to old keymaps when the config is reloaded
 }
 
-load_font_by_name :: (name: string) -> font_data: string, success: bool {
-    if name == "default" return FONT.data, true;
+old_tab_size := 0;  // used to detect when tab size is changed in the config
+
+
+load_font_by_name :: (name: string, kind: enum { main; ui; ui_bold; }) -> Loaded_Font, success: bool {
+    if name == "default" {
+        if kind == {
+            case .main;    return FONT_MAIN,    true;
+            case .ui;      return FONT_UI,      true;
+            case .ui_bold; return FONT_UI_BOLD, true;
+        }
+    }
 
     push_allocator(focus_allocator);  // we sometimes call this from within a temp allocator, but we will always want to persist fonts
 
     font_path := find_font_by_name(name);
     if font_path {
-        cached_data, found := table_find(*font_cache, font_path);
-        if found return cached_data, true;
+        cached_font, found := table_find(*font_cache, font_path);
+        if found return cached_font, true;
 
         font_data, success := read_entire_file(font_path);
         if success {
-            table_set(*font_cache, copy_string(font_path), font_data);
-            return font_data, true;
+            loaded_font := Loaded_Font.{ copy_string(name), font_data };
+            table_set(*font_cache, copy_string(font_path), loaded_font);
+            return loaded_font, true;
         }
     }
 
-    return "", false;
+    return .{}, false;
 }
 
-font_cache: Table(string, string);  // path -> file data
+font_cache: Table(string, Loaded_Font);  // path -> loaded font
 
 #scope_export
 
@@ -511,7 +546,13 @@ Config :: struct {
 
 Style :: struct {
     theme: string;
-    // TODO: add other things in there at some point
+    font_anti_aliasing: Font_Anti_Aliasing = .lcd;
+    font_hinting := true;
+}
+
+Loaded_Font :: struct {
+    name: string;
+    data: string;
 }
 
 Loaded_Config :: struct {
@@ -537,79 +578,77 @@ Workspace :: struct {
 }
 
 Settings :: struct {
-    maximize_on_start                                       := false;
-    open_on_the_biggest_monitor                             := true;
-    window_width                                            := -1;
-    window_height                                           := -1;
-    window_x                                                := -1000;  // using -1000 because -1 could be a valid value someone might want
-    window_y                                                := -1000;
-    cursor_as_block                                         := true;
-    cursor_blink_time_in_seconds                            := 5;
-    highlight_selection_occurrences                         := true;
-    highlight_line_with_cursor                              := false;
-    highlight_matching_brackets                             := false;
-    disable_that_annoying_paste_effect                      := false;
-    disable_file_open_close_animations                      := false;
-    disable_viewport_chasing_cursor_near_the_edge           := false;
-    double_shift_to_search_in_workspace                     := false;
-    tab_size                                                := 4;
-    insert_spaces_when_pressing_tab                         := true;
-    strip_trailing_whitespace_on_save                       := false;
-    insert_final_newline_on_save                            := false;
-    smooth_scrolling                                        := true;
-    scroll_beyond_last_line                                 := true;
-    line_height_scale_percent                               := 120;
-    max_editor_width                                        := -1;
-    can_cancel_go_to_line                                   := true;
-    copy_whole_line_without_selection                       := false;
-    editor_history_size                                     := 128;
-    line_wrap_is_on_by_default                              := false;
-    show_line_numbers                                       := false;
-    dark_titlebar                                           := false;
-    colored_titlebar                                        := true;
-    hide_mouse_when_typing                                  := true;
-    draw_indent_guides                                      := false;
-    auto_surround_with_brackets_and_quotes                  := false;
-    auto_close_brackets                                     := false;
-    prefer_system_file_dialogs                              := false;
-    show_cursors_off_screen                                 := true;
-    persist_local_search_results                            := false;
-    search_is_case_sensitive_when_uppercase_present         := false;
-    show_selected_text_length                               := false;
-    load_most_recent_project_on_start                       := false;
+    maximize_on_start                                       := false;   @v1
+    open_on_the_biggest_monitor                             := true;    @v1
+    window_width                                            := -1;      @v4
+    window_height                                           := -1;      @v4
+    window_x                                                := -1000;   @v1  // using -1000 because -1 could be a valid value someone might want
+    window_y                                                := -1000;   @v1
+    cursor_as_block                                         := true;    @v1
+    cursor_blink_time_in_seconds                            := 5;       @v1
+    highlight_selection_occurrences                         := true;    @v1
+    highlight_line_with_cursor                              := false;   @v2
+    highlight_matching_brackets                             := false;   @v5
+    show_paste_effect                                       := true;    @v6
+    disable_file_open_close_animations                      := false;   @v1
+    disable_viewport_chasing_cursor_near_the_edge           := false;   @v3
+    double_shift_to_search_in_workspace                     := false;   @v1
+    strip_trailing_whitespace_on_save                       := Strip_Trailing_Whitespace.except_lines_with_cursor;  @v6
+    insert_final_newline_on_save                            := false;   @v4
+    smooth_scrolling                                        := true;    @v1
+    scroll_beyond_last_line                                 := true;    @v2
+    line_height_scale_percent                               := 120;     @v1
+    max_editor_width                                        := -1;      @v1
+    can_cancel_go_to_line                                   := true;    @v1
+    copy_whole_line_without_selection                       := false;   @v1
+    editor_history_size                                     := 128;     @v1
+    line_wrap_is_on_by_default                              := false;   @v1
+    show_line_numbers                                       := false;   @v1
+    show_ruler_at_column                                    := 0;       @v7
+    dark_titlebar                                           := false;   @v1
+    colored_titlebar                                        := true;    @v1
+    hide_mouse_when_typing                                  := true;    @v1
+    draw_indent_guides                                      := false;   @v2
+    auto_surround_with_brackets_and_quotes                  := false;   @v2
+    auto_close_brackets                                     := false;   @v1
+    prefer_system_file_dialogs                              := false;   @v1
+    persist_local_search_results                            := false;   @v2
+    search_is_case_sensitive_when_uppercase_present         := false;   @v6
+    load_most_recent_project_on_start                       := false;   @v5
 
-    build_panel_width_percent                               := 50;
-    build_panel_height_percent                              := 50;
-    build_panel_stays_in_one_place                          := false;
-    build_panel_line_wrap_always_on                         := true;
+    build_panel_width_percent                               := 50;      @v2
+    build_panel_height_percent                              := 50;      @v2
+    build_panel_stays_in_one_place                          := false;   @v2
+    build_panel_line_wrap_always_on                         := true;    @v2
 
-    save_current_buffer_on_build                            := false;
-    save_all_file_backed_buffers_on_build                   := false;
+    save_current_buffer_on_build                            := false;   @v3
+    save_all_file_backed_buffers_on_build                   := false;   @v3
 
-    status_bar_position                                     := Status_Bar_Position.bottom;
-    color_preview_popup                                     := Color_Preview_Popup.enabled;
-    projects_sorting_order                                  := Projects_Sorting_Order.most_recent_first;
+    color_preview_popup                                     := Color_Preview_Popup.enabled;                 @v5
+    projects_sorting_order                                  := Projects_Sorting_Order.most_recent_first;    @v6
+
+    detect_indentation                                      := true;                @v11
+    indent_using                                            := Indentation.spaces;  @v11
+    tab_size                                                := 4;                   @v1
+
+    status_bar_position                                     := Status_Bar_Position.bottom;                  @v4
+    status_bar_show_indentation                             := true;    @v11
+    status_bar_show_line_col                                := true;    @v11
+    status_bar_show_cursors_off_screen                      := true;    @v11
+    status_bar_show_selected_text_length                    := false;   @v3
 
     // TODO
-    // convert_tabs_to_spaces_on_load:     false
     // load_last_session_on_start:         true
 }
 
-Status_Bar_Position :: enum {
-    bottom;
-    top;
-}
+Indentation               :: enum { spaces; tabs; }
+Status_Bar_Position       :: enum { bottom; top; }
+Strip_Trailing_Whitespace :: enum { except_lines_with_cursor; all; disabled; }
+Color_Preview_Popup       :: enum { enabled; minimized; disabled; }
+Projects_Sorting_Order    :: enum { most_recent_first; alphabetical; alphabetical_no_case; }
 
-Color_Preview_Popup :: enum {
-    enabled;
-    minimized;
-    disabled;
-}
-
-Projects_Sorting_Order :: enum {
-    most_recent_first;
-    alphabetical;
-}
+Font_Anti_Aliasing        :: enum { lcd; normal; }
+#poke_name Simp Font_Anti_Aliasing;
 
 Keymap :: struct {
     common:           [] Key_Mapping;
@@ -657,9 +696,6 @@ Build_Command :: struct {
     timeout_in_seconds:                 int = -1;
 }
 
-DEFAULT_CONFIG_FILE_DATA  :: #run read_entire_file(tprint("config/%", DEFAULT_CONFIG_NAME));
-EXAMPLE_PROJECT_FILE_DATA :: #run read_entire_file(tprint("config/%", EXAMPLE_PROJECT_CONFIG_NAME));
-
 #scope_file
 
 #if OS == .MACOS {
@@ -672,17 +708,35 @@ EXAMPLE_PROJECT_CONFIG_NAME :: "example-project.focus-config";
 
 #scope_export
 
-DEFAULT_CONFIG :: #run,stallable -> Config {
-    result := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);
-    assert(result.success, "Couldn't parse the default config file '%'. Error: %", DEFAULT_CONFIG_NAME, result.error_msg);
-    default_config: Config;
-    merge_configs(*default_config, result.config);
-    DEFAULT_COLOR_MAP = COLOR_MAP;  // remember the default color map
-    return default_config;
-};
+#if !NO_OUTPUT_BUILD {
+    read_default_config_data :: (name: string) -> string {
+        data := read_entire_file(tprint("config/%", name));
+        data_with_replaced_version, occurrences := replace(data, "[0]  # Version", tprint("[%]  # Version", CURRENT_CONFIG_VERSION));
+        assert(occurrences == 1, "Error when trying to replace the default config version in '%'", name);
+        return data_with_replaced_version;
+    }
 
-// Validate the example project config
-#run,stallable {
-    result := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA);
-    assert(result.success, "Couldn't parse the example project config file '%'", EXAMPLE_PROJECT_CONFIG_NAME);
+    DEFAULT_CONFIG_FILE_DATA  :: #run read_default_config_data(DEFAULT_CONFIG_NAME);
+    EXAMPLE_PROJECT_FILE_DATA :: #run read_default_config_data(EXAMPLE_PROJECT_CONFIG_NAME);
+
+    DEFAULT_CONFIG :: #run,stallable -> Config {
+        result := parse_config("Default Config", DEFAULT_CONFIG_NAME, DEFAULT_CONFIG_FILE_DATA);
+        assert(result.success, "Couldn't parse the default config file '%'. Error: %", DEFAULT_CONFIG_NAME, result.error_msg);
+        check_added_keybinds(result.config);
+        default_config: Config;
+        merge_configs(*default_config, result.config);
+        DEFAULT_COLOR_MAP = COLOR_MAP;  // remember the default color map
+        return default_config;
+    };
+
+    // Validate the example project config
+    #run,stallable {
+        result := parse_config("Example Project Config", EXAMPLE_PROJECT_CONFIG_NAME, EXAMPLE_PROJECT_FILE_DATA);
+        assert(result.success, "Couldn't parse the example project config file '%'", EXAMPLE_PROJECT_CONFIG_NAME);
+    }
+
+} else {
+    DEFAULT_CONFIG_FILE_DATA :: "";
+    EXAMPLE_PROJECT_FILE_DATA :: "";
+    DEFAULT_CONFIG: Config;
 }

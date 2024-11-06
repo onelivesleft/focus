@@ -264,7 +264,7 @@ Key_Combo :: struct {
 Action_Build :: #type,distinct u32;  // holds the index of the build command in the list
 
 ACTIONS_COMMON :: string.[
-    "do_nothing",   // to disable key combinations (DEPRECATED). TODO: auto-remove when we have a config migration system
+    "do_nothing",   // to disable key combinations (DEPRECATED)
 
     "quit",
 
@@ -317,22 +317,30 @@ ACTIONS_COMMON :: string.[
     "move_down_fast",
     "move_down_one_page",
     "move_left",
-    "move_left_by_word",
-    "move_left_by_word_ends",
+    "move_left_by_character_type",
+    "move_left_by_character_type_fast",
+    "move_left_through_word_throttled",
+    "move_left_through_word",
     "move_right",
-    "move_right_by_word",
-    "move_right_by_word_ends",
+    "move_right_by_character_type",
+    "move_right_by_character_type_fast",
+    "move_right_through_word_throttled",
+    "move_right_through_word",
     "jump_to_line_start",
     "jump_to_line_end",
     "jump_to_file_start",
     "jump_to_file_end",
     "jump_to_matching_bracket",
     "delete_left_char",
+    "delete_left_by_character_type",
+    "delete_left_by_character_type_fast",
+    "delete_left_through_word",
+    "delete_left_through_word_throttled",
     "delete_right_char",
-    "delete_word_left",
-    "delete_word_right",
-    "delete_word_left_no_underscore",
-    "delete_word_right_no_underscore",
+    "delete_right_by_character_type",
+    "delete_right_by_character_type_fast",
+    "delete_right_through_word",
+    "delete_right_through_word_throttled",
     "delete_to_start_of_line",
     "delete_to_end_of_line",
     "increase_font_size",
@@ -356,10 +364,17 @@ ACTIONS_COMMON :: string.[
 
 ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "select_word_or_create_another_cursor",
+    "revert_select_word_or_create_another_cursor",
+    "move_selection_to_next_word",
     "select_all_occurrences",
     "create_cursor_above",
     "create_cursor_below",
+    "create_cursors_around",
     "align_cursors",
+    "change_case_to_upper",
+    "change_case_to_lower",
+    "change_case_to_caps",
+    "change_case_cycle",
     "add_cursors_to_line_ends",
     "add_cursors_to_line_starts",
     "duplicate_lines",
@@ -413,6 +428,10 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_line_numbers",
     "copy_current_line_info",
     "pick_color_at_cursor",
+    "indentation_detect_from_buffer_contents",
+    "indentation_use_defaults_for_buffer",
+    "indentation_convert_to_tabs_for_buffer",
+    "indentation_convert_to_spaces_for_buffer",
 ]);
 
 ACTIONS_OPEN_FILE_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[
@@ -433,6 +452,8 @@ ACTIONS_SEARCH_DIALOG :: #run arrays_concat(ACTIONS_COMMON, string.[
     "toggle_case_sensitive",
     "toggle_whole_word",
     "toggle_regex_search",
+    "go_to_next_input",
+    "go_to_previous_input",
 ]);
 
 

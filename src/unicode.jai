@@ -42,7 +42,7 @@ Utf8_Char :: struct {
     count: s32;
 }
 
-advance_by_chars :: (s: string, num_chars: s64) -> string #must, remainder: s64 {
+advance_by_chars :: (s: string, num_chars: s64, tab_size: s32) -> string #must, remainder: s64 {
     result := s;
     col := 0;
     while result && col < num_chars {
@@ -52,20 +52,20 @@ advance_by_chars :: (s: string, num_chars: s64) -> string #must, remainder: s64 
             col += 1;
         } else {
             safe_advance(*result, 1);
-            col += TAB_SIZE - col % TAB_SIZE;
+            col += tab_size - col % tab_size;
         }
     }
     return result, col - num_chars;
 }
 
-take_first_n_chars :: (s: string, num_chars: s64) -> string #must {
+take_first_n_chars :: (s: string, num_chars: s64, tab_size: s32) -> string #must {
     result := s;
-    result.count -= advance_by_chars(result, num_chars).count;
+    result.count -= advance_by_chars(result, num_chars, tab_size).count;
     return result;
 }
 
 // Counts the number of chars, each tab is counted as the number of cols needed for the visual indent
-num_cols_in_string :: (s: string) -> s32 {
+num_cols_in_string :: (s: string, tab_size: s32) -> s32 {
     num_chars: s32 = 0;
 
     while s {
@@ -75,7 +75,7 @@ num_cols_in_string :: (s: string) -> s32 {
             num_chars += 1;
         } else {
             safe_advance(*s, 1);
-            num_chars += TAB_SIZE - num_chars % TAB_SIZE;
+            num_chars += tab_size - num_chars % tab_size;
         }
     }
 
@@ -101,12 +101,12 @@ safe_advance :: inline (s: *string, amount: s64 = 1) {
     s.data  += amount;
 }
 
-next_char_offset :: inline (bytes: [] u8, offset: s32) -> s32 {
+next_char_offset :: inline (bytes: Array(u8), offset: s32) -> s32 {
     assert(offset <= bytes.count-1);
-    return clamp(offset + 1 + trailingBytesForUTF8[bytes[offset]], 0, cast(s32)bytes.count);
+    return clamp(offset + 1 + trailingBytesForUTF8[bytes[offset]], 0, bytes.count);
 }
 
-prev_char_offset :: (bytes: [] u8, offset: s32) -> s32, byte: u8 {
+prev_char_offset :: (bytes: Array(u8), offset: s32) -> s32, byte: u8 {
     new_offset := offset - 1;
     byte := bytes[new_offset];
     while (byte & 0b1100_0000) == 0b1000_0000 {
@@ -116,13 +116,21 @@ prev_char_offset :: (bytes: [] u8, offset: s32) -> s32, byte: u8 {
     return new_offset, byte;
 }
 
-unicode_prev_character :: (s: *u8) -> new_s: *u8, char: u32 {  // NOTE: assuming the memory is valid utf-8, no checks are done!
+unicode_character_and_next_position :: (ptr: *u8) -> char: u32, next_ptr: *u8 {
+    next_ptr := unicode_next_character(ptr);
+    char, _, error := character_utf8_to_utf32(ptr, next_ptr - ptr);
+    if error  return 0, next_ptr;
+    else      return char, next_ptr;
+}
+
+unicode_prev_character_and_position :: (s: *u8) -> char: u32, new_s: *u8 {  // NOTE: assuming the memory is valid utf-8, no checks are done!
     t := s - 1;
     while (<<t & 0b1100_0000) == 0b1000_0000 t -= 1;  // rewind to the first byte of a utf-8 sequence (all non-first bytes start with 10)
 
     char, _, result := character_utf8_to_utf32(t, s - t);
-    return t, char;
+    return char, t;
 }
+
 /*
  * is_unicode_linebreak():
  *     returns `true` if the specified UTF32 codepoint is a whitespace line-break character.

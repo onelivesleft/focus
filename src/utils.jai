@@ -52,17 +52,7 @@ arrays_concat :: (array1: [] $T, array2: [] T) -> [] T {
     return result;
 }
 
-to_owned_array :: (array: *[..]$T, free_memory := false) -> []T {
-    new_array := array_copy(<<array);
-    if free_memory {
-        array_reset(array);
-    } else {
-        array_reset_keeping_memory(array);
-    }
-    return new_array;
-}
-
-visual_col_to_byte_offset :: (str: string, target_col: s64, line_indent: s64) -> offset: s64, new_col: s64 {
+visual_col_to_byte_offset :: (str: string, target_col: s64, line_indent: s64, tab_size: s32) -> offset: s64, new_col: s64 {
     s := str;
     col := 0;
 
@@ -73,7 +63,7 @@ visual_col_to_byte_offset :: (str: string, target_col: s64, line_indent: s64) ->
             col += 1;
         } else {
             safe_advance(*s, 1);
-            col += TAB_SIZE - (col + line_indent) % TAB_SIZE;
+            col += tab_size - (col + line_indent) % tab_size;
         }
     }
 
@@ -283,22 +273,39 @@ match_whole_word :: (s: string, offset: int, count: int) -> bool {
     return word_ends_on_the_left && word_ends_on_the_right;
 }
 
-#add_context underscore_is_part_of_word := true;
-
 is_word_char :: inline (ch: u32) -> bool {
-    return ifx ch == #char "_" then context.underscore_is_part_of_word else (!is_whitespace_char(ch) && !is_separator_char(ch));
+    return get_char_type(ch) & .word != 0;
 }
 
 is_non_word_char :: inline (ch: u32) -> bool {
-    return !is_word_char(ch) && ch != #char " " && ch != #char "\n";
+    return get_char_type(ch) & .non_word != 0;
 }
 
-is_space_or_underscore :: inline (ch: u32) -> bool {
-    return is_unicode_space(ch) || (!context.underscore_is_part_of_word && ch == #char "_");
+is_common_punctuation :: inline (ch: u32) -> bool {
+    if ch == {
+        case #char ","; #through;
+        case #char "."; #through;
+        case #char "("; #through;
+        case #char ")"; #through;
+        case #char "["; #through;
+        case #char "]"; #through;
+        case #char "{"; #through;
+        case #char "}";
+            return true;
+    }
+    return false;
 }
 
 is_whitespace_char :: inline (ch: u32) -> bool {
     return is_unicode_space(ch) || is_unicode_linebreak(ch);
+}
+
+is_lower :: inline (char: u8) -> bool {
+    return char >= #char "a" && char <= #char "z";
+}
+
+is_upper :: inline (char: u8) -> bool {
+    return char >= #char "A" && char <= #char "Z";
 }
 
 /*
@@ -341,16 +348,95 @@ get_balancing_char :: (ch: u32, include_closing := false) -> u32 {
     return 0;
 }
 
-get_char_type :: (ch: u32) -> Char_Type {
-    if is_word_char(ch) {
-        return .word;
-    } else if is_space_or_underscore(ch) {
-        return .space;
-    } else if !is_unicode_linebreak(ch) {
-        return .non_word;
-    } else {
-        return .other;
+get_char_type_raw :: inline (ch: u32) -> Char_Type {
+    if #char "0" <= ch && ch <= #char "9"   return .word | .number;
+    if ch == #char "."                      return .non_word | .number;
+    if is_whitespace_char(ch)               return .space; // includes \n
+    if !is_separator_char(ch)               return .word;
+    return .non_word;
+}
+
+get_char_type :: inline (ch: u32) -> Char_Type {
+    if ch <= 191  return char_type_table[ch];
+    return get_char_type_raw(ch);
+}
+
+set_underscore_is_part_of_word :: (it_is: bool) {
+    char_type_table[#char "_"] = ifx it_is then .word else .non_word;
+}
+
+set_newline_is_whitespace :: (it_is: bool) {
+    char_type_table[#char "\n"] = ifx it_is then .space else .other;
+}
+
+#insert -> string {
+    builder : String_Builder;
+    append(*builder, "char_type_table := Char_Type.[");
+    for 0 .. cast(u32)191  print_to_builder(*builder, "%,", cast(u8)get_char_type_raw(it));
+    append(*builder, "];");
+    return builder_to_string(*builder);
+}
+
+scan_through_similar_chars_on_the_left :: (bytes: [] u8, line_start_offset: s32, offset: s32, char_type := Char_Type.none, skip_one_space := true) -> offset: s32, moved_through: Char_Type  {
+    if !bytes  return 0, .none;
+
+    ptr := bytes.data + offset;
+    char:, ptr = unicode_prev_character_and_position(ptr);
+    if ptr <= bytes.data  return 0, .none;
+
+    skippable_char_type := get_char_type(char);
+    if char_type != .none && !(char_type & skippable_char_type)  return offset, .none;
+
+    moved_through : Char_Type;
+    result_ptr := ptr;
+    line_start := bytes.data + line_start_offset;
+    if skip_one_space && is_whitespace_char(char) && ptr > line_start {
+        char, ptr = unicode_prev_character_and_position(ptr);
+        skippable_char_type = get_char_type(char);
+        moved_through = .space;
     }
+
+    while skippable_char_type {
+        if ptr <= bytes.data  return 0, moved_through;
+
+        result_ptr = ptr;
+        char, ptr = unicode_prev_character_and_position(ptr);
+        moved_through = skippable_char_type;
+        skippable_char_type &= get_char_type(char);
+    }
+
+    return cast(s32) (result_ptr - bytes.data), moved_through;
+}
+
+scan_through_similar_chars_on_the_right :: (bytes: [] u8, offset: s32, char_type := Char_Type.none, skip_one_space := true) -> offset: s32, moved_through: Char_Type {
+    if !bytes  return 0, .none;
+    if offset >= bytes.count  return cast(s32) bytes.count, .none;
+
+    end_address := bytes.data + bytes.count;
+    ptr := bytes.data + offset;
+    char:, ptr = unicode_character_and_next_position(ptr);
+    skippable_char_type := get_char_type(char);
+    if char_type != .none && !(char_type & skippable_char_type)  return offset, .none;
+    if ptr >= end_address  return cast(s32) bytes.count, 0;
+
+    moved_through : Char_Type;
+    result_ptr := ptr;
+    if skip_one_space && is_whitespace_char(char) {
+        char, ptr = unicode_character_and_next_position(ptr);
+        skippable_char_type = get_char_type(char);
+        moved_through = .space;
+    }
+
+    while skippable_char_type {
+        if ptr >= end_address  return cast(s32) bytes.count, moved_through;
+
+        result_ptr = ptr;
+        char, ptr = unicode_character_and_next_position(ptr);
+        moved_through = skippable_char_type;
+        skippable_char_type &= get_char_type(char);
+    }
+
+    return cast(s32) (result_ptr - bytes.data), moved_through;
 }
 
 is_all_word_chars :: (s: string) -> bool {
@@ -368,17 +454,17 @@ is_all_whitespace :: (s: string) -> bool {
     return true;
 }
 
-count_whitespace :: (bytes: [] u8, start_offset: s64, max_offset: s64, spaces := " \t") -> count: s32 {
-    subarray := array_view(bytes, start_offset, max_offset - start_offset);
+count_whitespace :: (bytes: Array(u8), start_offset: s32, max_offset: s32, spaces := " \t") -> count: s32 {
+    subarray := to_view(bytes, start_offset, max_offset - start_offset);
     for subarray {
         if !is_any(it, spaces) return cast(s32) it_index;
     }
-    return cast(s32) (max_offset - start_offset);
+    return max_offset - start_offset;
 }
 
-count_bytes_knowing_number_of_chars :: (bytes: [] u8, start_offset: s64, max_offset: s64, num_chars: s32) -> count: s32 {
+count_bytes_knowing_number_of_chars :: (bytes: Array(u8), start_offset: s32, max_offset: s32, num_chars: s32) -> count: s32 {
     count: s32 = 0;
-    s := cast(string) array_view(bytes, start_offset, max_offset - start_offset);
+    s := cast(string) to_view(bytes, start_offset, max_offset - start_offset);
     while s && num_chars {
         byte := s[0];
         num_bytes := clamp(1 + cast(s32) trailingBytesForUTF8[byte], 1, cast(s32) s.count);
@@ -389,19 +475,21 @@ count_bytes_knowing_number_of_chars :: (bytes: [] u8, start_offset: s64, max_off
     return count;
 }
 
-get_visual_indent_in_spaces :: (line: string, spaces := " \t") -> indent: int {
-    indent := 0;
+get_visual_indent_in_spaces :: (line: string, tab_size: s32) -> indent: int, bytes: int {
+    indent, bytes: int;
     for byte : to_bytes(trim_right(line)) {
         if byte == {
             case #char " ";     indent += 1;
-            case #char "\t";    indent += TAB_SIZE - (indent % TAB_SIZE);
+            case #char "\t";    indent += tab_size - (indent % tab_size);
             case;               break;
         }
+        bytes += 1;
     }
-    return indent;
+    return indent, bytes;
 }
 
 get_tmp_spaces :: (num: int) -> string {
+    if num <= 0 return "";
     spaces := talloc_string(num);
     memset(spaces.data, cast(u8) #char " ", num);
     return spaces;
@@ -413,18 +501,18 @@ get_tmp_tabs :: (num: int) -> string {
     return tabs;
 }
 
-start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: Time = xx 0.0) {
+start_animation :: (anim: *Tween_Animation(T), start: $T, target: T, speed: float = 0.0) {
     anim.start  = start;
     anim.target = target;
     if speed > 0 then anim.speed = speed;
 
     // Pretend the animation started last frame so we start moving right away.
     // If the current frame was t=0, then the movement would simply be delayed one frame.
-    anim.started_at = frame_time - to_apollo(frame_dt);
+    anim.started_at = frame_time64 - frame_dt;
 }
 
 get_animation_value :: (using anim: Tween_Animation($T)) -> T {
-    t := (to_float64_seconds(frame_time - started_at) / speed);
+    t := (frame_time64 - started_at) / speed;
     t = clamp(t, 0, 1);
     if #complete func == {
         case .lerp;       return start + cast(T) (cast(float)(target - start) * t);
@@ -519,18 +607,27 @@ table_find_or_default :: (table: *Table, key: table.Key_Type) -> table.Value_Typ
 }
 
 Tween_Animation :: struct(T: Type) {
+    started_at: float64;
+    speed : float = xx 0.1;  // how many seconds to finish
     start, target: T;
-    started_at: Apollo_Time;
-    speed : Time = xx 0.1;  // how many seconds to finish
     func: enum { lerp; smoothstep; } = .smoothstep;
 }
 
-Char_Type :: enum {
+Char_Type :: enum_flags {
     none;
     word;
+    number;
     non_word;
     space;
     other;
+}
+
+Movement_Type :: enum {
+    by_character;            // goes through 1 character at a time
+    by_character_type;       // goes through blocks of characters of the same type (see Char_Type)
+    by_character_type_fast;  // like above, but treats underscores as part of word, and skips 1 space (unless multiple cursors are used)
+    through_word;            // goes through anything to reach the end of the next word block
+    through_word_throttled;  // like above, but goes through at most 2 blocks of characters at a time
 }
 
 Fuzzy_Filter :: struct {
@@ -640,4 +737,13 @@ hex_to_color_vec4 :: (src_hex: string) -> Vector4, success: bool {
     c := Vector4.{ to_float(r), to_float(g), to_float(b), to_float(a) };
 
     return c, c.x >= 0 && c.y >= 0 && c.z >= 0 && c.w >= 0;
+}
+
+Option :: struct($T: Type) {
+    value:  T = ---;
+    is_set: bool;
+}
+
+some :: (value: $T) -> Option(T) {
+    return .{ value = value, is_set = true };
 }

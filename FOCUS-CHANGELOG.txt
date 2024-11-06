@@ -1,26 +1,85 @@
 # Main Git Branch
 
 + New features:
+    + Global search now allows to additionally filter results by including and excluding files
+    + Syntax highlighting:
+        + Batch (thanks @arjenwitteveen)
+        + D (thanks @dawsonfrakes)
+    + It is now possible to pass a line number together with the file path to the editor on startup: `focus /path/to/file:69` (thanks @simonvallz)
+    + New actions to change case of selected text (thanks @onelivesleft):
+        + `change_case_to_upper`
+        + `change_case_to_lower`
+        + `change_case_to_caps` - will capitalize the first letter, and any letter following a non-letter character (my_foo_type -> My_Foo_Type)
+        + `change_case_cycle` - will cycle through the options below. Bound to `Ctrl-U` by default
+    + New action `create_cursors_around`. Creates cursors above and below so that they extend up to the surrounding whitespace (thanks @onelivesleft)
+    + New actions for creating, moving and deleting cursors (thanks @BuzzwordChief):
+        + `move_selection_to_next_word` (`Ctrl-Y`) - instead of creating a new cursor at the next occurrence it will move the current cursor, allowing you to skip an occurrence
+        + `revert_select_word_or_create_another_cursor` (`Ctrl-R`) - removes the newly created selection
+    + New font options in the style section - `font_ui`, `font_ui_bold`, `font_ui_size` (thanks @hfr4)
+    + Windows rmenu key can now be used in keybinds as `cmd` (thanks @onelivesleft)
+    + New bindable keys: `MouseX1` and `MouseX2` (thanks @onelivesleft)
+    + New available colors:
+        + `ruler` for the vertical ruler, if enabled
+        + `indent_guide` for indent guides, if enabled
+        + `bracket_highlight` for highlighting matching brackets
+    + In `[ignore]` and `[allow]` sections of the workspace paths starting with `./` can now be used to refer to the project directories. E.g. `./folder/**` will match a `folder` in any project directory.
+    + New options in the [fonts] section which allow to disable hinting and subpixel anti-aliasing:
+        + `anti_aliasing`: `lcd` (default - for subpixel AA), or `normal`
+        + `hinting` (`true` by default)
+    + Cursor movements have been reworked (thanks @onelivesleft).
+        + Focus now supports the following cursor movement types:
+            + `by_character`           - goes through 1 character at a time
+            + `by_character_type`      - goes through blocks of characters of the same type (e.g. word, non-word, whitespace, etc)
+            + `by_character_type_fast` - like above, but treats underscores as part of word and skips 1 space (unless multiple cursors are used)
+            + `through_word`           - goes through anything to reach the end of the next word block
+            + `through_word_throttled` - like above, but goes through at most 2 blocks of characters at a time
+        + Each movement type has a corresponding move and delete action, e.g.
+            + `move_{left|right}_by_character_type` will move cursors by groups of characters
+            + `delete_{left|right}_through_word` will delete the characters in between the current cursor position and the next cursor position after the move through word
+        + By default:
+            + `Alt -Arrow{Left|Right}`  are bound to move by character type
+            + `Ctrl-Arrow{Left|Right}`  are bound to move through word throttled
+            + `Alt -{Delete|Backspace}` are bound to delete by character type
+            + `Ctrl-{Delete|Backspace}` are bound to delete by character type (fast)
++ Bug fixes:
+    + Fixed a crash when changing languages in the color preview widget
+    + Fixed a crash when editing colors near the end of file with color preview open (thanks @darkgiggs)
+    + Fixed font size changing when you press ctrl after scrolling has started (thanks @onelivesleft)
++ Other changes:
+    + Syntax highlighting improvements for CSS and TypeScript (thanks @simonvallz)
+    + Creating cursors above and below will now skip empty lines as this is most likely the behaviour users want (thanks @onelivesleft)
+    + The Navigate To File (Ctrl-O) dialog will always show all files and folders instead of applying the ignore rules to them, which will allow to selectively open files which are normally ignored
+    + Selecting a word using double left click should now behave identically to selecting a word using the `select_word` action, highlighting only whole-word selection occurrences
+
+
+# RELEASES ==================================================================
+
+# Version 0.3.7
+
++ New features:
     + New command: `move_current_file`. Works as `save_as`, but removes the old file (thanks @simonvallz)
     + New config options:
         + `search_is_case_sensitive_when_uppercase_present`. Set to `true` to automatically make local search case sensitive when there are uppercase chars in the search bar. Currently only works with ASCII.
-        + `projects_sorting_order`: `most_recent_first` (default) or `alphabetical`. Determines the sorting order for projects in the Switch To Project dialog.
+        + `projects_sorting_order`: `most_recent_first` (default), `alphabetical` or `alphabetical_no_case`. Determines the sorting order for projects in the Switch To Project dialog. (thanks @Roman-Skabin for the fix)
+    + Option `strip_trailing_whitespace_on_save` now accepts the following values: `all` (strip all trailing whitespace), `except_lines_with_cursor` (leave cursors where they are), and `disabled` (don't strip)
     + Pressing the close active editor shortcut in the Open Files dialog will close the selected file
     + When reloading workspace the user will be able to kill any running build command via a confirmation dialog
+    + Build commands can be killed and restarted via a confirmation dialog (previously any running commands had to be manually killed before starting another one)
 + Bug fixes:
     + Fixed a problem with undoing auto-modified colors using the color picker
     + Made dialog chains more robust. We no longer leave the editor in an inconsistent state if a switch to project is cancelled halfway.
+    + Fixed the go-to-line dialog position for panels (color preview and the build panel)
     + macOS:
         + Fixed an issue with not being able to exit the editor if there are unsaved buffers
         + Fixed a bug with typing the letter 'q' when trying to exit the editor via Cmd-Q
 + Other changes:
     + Various highlighting improvements (thanks @simonvallz)
-    + When you strip trailing whitespace on save the cursors will now stay where they are. Use the explicit command `strip_trailing_whitespace` if you want to strip all trailing whitespace even if there is a cursor on it
     + Temporary unsaved buffers will disappear from file lists when closed. If you accidentally closed one, go back in editor history
     + The `delete_to_start_of_line` command will now delete to the indentation level first, not to the very start of the line right away
+    + Many internal changes to reduce the memory footprint and improve the cache friendliness of internal data structures
+    + Files larger than the limit of 2,147,483,647 bytes will now no longer be loaded with an error message rather than crashing
+    + Hitting save when in the color preview editor will save the target config file, instead of attempting to save the color preview sample text somewhere
 
-
-# RELEASES ==================================================================
 
 # Version 0.3.6
 

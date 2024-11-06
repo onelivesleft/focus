@@ -1,4 +1,4 @@
-[5]  # Version number. Do not delete.
+[0]  # Version number. Do not delete.
 
 [[workspace]]
 # These directories and files will be scanned when a workspace is opened so that search etc. works.
@@ -37,11 +37,9 @@ cursor_blink_time_in_seconds:                       5
 highlight_selection_occurrences:                    true
 highlight_line_with_cursor:                         false
 highlight_matching_brackets:                        false
-disable_that_annoying_paste_effect:                 false
+show_paste_effect:                                  true
 disable_file_open_close_animations:                 false
-tab_size:                                           4
-insert_spaces_when_pressing_tab:                    true
-strip_trailing_whitespace_on_save:                  false
+strip_trailing_whitespace_on_save:                  except_lines_with_cursor
 smooth_scrolling:                                   true
 scroll_beyond_last_line:                            true
 double_shift_to_search_in_workspace:                false
@@ -52,12 +50,11 @@ max_editor_width:                                   -1
 editor_history_size:                                1024
 line_wrap_is_on_by_default:                         false
 show_line_numbers:                                  false
-show_selected_text_length:                          false
+show_ruler_at_column:                               0
 hide_mouse_when_typing:                             false
 draw_indent_guides:                                 false
 auto_surround_with_brackets_and_quotes:             false
 auto_close_brackets:                                false
-show_cursors_off_screen:                            true
 persist_local_search_results:                       false  # if true, search results will stay highlighted and you have to dismiss them using the `escape` action
 load_most_recent_project_on_start:                  false
 projects_sorting_order:                             most_recent_first
@@ -67,10 +64,21 @@ build_panel_line_wrap_always_on:                    true
 build_panel_width_percent:                          50
 build_panel_height_percent:                         50
 
-status_bar_position:                                bottom   # options: top, bottom
 color_preview_popup:                                enabled  # options: enabled, minimized, disabled
 search_is_case_sensitive_when_uppercase_present:    true
 
+detect_indentation:                                 true
+indent_using:                                       spaces
+tab_size:                                           4
+
+status_bar_position:                                bottom   # options: top, bottom
+status_bar_show_cursors_off_screen:                 true
+status_bar_show_line_col:                           true
+status_bar_show_indentation:                        true
+status_bar_show_selected_text_length:               false
+
+
+# This is an example configuration for build commands (uncomment and modify to use)
 
 # [[build commands]]
 # build_working_dir:      <build working dir for all commands>  # <- paths relative to the workspace working dir (the first one in the list) are allowed
@@ -140,6 +148,8 @@ Opt-ArrowDown                   move_selected_lines_down
 Cmd-J                           join_lines
 Cmd-Shift-J                     join_lines_no_spaces_in_between
 
+Cmd-U                           change_case_cycle
+
 Tab                             indent_or_go_to_next_tabstop
 Shift-Tab                       unindent
 
@@ -192,6 +202,7 @@ Cmd-Shift-N                     create_new_file_on_the_side
 
 Opt-Shift-ArrowUp               create_cursor_above
 Opt-Shift-ArrowDown             create_cursor_below
+
 Opt-Cmd-A                       align_cursors
 
 Opt-Cmd-Z                       toggle_line_wrap
@@ -225,6 +236,9 @@ Shift-Enter                     move_up  # an alternative way to move
 Cmd-Opt-C                       toggle_case_sensitive
 Cmd-Opt-W                       toggle_whole_word
 Cmd-Opt-R                       toggle_regex_search
+
+Tab                             go_to_next_input
+Shift-Tab                       go_to_previous_input
 
 [common]
 
@@ -279,13 +293,15 @@ Cmd-B                           toggle_build_panel
 {Shift}-PageDown                move_down_one_page
 
 {Shift}-ArrowLeft               move_left
-{Shift}-Opt-ArrowLeft           move_left_by_word
-{Shift}-Opt-Cmd-ArrowLeft       move_left_by_word_ends
+{Shift}-Opt-ArrowLeft           move_left_by_character_type
+{Shift}-Opt-Cmd-ArrowLeft       move_left_through_word_throttled
+{Shift}-Ctrl-ArrowLeft          move_left_through_word
 {Shift}-Cmd-ArrowLeft           jump_to_line_start
 
 {Shift}-ArrowRight              move_right
-{Shift}-Opt-ArrowRight          move_right_by_word
-{Shift}-Opt-Cmd-ArrowRight      move_right_by_word_ends
+{Shift}-Opt-ArrowRight          move_right_by_character_type
+{Shift}-Opt-Cmd-ArrowRight      move_right_through_word_throttled
+{Shift}-Ctrl-ArrowRight         move_right_through_word
 {Shift}-Cmd-ArrowRight          jump_to_line_end
 
 {Shift}-Cmd-ArrowUp             jump_to_file_start
@@ -299,10 +315,12 @@ Cmd-B                           toggle_build_panel
 
 {Shift}-Backspace               delete_left_char
 {Shift}-Delete                  delete_right_char
-{Shift}-Opt-Backspace           delete_word_left_no_underscore
-{Shift}-Opt-Delete              delete_word_right_no_underscore
-{Shift}-Opt-Cmd-Backspace       delete_word_left
-{Shift}-Opt-Cmd-Delete          delete_word_right
+{Shift}-Opt-Backspace           delete_left_by_character_type
+{Shift}-Opt-Delete              delete_right_by_character_type
+{Shift}-Opt-Cmd-Backspace       delete_left_by_character_type_fast
+{Shift}-Opt-Cmd-Delete          delete_right_by_character_type_fast
+{Shift}-Ctrl-Backspace          delete_left_through_word
+{Shift}-Ctrl-Delete             delete_right_through_word
 
 Cmd-Plus                        increase_font_size
 Cmd-Minus                       decrease_font_size
@@ -318,8 +336,13 @@ Shift-Cmd-F8                    go_to_previous_build_error_on_the_side
 [[style]]
 
 [fonts]
-font:       default
-font_size:  14
+font:          default
+font_ui:       default
+font_ui_bold:  default
+font_size:     14
+font_ui_size:  15
+anti_aliasing: lcd  # options: lcd, normal
+hinting:       true
 
 [colors]
 background0:                            15212AFF
@@ -328,12 +351,11 @@ background2:                            18262FFF
 background3:                            1A2831FF
 background4:                            21333FFF
 
-# NOTE: for Jai region_scope colors define background colors for blocks of code that fall into those scopes,
-#       so make sure to override those as well if you change the background.
-#       Those regions are likely to be used for languages other than Jai in the future
+# NOTE: region_scope colors only work for Jai at the moment
 region_scope_export:                    15212AFF
 region_scope_file:                      131C22FF
 region_scope_module:                    1A2831FF
+
 region_header:                          1A5152FF
 region_success:                         226022FF
 region_warning:                         986032FF
@@ -353,6 +375,8 @@ cursor_inactive:                        196666FF
 paste_animation:                        1C4449FF
 splitter:                               21333FFF
 splitter_hover:                         1C4449FF
+ruler:                                  1966667F
+indent_guide:                           FCEDFC26
 letter_highlight:                       599999FF
 list_cursor_lite:                       33CCCC19
 list_cursor:                            33CCCC4C
@@ -360,6 +384,7 @@ shadow_dark:                            0E161C7F
 shadow_transparent:                     0E161C00
 text_input_label:                       3B4450FF
 char_under_cursor:                      FFFFFFFF
+bracket_highlight:                      E8FCFE30
 
 ui_default:                             BFC9DBFF
 ui_dim:                                 87919DFF

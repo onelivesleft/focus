@@ -183,6 +183,7 @@ update_color_picker_recent_color :: (recent_color_hash: u64, color: Vector4) {
 }
 
 Color_Change_Buffer_Info :: struct {
+    editor_id: s64;
     editor: *Editor;
     buffer: *Buffer;
     range: Offset_Range;
