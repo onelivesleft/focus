@@ -219,7 +219,8 @@ color_picker_edit_color_at_cursor :: (editor: *Editor, buffer: *Buffer) {
     end := editor.cursors[editor.main_cursor].sel;
     if end - start != 8  return;
 
-    color_picker_current_pick_info = .{editor, buffer, .{start, end}};
+    assert(*open_editors[context.current_editor_id] == editor);
+    color_picker_current_pick_info = .{context.current_editor_id, editor, buffer, .{start, end}};
 }
 
 color_picker_current_pick_info: Color_Change_Buffer_Info;

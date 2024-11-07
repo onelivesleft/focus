@@ -3787,10 +3787,6 @@ Editor :: struct {
     num_selected_chars: s32;  // across all cursors
     num_selected_bytes: s32;
 
-    search_bar: Search_Bar;
-
-    viewport: Viewport;
-
     using last_draw_info : struct { // Updated every frame, when drawn.
         main_rect: Rect;
         status_bar_rect: Rect;
@@ -3798,7 +3794,6 @@ Editor :: struct {
         text_origin: Vector2;
     }
 
-    line_wrap: enum u8 { off; to_enable; to_disable; on; };
     last_width_in_chars: s32 = S32_MAX;
 
     scroll_to_cursor: enum u8 { no; yes; yes_new_editor; }  // trigger a scroll so that the cursor is in the center vertically

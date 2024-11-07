@@ -64,7 +64,8 @@ draw_frame :: () {
     panel_is_active, panel_editor_rect := maybe_draw_color_preview_panel();
     if panel_is_active then active_editor_rect = panel_editor_rect;
 
-    maybe_draw_color_picker();
+    //panel_is_active, panel_editor_rect  = maybe_draw_color_picker();
+    //if panel_is_active then active_editor_rect = panel_editor_rect;
 
     panel_is_active, panel_editor_rect  = maybe_draw_build_panel();
     if panel_is_active then active_editor_rect = panel_editor_rect;
@@ -560,8 +561,8 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, rect: Rect, range: Offse
         using buffer_info := cast(*Color_Change_Buffer_Info) color_picker_dialog.color_change_callback_data;
         str := color_to_hex(rgba, exclude_hash = true);
         for i : 0 .. str.count-1  str[i] = to_upper(str[i]);
-        old_str := cast(string) array_view(buffer.bytes, range.start, range.end - range.start);
-        if old_str != str then add_paste_animation(editor, .{ range.start, range.end});
+        old_str := cast(string) to_view(buffer.bytes, range.start, range.end - range.start);
+        if old_str != str then add_paste_animation(editor_id, .{ range.start, range.end});
         if update_status & .finalize {
             new_edit_group(buffer, editor);
             replace_range(buffer, range, str);
@@ -581,7 +582,8 @@ draw_color_picker :: (editor: *Editor, buffer: *Buffer, rect: Rect, range: Offse
     }
 
     color_picker_dialog.color_change_callback = color_change_callback;
-    color_change_callback_data := Color_Change_Buffer_Info.{editor_id, editor, buffer, range};
+    assert(*open_editors[context.current_editor_id] == editor);
+    color_change_callback_data := Color_Change_Buffer_Info.{context.current_editor_id, editor, buffer, range};
     color_picker_dialog.color_change_callback_data = *color_change_callback_data;
 
     ui_id    := Ui_Id.color_picker_dialog;
