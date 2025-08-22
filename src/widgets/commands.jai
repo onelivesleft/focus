@@ -70,7 +70,7 @@ refresh_entries :: () {
     scroll_y = 0;
     selected = 0;
 
-    input_string := to_string(input.text);
+    input_string := cast(string) input.text;
     filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     for command : commands {
@@ -146,7 +146,6 @@ commands := #run Command.[
     .{ .open_project_config,                                "Open Project Config",                0, .None },
     .{ .open_global_config,                                 "Open Global Config",                 0, .None },
     .{ .show_default_config,                                "Show Default Config (readonly)",     0, .None },
-    .{ .show_troubleshooting_info,                          "Show troubleshooting information",   0, .None },
 
     .{ .show_icon_search,                                   "Show Icon Search",                   0, .None },
     .{ .convert_buffer_to_colors,                           "Convert Current Buffer To [colors]", 0, .Single },

@@ -11,12 +11,12 @@ calculator_dialog_handle_event :: (event: Input.Event) -> handled: bool {
         }
 
         handled := maybe_handle_text_input_event(*input, event);
-        if handled  ficus_update_calculator_text(to_string(input.text));
+        if handled  ficus_update_calculator_text(cast(string) input.text);
         return handled;
 
     } else if event.type == .TEXT_INPUT {
         text_input_type_char(*input, event.utf32);
-        ficus_update_calculator_text(to_string(input.text));
+        ficus_update_calculator_text(cast(string) input.text);
         return true;
     }
 
@@ -51,16 +51,16 @@ calculator_result :: (is_error: bool, result: string) {
 #scope_file
 
 maybe_handle_text_input_event :: (using input: *Text_Input, event: Input.Event) -> handled: bool {
-    input_text := copy_temporary_string(to_string(text));
+    input_text := copy_temporary_string(cast(string) text);
     handled := text_input_handle_event(input, event);
     if handled
-        return input_text != to_string(input.text);
+        return input_text != cast(string) input.text;
     else
         return false;
 }
 
 maybe_add_space_to_end :: (input: Text_Input) -> bool {
-    input_text := to_string(input.text);
+    input_text := cast(string)input.text;
     if !input_text
     || input.cursor.pos != input_text.count
     || input_text[input_text.count - 1] == #char " "

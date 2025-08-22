@@ -31,7 +31,7 @@ editors_handle_event :: (event: Input.Event) -> handled: bool {
 
         case .TEXT_INPUT;
             if config.settings.hide_mouse_when_typing platform_show_cursor(false);
-            if !key_sequence_input_in_progress() {
+            if !key_sequence_input_state.key_sequence_in_progress {
                 active_editor_type_char(event.utf32);
                 return true;
             }
@@ -40,6 +40,70 @@ editors_handle_event :: (event: Input.Event) -> handled: bool {
     return false;
 }
 
+grid_navigation : struct {
+    last_press_time: float64;
+    editor_id_should_jump: int;
+    extend_selection: bool;
+    uv: Vector2;
+    size: float;
+
+    finish_when_smaller_than :: 1.0 / 3.0 / 3.0;
+    fade_out_duration : float64 : 0.2;
+}
+
+handle_grid_navigate :: (grid_action : enum { northwest; north; northeast; west; center; east; southwest; south; southeast; reset; }, keep_selection: bool) {
+    using grid_navigation;
+
+    if last_press_time + config.settings.grid_navigation_display_duration < frame_time || grid_action == .reset {
+        reset_grid_navigation();
+    }
+
+    divisor, small_step, big_step: float;
+    if !config.settings.grid_navigation_only_quadrants {
+        divisor = 3;
+        small_step = 1;
+        big_step = 2;
+    }
+    else {
+        divisor = 2;
+        small_step = 0.5;
+        big_step = 1;
+    }
+
+    if grid_action != .reset  size /= divisor;
+
+    u, v: float;
+    if grid_action == {
+        case .reset; #through;
+        case .southwest;  u = size * 0;          v = size * 0;
+        case .south;      u = size * small_step; v = size * 0;
+        case .southeast;  u = size * big_step;   v = size * 0;
+        case .west;       u = size * 0;          v = size * small_step;
+        case .center;     u = size * small_step; v = size * small_step;
+        case .east;       u = size * big_step;   v = size * small_step;
+        case .northwest;  u = size * 0;          v = size * big_step;
+        case .north;      u = size * small_step; v = size * big_step;
+        case .northeast;  u = size * big_step;   v = size * big_step;
+    }
+
+    uv.x += u;
+    uv.y += v;
+    editor_id_should_jump = editors.active;
+    extend_selection = keep_selection;
+    last_press_time = frame_time;
+}
+
+soft_reset_grid_navigation :: () { // Will cause the drawn grid to fade out rather than instantly vanish.
+    using grid_navigation;
+    last_press_time = min(last_press_time, cast(float64) frame_time - config.settings.grid_navigation_display_duration + grid_navigation.fade_out_duration);
+}
+
+reset_grid_navigation :: () {
+    using grid_navigation;
+    last_press_time = 0;
+    size = 1.0;
+    uv = .{};
+}
 
 
 activate_editors :: () {
@@ -106,20 +170,20 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
         if mode == .classic {
             if action == {
-                case .close_dialog;                 close_search_bar(editor);                                       return true;
-                case .open_entry_in_place;          search_bar_move_cursor(editor, buffer,  1, wrap = true);        return true;
+                case .close_dialog;                 close_search_bar(editor);                                return true;
+                case .open_entry_in_place;          search_bar_move_cursor(editor, buffer,  1, wrap = true); return true;
             }
         } else {
             if action == {
-                case .close_dialog;                 close_search_bar(editor, jump_to_original_cursor = true);       return true;
+                case .close_dialog;                 close_search_bar(editor, jump_to_original_cursor = true);      return true;
 
-                case .move_up_one_page;             search_bar_move_cursor(editor, buffer, -per_page);              return true;
-                case .move_down_one_page;           search_bar_move_cursor(editor, buffer,  per_page);              return true;
+                case .move_up_one_page;             search_bar_move_cursor(editor, buffer, -per_page);             return true;
+                case .move_down_one_page;           search_bar_move_cursor(editor, buffer,  per_page);             return true;
 
-                case .open_entry_in_place;          close_search_bar(editor, jump_to_selected_result = true);       return true;
-                case .open_entry_on_the_side;       search_bar_open_selected_result(editor, buffer, .on_the_side);  return true;
-                case .open_entry_on_the_left;       search_bar_open_selected_result(editor, buffer, .left);         return true;
-                case .open_entry_on_the_right;      search_bar_open_selected_result(editor, buffer, .right);        return true;
+                case .open_entry_in_place;          close_search_bar(editor, jump_to_selected_result = true);      return true;
+                case .open_entry_on_the_side;       search_bar_open_selected_result(editor, buffer, .on_the_side); return true;
+                case .open_entry_on_the_left;       search_bar_open_selected_result(editor, buffer, .left);        return true;
+                case .open_entry_on_the_right;      search_bar_open_selected_result(editor, buffer, .right);       return true;
             }
         }
         return false;
@@ -150,12 +214,10 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .close_other_editor;               close_editor(.other);
         case .close_left_editor;                close_editor(.left);
         case .close_right_editor;               close_editor(.right);
-
-        case .save;                             save    (editor.buffer_id);
-        case .save_as;                          save_as (editor.buffer_id);
-        case .save_all;                         save_all();
-
         case .hide_current_buffer;              remove_active_buffer_from_history();
+        case .save;                             save_buffer(editor, buffer);
+        case .save_as;                          save_buffer(editor, buffer, save_new_file = true);
+        case .save_all;                         save_all   (editor, buffer);
         case .toggle_line_wrap;                 toggle_line_wrap                    (editor);
         case .toggle_line_numbers;              toggle_line_numbers                 ();
         case .delete_current_file;              show_delete_file_dialog(editor);
@@ -165,7 +227,6 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .duplicate_editor;                 switch_to_editor(.other, duplicate_current = true);
         case .duplicate_editor_to_the_left;     switch_to_editor(.left, duplicate_current = true);
         case .duplicate_editor_to_the_right;    switch_to_editor(.right, duplicate_current = true);
-
         case .move_editor_to_the_left;          if editors.active == editors.right then swap_panes();
         case .move_editor_to_the_right;         if editors.active == editors.left  then swap_panes();
         case .center_viewport_on_cursor;        center_viewport_on_cursor           (editor, buffer);
@@ -180,18 +241,6 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .scroll_viewport_down_fast;        smooth_scroll(editor, direction = .down, fast = true);  activate_hold_action(action, event);
         case .scroll_viewport_left;             smooth_scroll(editor, direction = .left, fast = true);  activate_hold_action(action, event);
         case .scroll_viewport_right;            smooth_scroll(editor, direction = .right, fast = true); activate_hold_action(action, event);
-        case .select_word;                      select_word(editor, buffer); keep_selection = true;
-        case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
-        case .select_all_occurrences;               enabled_whole_words = select_all_occurrences              (editor, buffer); keep_selection = true;
-
-        case .toggle_line_wrap;                 toggle_line_wrap                    (editor);
-        case .toggle_line_numbers;              toggle_line_numbers                 ();
-        case .delete_current_file;              show_delete_file_dialog(editor);
-        case .center_viewport_on_cursor;        center_viewport_on_cursor           (editor, buffer);
-        case .move_cursor_to_viewport_center;   move_cursor_to_viewport_center      (editor, buffer);
-        case .remove_additional_cursors;        remove_additional_cursors           (editor);
-        case .add_cursors_to_line_ends;         add_cursors_to_line_ends            (editor, buffer);
-        case .add_cursors_to_line_starts;       add_cursors_to_line_starts          (editor, buffer);
         case .swap_selections;                  swap_selections                     (editor, buffer);         keep_selection = true;
         case .select_all;                       select_all                          (editor, buffer);         keep_selection = true;
         case .create_cursor_above;              create_cursor                       (editor, buffer, .above); keep_selection = true;
@@ -211,6 +260,10 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .ficus_run_current_verbose;        ficus_execute_editor(editor, buffer, output=.verbose);
         case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_pause();
         case .ficus_toggle_breakpoint;          ficus_toggle_breakpoint(editor, buffer);
+
+        case .select_word;                      select_word(editor, buffer); keep_selection = true;
+        case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
+        case .select_all_occurrences;               enabled_whole_words = select_all_occurrences              (editor, buffer); keep_selection = true;
 
         // Actions that do something per cursor
         case .move_left;                        move_cursors_left                   (editor, buffer, by = .char,      shift_pressed);
@@ -240,6 +293,17 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .jump_to_matching_bracket;         jump_to_matching_bracket            (editor, buffer, shift_pressed);
         case .open_floating;                    open_floating                       (editor, buffer);
         case .jump_to_commented_source_location; jump_to_commented_source_location  (editor, buffer);
+
+        case .grid_navigation_northwest;        handle_grid_navigate                (.northwest, shift_pressed);
+        case .grid_navigation_north;            handle_grid_navigate                (.north,     shift_pressed);
+        case .grid_navigation_northeast;        handle_grid_navigate                (.northeast, shift_pressed);
+        case .grid_navigation_west;             handle_grid_navigate                (.west,      shift_pressed);
+        case .grid_navigation_center;           handle_grid_navigate                (.center,    shift_pressed);
+        case .grid_navigation_east;             handle_grid_navigate                (.east,      shift_pressed);
+        case .grid_navigation_southwest;        handle_grid_navigate                (.southwest, shift_pressed);
+        case .grid_navigation_south;            handle_grid_navigate                (.south,     shift_pressed);
+        case .grid_navigation_southeast;        handle_grid_navigate                (.southeast, shift_pressed);
+        case .grid_navigation_reset;            handle_grid_navigate                (.reset,     shift_pressed);
 
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
         case .copy;                             copy_selection_to_clipboard         (editor, buffer);
@@ -301,6 +365,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
     if new_group then new_edit_group(buffer, editor);  // do it after action
 
+    if !is_a_grid_navigation_action(action)  soft_reset_grid_navigation();
     if is_a_move_action(action) && shift_pressed then keep_selection = true;
 
     if editor.cursor_moved && !keep_selection {
@@ -336,6 +401,8 @@ active_editor_type_char :: (char: u32) {
     }
 
     if buffer.flags & .readonly return;
+
+    soft_reset_grid_navigation();
 
     utf8_char := convert_utf32_to_utf8(char);
 
@@ -577,25 +644,6 @@ editors_show_default_config :: (placement: Editor_Placement) {
     }
 
     editors_open_buffer(global_config_buffer_id, placement);
-}
-
-editors_show_troubleshooting_info :: (placement: Editor_Placement) {
-    if global_troubleshooting_buffer_id < 0 {
-        global_troubleshooting_buffer_id = find_or_create_an_empty_buffer();
-        buffer := *open_buffers[global_troubleshooting_buffer_id];
-        buffer.readonly = true;
-        buffer.lang = .Plain_Text;
-        buffer.file.name = "Troubleshooting info";
-        buffer.file.icon = .debug;
-        buffer.has_file = true;
-    }
-
-    buffer := *open_buffers[global_troubleshooting_buffer_id];
-    replace_range_raw(buffer, 0, xx buffer.bytes.count, platform_get_troubleshooting_info());
-    buffer.meow_hash = calculate_hash(buffer.bytes);
-    rescan_for_lines(buffer);
-
-    editors_open_buffer(global_troubleshooting_buffer_id, placement);
 }
 
 editors_create_new_file :: (placement: Editor_Placement = .in_place, lang := type_of(Buffer.lang).Plain_Text) {
@@ -1363,21 +1411,6 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
             case "m";   #through;
             case "mm";
                 buffer.lang = .C;
-
-            case "html"; #through;
-            case "htm";  #through;
-            case "xhtml";
-                buffer.lang = .Html;
-
-            case "xml";     #through;
-            case "xsd";     #through;
-            case "dtd";     #through;
-            case "xaml";    #through;
-            case "svg";     #through;
-            case "vcproj";  #through;
-            case "vcxproj"; #through;
-            case "csproj";
-                buffer.lang = .Xml;
         }
     }
 
@@ -1808,7 +1841,7 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
     leave_only_main_cursor(editor);
 
     // Begin search from the main cursor downwards with a wraparound
-    buffer_str    := cast(string) buffer.bytes;
+    buffer_str    := cast(string)buffer.bytes;
     selected_text := get_selected_string(cursors[main_cursor], buffer);
     search_func   := ifx search_whole_words && is_all_word_chars(selected_text) then find_index_from_left_whole_word else find_index_from_left;
     initial       := get_selection(cursors[main_cursor]);
@@ -1837,26 +1870,54 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
     return editor.search_whole_words;
 }
 
-save :: (buffer_id: s64) {
-    buffer := *open_buffers[buffer_id];
-    if buffer.flags & .readonly  return;
+save_buffer :: (editor: *Editor, buffer: *Buffer, save_new_file := false) {
+    new_edit_group(buffer, editor);
 
     if buffer.flags & .has_file {
-        save_buffer(buffer, buffer_id);
+        maybe_mark_buffer_as_deleted(editor.buffer_id);   // check in case we missed that it's deleted
+        session_notify_modified_buffer(editor.buffer_id);
+    }
+
+    if buffer.flags & .readonly  return;
+
+    if !save_new_file && buffer.flags & .has_file {
+        // Just save the file normally
+        save_buffer_to_disk(buffer, editor.buffer_id);
+        return;
+    }
+
+    // We have to select a path for the file
+    if config.settings.prefer_system_file_dialogs && OS == .WINDOWS {
+        file_path, success := platform_get_save_file_name(get_buffer_name(buffer));
+        if !file_path || !success return;
+
+        save_buffer_to_new_file_on_disk(buffer, editor.buffer_id, file_path);
     } else {
-        add_buffer_to_save_queue(buffer_id, after_save = .do_nothing);
-        redraw_requested = true;
+        show_open_file_dialog(.save_as, buffer, editor.buffer_id);
     }
 }
 
-save_as :: (buffer_id: s64) {
-    add_buffer_to_save_queue(buffer_id, after_save = .do_nothing);
-    redraw_requested = true;
-}
+#scope_export
 
-save_all :: () {
-    for * buffer, buffer_id : open_buffers {
-        if buffer.flags & .modified  save(buffer_id);
+save_all :: (editor : *Editor = null, buffer : *Buffer = null, include_fileless_buffers := true, include_unmodified := false) {
+    for * b, b_id : open_buffers {
+        if !b.flags & .modified continue;
+        if !include_fileless_buffers && !(b.flags & .has_file)  continue;
+        if !include_unmodified {
+            if !(b.flags & .modified) || (b.flags & (.modified_on_disk | .deleted))
+                continue;
+        }
+
+        if b.num_editors_open {
+            for * e: open_editors {
+                if e.buffer_id == b_id {
+                    new_edit_group(b, e);
+                    break;
+                }
+            }
+        }
+
+        save_buffer_to_disk(b, b_id);
     }
 }
 
@@ -2115,6 +2176,23 @@ is_a_move_action :: (action: Action_Editors) -> bool {
         case .jump_to_file_end;                 return true;
         case .jump_to_matching_bracket;         return true;
     }
+    if is_a_grid_navigation_action(action)      return true;
+    return false;
+}
+
+is_a_grid_navigation_action :: (action: Action_Editors) -> bool {
+    if action == {
+        case .grid_navigation_northwest;        return true;
+        case .grid_navigation_north;            return true;
+        case .grid_navigation_northeast;        return true;
+        case .grid_navigation_west;             return true;
+        case .grid_navigation_center;           return true;
+        case .grid_navigation_east;             return true;
+        case .grid_navigation_southwest;        return true;
+        case .grid_navigation_south;            return true;
+        case .grid_navigation_southeast;        return true;
+        case .grid_navigation_reset;            return true;
+    }
     return false;
 }
 
@@ -2167,7 +2245,7 @@ move_cursors_right :: (editor: *Editor, using buffer: *Buffer, by: enum { char; 
                     char_type := get_char_type(char);
                     if !(char_type & .word) then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, char_type, skip_one_space = false);
                     char_type = get_char_type(get_char_at_offset(buffer, cursor.pos));
-                    if char_type != .other && !is_unicode_linebreak(char) then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, skip_one_space = skip_one_space);
+                    if char_type != .other && char != #char "\n" then cursor.pos = scan_through_similar_chars_on_the_right(buffer, cursor.pos, skip_one_space = skip_one_space);
             }
         }
         coords := offset_to_coords(editor, buffer, cursor.pos);
@@ -2384,8 +2462,8 @@ is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64,
 break_line :: (editor: *Editor, buffer: *Buffer) {
     // Remember by how much we need to indent the new lines upfront to avoid any scanning of the dirty buffer later
     Space :: struct { start: s32; count: s32; original_start: s32; }  // not a string to avoid invalid pointers
-    space_per_cursor := NewArray(editor.cursors.count, Space, initialized = false, allocator = temp);
-    indent_per_cursor := NewArray(editor.cursors.count, bool, initialized = false, allocator = temp);
+    space_per_cursor := NewArray(editor.cursors.count, Space, initialized = false,, allocator = temp);
+    indent_per_cursor := NewArray(editor.cursors.count, bool, initialized = false,, allocator = temp);
     for cursor : editor.cursors {
         selection := get_selection(cursor);
         start := get_real_line_start_offset(buffer, offset_to_real_line(buffer, selection.start));
@@ -2406,7 +2484,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
         space := *space_per_cursor[it_index];
         prev_space := space_per_cursor[max(it_index-1, 0)];
         if space.original_start == prev_space.original_start then space.start = prev_space.start; else space.start += xx offset_delta;  // handle cursors on the same line well
-        space_str := to_string(array_view(buffer.bytes, space.start, space.count));
+        space_str := cast(string) array_view(buffer.bytes, space.start, space.count);
         insert_str := tprint("\n%1%2", space_str, ifx indent_per_cursor[it_index] then (ifx config.settings.insert_spaces_when_pressing_tab get_tmp_spaces(TAB_SIZE) else "\t") else "");
 
         cursor.pos += xx offset_delta;
@@ -2430,7 +2508,7 @@ break_line :: (editor: *Editor, buffer: *Buffer) {
 
 new_line_below :: (editor: *Editor, buffer: *Buffer) {
     Line_Info :: struct { end: s32; space: struct { start, count, original_start: s32; }; last_line: bool; };
-    line_info_per_cursor := NewArray(editor.cursors.count, Line_Info, initialized = false, allocator = temp);
+    line_info_per_cursor := NewArray(editor.cursors.count, Line_Info, initialized = false,, allocator = temp);
     for cursor : editor.cursors {
         selection := get_selection(cursor);
         last_line := offset_to_real_line(buffer, selection.end);
@@ -2461,7 +2539,7 @@ new_line_below :: (editor: *Editor, buffer: *Buffer) {
 
 new_line_above :: (editor: *Editor, buffer: *Buffer) {
     Line_Info :: struct { start: s32; space: struct { start, count, original_start: s32; }; };
-    line_info_per_cursor := NewArray(editor.cursors.count, Line_Info, initialized = false, allocator = temp);
+    line_info_per_cursor := NewArray(editor.cursors.count, Line_Info, initialized = false,, allocator = temp);
     for cursor : editor.cursors {
         selection  := get_selection(cursor);
         first_line := offset_to_real_line(buffer, selection.start);
@@ -2527,7 +2605,7 @@ delete_selection :: (editor: *Editor, buffer: *Buffer) {
     // NOTE: we don't have to worry about a cursor with no selection being immediately next
     //       to the non-cursor end of another cursor's selection (thanks to organise_cursors),
     //       so it should be safe to delete at least one character to the left of every cursor if there is one
-    range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false, allocator = temp);
+    range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false,, allocator = temp);
     for cursor : editor.cursors {
         if has_selection(cursor)
             range_per_cursor[it_index] = get_selection(cursor);
@@ -2559,7 +2637,7 @@ delete_left_char :: (editor: *Editor, buffer: *Buffer) {
     // NOTE: we don't have to worry about a cursor with no selection being immediately next
     //       to the non-cursor end of another cursor's selection (thanks to organise_cursors),
     //       so it should be safe to delete at least one character to the left of every cursor if there is one
-    range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false, allocator = temp);
+    range_per_cursor := NewArray(editor.cursors.count, Offset_Range, initialized = false,, allocator = temp);
     for cursor : editor.cursors {
         if should_delete_closing_bracket {
             range_per_cursor[it_index] = .{ start = cursor.pos - 1, end = cursor.pos + 1 };
@@ -2885,7 +2963,7 @@ autoindent_region :: (editor: *Editor, buffer: *Buffer, fallback := true) {
                 level = max(0, level + next_delta);
             }
 
-            replacement = builder_to_string(*b, allocator = temp);
+            replacement = builder_to_string(*b,, allocator = temp);
         }
 
         array_add(*replacements, replacement);
@@ -2939,7 +3017,7 @@ autoindent_lines :: (editor: *Editor, buffer: *Buffer) {
     array_add(*line_starts, last_line_end_offset);
     for 0..line_starts.count-2 {
         start, end := line_starts[it], line_starts[it+1];
-        s := to_string(array_view(buffer.bytes, start, end-start));
+        s := cast(string) array_view(buffer.bytes, start, end-start);
         trimmed := trim_start(s);
         if trimmed {
             if start > 0 {
@@ -3195,7 +3273,7 @@ join_lines :: (editor: *Editor, buffer: *Buffer, in_between := " ") {
         append(*b, "\n");
         add_deletion(-1);
 
-        new_str := builder_to_string(*b, allocator = temp);
+        new_str := builder_to_string(*b,, allocator = temp);
         replace_range(buffer, range.range, new_str);
         add_paste_animation(editor, .{ start = range.start + cast(s32)first_line.count, end = range.start + cast(s32)new_str.count });
 
@@ -3279,7 +3357,7 @@ change_case_of_selected_text :: (editor: *Editor, buffer: *Buffer, mode: enum { 
 
         selection := get_selection(cursor);
         s := get_selected_string(cursor, buffer);
-        old_str := copy_string(s, temp);
+        old_str := copy_string(s,, temp);
 
         if mode == .cycle {
             found_lower := false;
@@ -3692,8 +3770,6 @@ toggle_block_comment :: (editor: *Editor, buffer: *Buffer) {
         case .Glsl;         comment_start = "/*"; comment_end = "*/";
         case .Jai;          comment_start = "/*"; comment_end = "*/";
         case .Odin;         comment_start = "/*"; comment_end = "*/";
-        case .Html;         comment_start = "<!--"; comment_end = "-->";
-        case .Xml;          comment_start = "<!--"; comment_end = "-->";
         case;               toggle_comment(editor, buffer); return;  // fallback to toggle_comment for the rest.
     }
 
@@ -4328,7 +4404,7 @@ add_status_part :: (editor: *Editor, type: type_of(Status_Bar_Part.type), text :
     using editor.status_bar;
     part := array_add(*parts);
     part.type = type;
-    part.text = copy_string(split_into_two(text, #char "\n"), temp);
+    part.text = copy_string(split_into_two(text, #char "\n"),, temp);
     part.color = Colors.UI_DEFAULT;
 }
 
@@ -4336,7 +4412,7 @@ add_status_part :: (editor: *Editor, type: type_of(Status_Bar_Part.type), text :
     using editor.status_bar;
     part := array_add(*parts);
     part.type = type;
-    part.text = copy_string(split_into_two(text, #char "\n"), temp);
+    part.text = copy_string(split_into_two(text, #char "\n"),, temp);
     part.color = color;
 }
 
@@ -4345,14 +4421,14 @@ is_status_bar_showing :: (editor: *Editor) -> bool {
     return parts.count > 0;
 }
 
+CURSOR_BLINK_SPEED_MS   :: 500;
+
 #scope_file
 
 cursor_blink_start: Time;
 cursors_blinking := false;
 
 global_config_buffer_id := -1;
-global_troubleshooting_buffer_id := -1;
 
-CURSOR_BLINK_SPEED_MS   :: 500;
 
 #import "Clipboard";

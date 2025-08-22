@@ -87,11 +87,6 @@ active_backend :: (display: *Display) -> ACTIVE_BACKEND {
     }
 }
 
-active_gl_backend :: (display: *Display) -> GL_BACKEND {
-    bd: *Base_Display = display;
-    return bd.gl.type;
-}
-
 /*
  * Window functions
  */

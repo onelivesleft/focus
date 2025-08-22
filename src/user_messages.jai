@@ -24,11 +24,11 @@ add_user_message :: (message: string, level: User_Message.Level, duration_in_sec
 
     user_message := User_Message.{
         state              = .arriving,
-        text               = copy_string(trim(split_into_two(message, #char "\n")), user_message_allocator),
+        text               = copy_string(trim(split_into_two(message, #char "\n")),, user_message_allocator),
         icon               = icon,
         level              = level,
         origin             = origin,
-        start_time         = cast(Time) get_time(),
+        start_time         = cast(Time) seconds_since_init(),
         duration_in_seconds = cast(Time) duration_in_seconds,
         current_state_duration = User_Message.arrival_duration
     };
@@ -73,7 +73,7 @@ update_user_messages :: () {
     // Remove dead messages
     for < user_messages {
         if it.state == .departing && frame_time >= it.start_time + it.current_state_duration {
-            free(it.text, user_message_allocator);
+            free(it.text,, user_message_allocator);
             array_ordered_remove_by_index(*user_messages, it_index);
         }
     }
@@ -114,14 +114,14 @@ get_user_messages :: () -> [] User_Message {
 }
 
 clear_user_messages :: () {
-    for user_messages free(it.text, user_message_allocator);
+    for user_messages free(it.text,, user_message_allocator);
     array_reset_keeping_memory(*user_messages);
 }
 
 clear_user_messages :: (origin: User_Message.Origin) {
     for < user_messages {
         if it.origin == origin {
-            free(it.text, user_message_allocator);
+            free(it.text,, user_message_allocator);
             array_ordered_remove_by_index(*user_messages, it_index);
         }
     }

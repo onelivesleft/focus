@@ -206,7 +206,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
                  wParam: WPARAM, lParam: LPARAM) -> s64 #c_call {
     new_context: Context;
     new_context.allocator = Context.default_allocator;
-    new_context.logger    = Context.default_logger;
+    new_context.logger    = Context.{}.logger;
 
     push_context new_context {
         using Key_Code;
@@ -440,7 +440,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
  	 	        ok := DragQueryFileW(drop, i, file_name_wide, file_name_wide_count);
  	 	        assert(ok > 0); // means success
 
- 	  	        file_name := wide_to_utf8(file_name_wide);
+ 	  	        file_name := wide_to_utf8_new(file_name_wide);
  	 	        array_add(*files, file_name);
  	 	    }
 
@@ -766,6 +766,7 @@ set_key_down_state :: (vkey : u32, is_down: bool) -> was_down:bool {
 
     return was_down;
 }
+
 
 maybe_send_vkey_event :: (vkey: u64, key_down: bool, repeat := false, extended := false) {
     was_down := set_key_down_state(cast,trunc(u32) vkey, key_down);

@@ -6,14 +6,12 @@ Language :: enum u8 {
     Focus_Config;
     Glsl;
     Golang;
-    Html;
     Jai;
     Odin;
     Markdown;
     Python;
     RenPy;
     Worklog;
-    Xml;
 }
 
 language_from_extension :: (identifier: string) -> type_of(Buffer.lang) {

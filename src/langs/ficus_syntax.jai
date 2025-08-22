@@ -1,6 +1,6 @@
 highlight_ficus_syntax :: (using buffer: *Buffer) {
     tokenizer: Ficus_Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
     tokenizer.syntax_highlight_mode = true;
@@ -10,7 +10,7 @@ highlight_ficus_syntax :: (using buffer: *Buffer) {
 
 highlight_ficus_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Ficus_Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
     tokenizer.syntax_highlight_mode = true;

@@ -118,7 +118,7 @@ message :: (p: *Metaprogram_Plugin, message: *Message) {
         h := body.header;
         assert(h != null);
 
-        if h.procedure_flags & (h.procedure_flags.POLYMORPHIC | .COMPILER_GENERATED | .COMPILE_TIME | .QUICK | .TYPE_ONLY | .MACRO) continue;  // @Incomplete: Need maybe we want a user-generated compile_time flag; that would be different than this, which is to detect #compiler.
+        if h.procedure_flags & (h.procedure_flags.POLYMORPHIC | .COMPILER_GENERATED | .COMPILE_TIME_ONLY | .QUICK | .TYPE_ONLY | .MACRO) continue;  // @Incomplete: Need maybe we want a user-generated compile_time flag; that would be different than this, which is to detect #compiler.
 
         is_entry_point := (h.procedure_flags & .ENTRY_POINT) != 0;
 

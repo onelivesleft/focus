@@ -45,7 +45,7 @@ text_input_handle_event :: (using input: *Text_Input, event: Input.Event) -> han
 }
 
 text_input_type_char :: (using input: *Text_Input, char: u32) {
-    if key_sequence_input_in_progress() return;
+    if key_sequence_input_state.key_sequence_in_progress  return;
 
     if edits.count == 0 {
         // Always remember cursor before any edits
@@ -90,7 +90,7 @@ get_selected_offsets :: inline (cursor: Text_Input.Cursor) -> left: s64, right: 
     return left, right;
 }
 
-get_num_chars :: (bytes: [] u8) -> s32 {
+get_num_chars :: (bytes: [] u8) -> s32 { 
     if !bytes return 0;
     num_chars: s32 = 0;
     i := 0;
@@ -135,7 +135,7 @@ replace_text :: (using input: *Text_Input, new_text: string) {
 copy :: (using input: Text_Input) {
     if !has_selection(cursor) return;
     left, right := get_selected_offsets(cursor);
-    os_clipboard_set_text(slice(cast(string) text, left, right - left));
+    os_clipboard_set_text(slice(cast(string) text, left, right));
 }
 
 paste :: (using input: *Text_Input) {
@@ -302,7 +302,7 @@ delete_to_end_of_line :: inline (using input: *Text_Input) {
 delete_selection :: inline (using input: *Text_Input, copy_to_clipboard := false) {
     left, right := get_selected_offsets(cursor);
     if right > left {
-        if copy_to_clipboard then os_clipboard_set_text(slice(cast(string) text, left, right - left));
+        if copy_to_clipboard then os_clipboard_set_text(slice(cast(string) text, left, right));
         delete_range(input, left, right);
     }
 

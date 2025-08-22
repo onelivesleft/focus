@@ -216,7 +216,7 @@ update :: (record_data: bool) {
 
     // Precompute the time factors
 
-    now := get_time();
+    now := seconds_since_init();
     dt: float64;
 
     if update_index == 0 {
@@ -307,7 +307,7 @@ create_report :: () -> *Report {
 
     num_records := zones.count * s;
 
-    report := New(Report, allocator=__temporary_allocator);
+    report := New(Report,, __temporary_allocator);
     report.records.allocator = __temporary_allocator;
 
     array_resize(*report.records, num_records, true);
@@ -489,7 +489,7 @@ Stack_Push :: (zone: *Zone) -> *Zone_Profiling_Data {
         z := createStackNode(zone, stack);
         insert_node(z);
 
-        free(old_hash.data, allocator=zone_hash.allocator);
+        free(old_hash.data,, zone_hash.allocator);
 
         return z;
     }
@@ -649,7 +649,7 @@ createStackNode :: (zone: *Zone, parent: *Zone_Profiling_Data) -> *Zone_Profilin
         allocator: Allocator;
         allocator.proc = pool_allocator_proc;
         allocator.data = *stack_node_pool;
-        z = New(Zone_Profiling_Data, allocator=allocator);
+        z = New(Zone_Profiling_Data,, allocator);
         unlock(*stack_node_pool_mutex);
     }
 
@@ -674,7 +674,7 @@ init_zone_hash :: (size: s64) {
     // @Cleanup:
     // Rewrite the caller so we don't need this!
 
-    zone_hash.data = alloc(size_of(*Zone_Profiling_Data) * size, zone_hash.allocator);
+    zone_hash.data = alloc(size_of(*Zone_Profiling_Data) * size,, zone_hash.allocator);
     zone_hash.allocated = size;
     zone_hash.count = size;
 
@@ -791,7 +791,7 @@ update_history :: (c: *Zone_Profiling_Data) {
     z := c.zone;
 
     if record == null {
-        record = New(Profile_Tracker_Data_Record, allocator=runtime_allocator);
+        record = New(Profile_Tracker_Data_Record,, runtime_allocator);
         c.profile_tracker_data_record = record;
     }
 

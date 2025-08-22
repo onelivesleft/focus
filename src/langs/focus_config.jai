@@ -1,12 +1,15 @@
 highlight_focus_config_syntax :: (using buffer: *Buffer) {
-    memset(colors.data, xx COLOR_MAP[Focus_Config_Token.comment], colors.count);
+    tokenizer: Tokenizer = ---;
+    tokenizer.buf   = cast(string) bytes;
+    tokenizer.max_t = bytes.data + bytes.count;
+    tokenizer.t     = bytes.data;
 
     highlight_focus_config_syntax(buffer, *tokenizer, true);
 }
 
 highlight_focus_config_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
 
@@ -48,23 +51,6 @@ highlight_focus_config_syntax :: (using buffer: *Buffer, using tokenizer: *Token
         script_section_end = token.start + token.len;
     if script_section_end
         highlight_ficus_syntax(buffer, script_section_start, script_section_end - script_section_start);
-}
-
-Focus_Config_Token :: enum u16 {
-    error;
-    warning;
-    default;
-    comment;
-    header;
-    header_top_level;
-
-    // Keymap
-    modifier_key;
-    key_string;
-    action;
-
-    // Settings
-    value;
 }
 
 #scope_file
@@ -193,7 +179,7 @@ parse_keymap_line :: (using tokenizer: *Tokenizer, token: *Token) {
 
     MODIFIER_KEYS :: string.["shift", "alt", "ctrl", "cmd", "meta", "super"];
 
-    if array_find(MODIFIER_KEYS, to_lower_copy(str)) {
+    if array_find(MODIFIER_KEYS, to_lower_copy_new(str)) {
         token.type = .modifier_key;
     } else {
         _, found_action := table_find(*Keymap_Action_Strings, str);
@@ -311,12 +297,7 @@ Token :: struct {
 
 // Must match the order of the types in the enum above
 COLOR_MAP :: Code_Color.[
-    .ERROR,          // error
-    .STRING,         // warning
-    .DEFAULT,        // default
-    .COMMENT,        // comment
-    .OPERATION,      // header
-    .KEYWORD,        // header_top_level
+    .COMMENT,       // eof - obviously not used
 
     .ERROR,         // error
     .DEFAULT,       // default

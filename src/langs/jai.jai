@@ -1,7 +1,7 @@
 highlight_jai_syntax :: (using buffer: *Buffer) {
     tokenizer: Tokenizer = ---;
     tokenizer.the_buffer = buffer;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
     tokenizer.make_next_scope_region = .disregard;
@@ -14,7 +14,7 @@ highlight_jai_syntax :: (using buffer: *Buffer) {
 highlight_jai_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Tokenizer = ---;
     tokenizer.the_buffer = buffer;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
     tokenizer.make_next_scope_region = .disregard;
@@ -548,7 +548,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     return token;
 }
 
-parse_identifier :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_identifier :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     mark := get_temporary_storage_mark();
@@ -628,6 +628,10 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
         }
     } else if t.* == #char "x" || t.* == #char "h" {
         // Hex
+        is_hex :: inline (c: u8) -> bool {
+            return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
+        }
+
         t += 1;
         while t < max_t && (is_hex(t.*) || t.* == #char "_") t += 1;
     } else if t.* == #char "b" {
@@ -637,7 +641,7 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_compiler_directive :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_compiler_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .identifier;
 
     t += 1;
@@ -663,7 +667,7 @@ parse_compiler_directive :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_colon :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_colon :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .colon;
 
@@ -676,7 +680,7 @@ parse_colon :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_equal :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .equal;
 
@@ -688,7 +692,7 @@ parse_equal :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_minus :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .minus;
 
@@ -717,7 +721,7 @@ parse_minus :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_plus :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .plus;
 
@@ -731,7 +735,7 @@ parse_plus :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_asterisk :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .asterisk;
 
@@ -745,7 +749,7 @@ parse_asterisk :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_period :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_period :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type        = .punctuation;
     token.punctuation = .period;
 
@@ -765,7 +769,7 @@ parse_period :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_bang :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .bang;
 
@@ -779,7 +783,7 @@ parse_bang :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_percent :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .percent;
 
@@ -793,7 +797,7 @@ parse_percent :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_caret :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .caret;
 
@@ -807,7 +811,7 @@ parse_caret :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_note :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_note :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .punctuation;
     token.punctuation = .note;
 
@@ -816,7 +820,7 @@ parse_note :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     if t >= max_t return;
 }
 
-parse_ampersand :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .ampersand;
 
@@ -833,7 +837,7 @@ parse_ampersand :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_pipe :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .pipe;
 
@@ -850,7 +854,7 @@ parse_pipe :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_less_than :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .less_than;
 
@@ -867,7 +871,7 @@ parse_less_than :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_greater_than :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .greater_than;
 
@@ -881,13 +885,13 @@ parse_greater_than :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_tab :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_tab :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .comment;
     t += 1;
     while t < max_t && << t == #char "\t" t += 1;
 }
 
-parse_slash_or_comment :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_slash_or_comment :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
     token.operation = .slash;
 
@@ -923,7 +927,7 @@ parse_slash_or_comment :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     }
 }
 
-parse_string_literal :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
+parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .string_literal;
 
     escape_seen := false;
@@ -939,7 +943,7 @@ parse_string_literal :: (using tokenizer: *Jai_Tokenizer, token: *Token) {
     t += 1;
 }
 
-read_identifier_string_tmp :: (using tokenizer: *Jai_Tokenizer) -> string /* temp */ {
+read_identifier_string_tmp :: (using tokenizer: *Tokenizer) -> string /* temp */ {
     identifier: [..] u8;
     identifier.allocator = temp;
 
@@ -1087,7 +1091,7 @@ JUMP_KEYWORDS :: string.[
 
 TYPE_KEYWORDS :: string.[
     "__reg", "bool", "float", "float32", "float64", "int", "reg", "s16", "s32", "s64", "s8", "string",
-    "u16", "u32", "u64", "u8", "void", "v128", "Any", "Code",
+    "u16", "u32", "u64", "u8", "void",
 ];
 
 VALUE_KEYWORDS :: string.[
@@ -1289,7 +1293,7 @@ find_current_jai_path :: () -> string {
     Compiler :: #import "Compiler";
     options := Compiler.get_build_options();
     for options.import_path {
-        if find_index_from_left(to_lower_copy(it), "jai/modules") != -1 {
+        if find_index_from_left(to_lower_copy_new(it), "jai/modules") != -1 {
             modules_path := remove_trailing_slash(it);
             base_path := remove_trailing_slash(path_strip_filename(modules_path));
             return base_path;

@@ -16,11 +16,13 @@ highlight_python_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, 
         using tokenizer;
 
         // Maybe highlight a function
-        if token.type == .punctuation && token.punctuation == .l_paren && last_token.type == .identifier {
-            memset(colors.data + last_token.start, xx Code_Color.FUNCTION, last_token.len);
+        if token.type == .punctuation && token.punctuation == .l_paren && last_tokens[1].type == .identifier {
+            memset(colors.data + last_tokens[1].start, xx Code_Color.FUNCTION, last_tokens[1].len);
         }
 
-        last_token = token;
+        // Remember last 2 tokens
+        last_tokens[0] = last_tokens[1];
+        last_tokens[1] = token;
 
         color := COLOR_MAP[token.type];
         memset(colors.data + token.start, xx color, token.len);
@@ -32,7 +34,7 @@ highlight_python_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, 
 get_tokenizer :: (using buffer: Buffer, start_index: s32, count: s32) -> Tokenizer {
     tokenizer: Tokenizer;
 
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
 
@@ -40,7 +42,7 @@ get_tokenizer :: (using buffer: Buffer, start_index: s32, count: s32) -> Tokeniz
 }
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    eat_white_space(tokenizer);
+    t = eat_white_space(t, max_t);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -130,6 +132,10 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
         }
     } else if << t == #char "x" || << t == #char "h" {
         // Hex
+        is_hex :: inline (c: u8) -> bool {
+            return is_digit(c) || (c >= #char "a" && c <= #char "f") || (c >= #char "A" && c <= #char "F");
+        }
+
         t += 1;
         while t < max_t && (is_hex(<< t) || << t == #char "_") t += 1;
     } else if << t == #char "b" {
@@ -238,7 +244,7 @@ parse_decorator :: (using tokenizer: *Tokenizer, token: *Token) {
     token.operation = .decorator;
 
     t += 1;
-    eat_white_space(tokenizer);
+    t = eat_white_space(t, max_t);
     read_identifier_string(tokenizer);
 }
 
@@ -387,6 +393,30 @@ parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token, quote := #c
     }
 }
 
+read_identifier_string :: (using tokenizer: *Tokenizer) -> string {
+    ret: string;
+    ret.data = t;
+
+    while t < max_t {
+        c := <<t;
+        if is_alnum(c) { t += 1; continue; }
+        break;
+    }
+    if t >= max_t then t = max_t;
+    ret.count = xx (t - ret.data);
+
+    return ret;
+}
+
+Tokenizer :: struct {
+    buf: string;
+    max_t:   *u8;
+    start_t: *u8;  // cursor when starting parsing new token
+    t:       *u8;  // cursor
+
+    last_tokens: [2] Token;  // to retroactively highlight functions
+}
+
 Token :: struct {
     start, len: s32;
     type: Type;
@@ -533,6 +563,15 @@ MAX_KEYWORD_LENGTH :: #run -> s32 {
     for BUILTIN_FUNCTIONS  { if it.count > result then result = it.count; }
     for BUILTIN_EXCEPTIONS { if it.count > result then result = it.count; }
     return xx result;
+}
+
+
+eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
+    t := start;
+    while t < max_t && is_white_space(<<t) {
+        t += 1;
+    }
+    return t;
 }
 
 #import "Hash_Table";

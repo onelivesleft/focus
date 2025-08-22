@@ -116,7 +116,7 @@ draw_graph :: (sx: float, sy: float, width: float, height: float,
         high *= 10;
     }
 
-    now := get_time();
+    now := seconds_since_init();
     dt  := cast(float) (now - graph_last_frame_time);
     if graph_last_frame_time == 0 dt = 0;
 
@@ -589,13 +589,13 @@ graph_proc :: (zone: *Zone, nsamples: s64, x0: float, y0: float, width: float, h
         value : float64 = values[i];
         y := y0 + cast(float) (value * y_scale * height);
 
-        current := make_vector2(x, y);
+        current := Vector2.{x, y};
         if i > i0 {
 
             // dir   := subtract(current, last);
             dir   := current-last;
-            strut := make_vector2(-dir.y, dir.x);
-            normalize_or_zero(*strut);
+            strut := Vector2.{-dir.y, dir.x};
+            normalize(*strut);
             strut.x *= b;
             strut.y *= b;
 
@@ -645,13 +645,13 @@ init_graph_colors :: (config: *Config) {
     M := 0.75;
     A := 1.0;  // We don't want lines to poke through each other.
 
-    colors[0] = make_vector4(M, M, k, A);
-    colors[1] = make_vector4(M, k, M, A);
-    colors[2] = make_vector4(k, M, M, A);
-    colors[3] = make_vector4(M, k, k, A);
-    colors[4] = make_vector4(k, M, k, A);
-    colors[5] = make_vector4(k, k, M, A);
-    colors[6] = make_vector4(k, k, k, A);
+    colors[0] = Vector4.{M, M, k, A};
+    colors[1] = Vector4.{M, k, M, A};
+    colors[2] = Vector4.{k, M, M, A};
+    colors[3] = Vector4.{M, k, k, A};
+    colors[4] = Vector4.{k, M, k, A};
+    colors[5] = Vector4.{k, k, M, A};
+    colors[6] = Vector4.{k, k, k, A};
 
     config.graph_colors = colors;
 }

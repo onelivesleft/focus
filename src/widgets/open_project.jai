@@ -71,7 +71,7 @@ get_project_names :: () -> [] string {
     visitor :: (info: *File_Visit_Info, names: *[..] string) {
         if !ends_with_nocase(info.full_name, ".focus-config") return;
 
-        full_path := copy_string(info.full_name, temp);   // @leak: we leak project file names for now
+        full_path := copy_string(info.full_name,, temp);   // @leak: we leak project file names for now
         path, basename, extension, name := path_decomp(full_path);
 
         array_add(names, basename);
@@ -92,7 +92,7 @@ refresh_entries :: () {
     scroll_y = 0;
     selected = 0;
 
-    input_string := to_string(input.text);
+    input_string := cast(string) input.text;
     filter_chars := decode_utf8_string_to_temp_char_substrings(input_string);
 
     Project_Config :: struct {

@@ -98,8 +98,6 @@ Key_Code :: enum u32 {
     F23;
     F24;
 
-    PRINT_SCREEN;
-
     NUMPAD_0;
     NUMPAD_1;
     NUMPAD_2;
@@ -116,6 +114,8 @@ Key_Code :: enum u32 {
     NUMPAD_SUBTRACT;
     NUMPAD_DECIMAL;
     NUMPAD_ENTER;
+
+    PRINT_SCREEN;
 
     MOUSE_BUTTON_LEFT;
     MOUSE_BUTTON_MIDDLE;

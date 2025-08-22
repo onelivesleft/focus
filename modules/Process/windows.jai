@@ -25,7 +25,7 @@ init_named_pipe_pair :: (pipe: *Process.Pipe, is_input: bool) -> success: bool, 
     while true {
         pipe_index := atomic_add(*next_pipe_index, 1);
         pipe_name = tprint("\\\\.\\pipe\\%_%", process_id, pipe_index);
-        pipe_name_w = utf8_to_wide(pipe_name);
+        pipe_name_w = utf8_to_wide_new(pipe_name);
         pipe.handle = CreateNamedPipeW(pipe_name_w, open_mode, pipe_mode, 1, IO_BUFFER_SIZE, IO_BUFFER_SIZE, 0, null);
         if pipe.handle != INVALID_HANDLE_VALUE  break;
 
@@ -141,7 +141,7 @@ create_process :: (process: *Process, args: .. string, working_directory := "", 
     // the documentation is contradictory and confusing. Okay, well, if you dig into Process Creation Flags
     // on some other page, it tells you this is not a good idea. Yeah well. Okay.
 
-    success := CreateProcessW(null, utf8_to_wide(args_string), null, null, cast(BOOL) 1, 0, null, utf8_to_wide(working_directory), *startup_info, *process.info);
+    success := CreateProcessW(null, utf8_to_wide_new(args_string), null, null, cast(BOOL) 1, 0, null, utf8_to_wide_new(working_directory), *startup_info, *process.info);
     if !success {
         error_value, error_string := System.get_error_value_and_string();
         log_error("While running the command: '%', we were unable to create the process. Error code: %, description: %\n",

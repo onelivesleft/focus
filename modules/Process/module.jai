@@ -276,7 +276,7 @@ get_quoted_command_string :: (args: [] string, allocator := temp) -> string {
         if it_index < args.count-1  append(*builder, " ");
     }
 
-    return builder_to_string(*builder, allocator = allocator);
+    return builder_to_string(*builder,, allocator = allocator);
 }
 
 //

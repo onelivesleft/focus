@@ -1,6 +1,6 @@
 highlight_md_syntax :: (using buffer: *Buffer) {
     tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
@@ -9,7 +9,7 @@ highlight_md_syntax :: (using buffer: *Buffer) {
 
 highlight_md_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + start_index + count;
     tokenizer.t     = bytes.data + start_index;
 

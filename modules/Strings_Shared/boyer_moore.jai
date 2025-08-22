@@ -12,7 +12,7 @@ boyer_moore_first_index :: (haystack: string, needle: string, start_index: int, 
         // @TODO we should reuse this string buffer until we need to replace it for a larger needle
         // @TODO if thread_data.last_used_needle  free(thread_data.last_used_needle);
 
-        thread_data.last_used_needle = copy_string(needle, __default_allocator);
+        thread_data.last_used_needle = copy_string(needle,, __default_allocator);
         make_bad_character_delta(needle, compare, false);
         make_good_suffix_delta(needle, compare, false);
     }
@@ -42,7 +42,7 @@ boyer_moore_last_index :: (haystack: string, needle: string, start_index: int, c
     if needle != thread_data.last_used_needle || !thread_data.last_search_was_reversed {
         thread_data.last_search_was_reversed = true;
         if thread_data.last_used_needle  free(thread_data.last_used_needle);
-        thread_data.last_used_needle = copy_string(needle, __default_allocator);
+        thread_data.last_used_needle = copy_string(needle,, __default_allocator);
         make_bad_character_delta(needle, compare, true);
         make_good_suffix_delta(needle, compare, true);
     }

@@ -856,7 +856,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             local_parser.lexer.tokens = from;
 
             while !end(local_parser.lexer) {
-                node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
+                node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
                 if !node continue;
                 array_add(to, node);
             }
@@ -1445,7 +1445,7 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Decla
 }
 
 parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
-    members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
+    members := delimeted(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
 
     // Probably @InComplete
     is_procedure_args :: (kind: Node.Kind) -> bool {

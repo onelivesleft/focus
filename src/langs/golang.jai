@@ -1,6 +1,6 @@
 highlight_golang_syntax :: (using buffer: *Buffer) {
     tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
@@ -9,7 +9,7 @@ highlight_golang_syntax :: (using buffer: *Buffer) {
 
 highlight_golang_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
     tokenizer: Tokenizer = ---;
-    tokenizer.buf   = to_string(bytes);
+    tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
 
@@ -25,8 +25,9 @@ highlight_golang_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, 
         // Maybe retroactively highlight a function
         if token.type == .punctuation && token.punctuation == .l_paren {
             // Handle "func("
-            if last_token.type == .identifier {
-                memset(colors.data + last_token.start, xx Code_Color.FUNCTION, last_token.len);
+            prev := last_tokens[0];
+            if prev.type == .identifier {
+                memset(colors.data + prev.start, xx Code_Color.FUNCTION, prev.len);
             }
         }
 

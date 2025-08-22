@@ -90,7 +90,7 @@ finder_open_from_editor :: () {
     if editor && editor.cursors.count == 1 {
         cursor := editor.cursors[0];
         selected_text := get_selected_string(cursor, buffer);
-        if selected_text && selected_text != cast(string) finder.input.text && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
+        if selected_text && selected_text != cast(string)finder.input.text && offset_to_line(editor, buffer, cursor.pos) == offset_to_line(editor, buffer, cursor.sel) {
             replace_text(*finder.input, selected_text);
             reset_results();
             start_new_search();

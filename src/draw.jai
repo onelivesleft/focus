@@ -151,7 +151,7 @@ draw_frame :: () {
                                    else left_rect
                               else active_pane_rect
                          else screen;
-    draw_user_messages(user_message_rect, #ifx FOOTER_AT_TOP then 0; else footer_height;);
+    draw_user_messages(user_message_rect, #ifx FOOTER_AT_TOP then 0 else footer_height);
 
     if buffer_switcher_hot && buffer_switcher_index >= 0
         draw_buffer_switcher_dialog(active_pane_rect);
@@ -430,10 +430,10 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
     for < * user_messages {
         Simp.prepare_text(font_ui_bold, it.text);
         inner_rect := shrink_x(it.rect, left_right_padding);
-        pen := make_vector2(
+        pen := Vector2.{
             inner_rect.x,
             inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-        );
+        };
 
         color: Color = ---;
         if #complete it.level == {
@@ -682,10 +682,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     }
 
     // Calculate text origin in screen coordinates
-    text_offset := make_vector2(char_x_advance, -char_x_advance);
+    text_offset := Vector2.{char_x_advance, -char_x_advance};
     text_origin : Vector2 = ---;
     calculate_text_origin :: () #expand {
-        text_origin = top_left(rect) + text_offset - make_vector2(xx viewport.left, line_height - viewport.top);
+        text_origin = top_left(rect) + text_offset - Vector2.{xx viewport.left, line_height - viewport.top};
         text_origin.x -= whitespace_collapse_width;
     }
     calculate_text_origin();
@@ -916,7 +916,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Get the coordinates of all cursors
     // @Speed: instead of doing it every frame we could do it when cursors change only - but probably it's ok
-    cursor_coords := NewArray(cursors.count, Cursor_Coords, initialized = false, allocator = temp);
+    cursor_coords := NewArray(cursors.count, Cursor_Coords, initialized = false,, allocator = temp);
     for cursors cursor_coords[it_index] = get_cursor_coords(editor, buffer, it);
 
     visible_lines_start: s32;
@@ -1379,7 +1379,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     if previous_build_error_line == coords.line  continue;
                     previous_build_error_line = coords.line;
                     screen_pos := get_cursor_screen_pos(text_origin, coords);
-                    scrollbar_margin := #ifx HIDE_SCROLLBARS 0; else scrollbar_size;
+                    scrollbar_margin := #ifx HIDE_SCROLLBARS 0 else scrollbar_size;
                     line_rect := make_rect(rect.x, screen_pos.y, rect.w - scrollbar_margin, line_height);
                     draw_rect(line_rect, color);
 
@@ -1601,7 +1601,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         pen.y += (line_height - char_x_advance) / 2 - visible_lines_start * line_height;
         pen.x += hidden_chars_on_the_left * char_x_advance;
 
-        code_lines := NewArray(num_visible_lines, Simp.Code_Line, initialized = false, allocator = temp);
+        code_lines := NewArray(num_visible_lines, Simp.Code_Line, initialized = false,, allocator = temp);
         for line_num : visible_lines_start .. visible_lines_end {
             line_start := get_line_start_offset(editor, buffer, line_num);
             length     := get_line_start_offset(editor, buffer, line_num+1) - line_start;
@@ -1785,6 +1785,92 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 marker.x += marker_width;
                 measure += marker_width;
             }
+        }
+
+        coords_from_screen_position :: (using editor: Editor, rect: Rect, position: Vector2) -> Coords #expand {
+            pointer := snap_to_rect(position, rect);  // when we drag outside the editor we still want to interact
+            mouse_pos := pointer - bottom_left(rect) - text_offset;
+            mouse_pos.x += viewport.left;
+            mouse_pos.y = rect.h - mouse_pos.y + viewport.top - ifx dpi_scale > 1.0 then 1 else 0;
+            return .{ line = xx (mouse_pos.y / line_height), col = xx ((mouse_pos.x / char_x_advance) + 0.5) };
+        }
+
+        if cursors_active && grid_navigation.editor_id_should_jump == editor_id {
+            // Performing a grid jump on the cursor: move it to the cursor position which is nearest to the center of our grid.
+            // This depends on the lenghts of the surrounding lines.
+            grid_navigation.editor_id_should_jump = -1;
+            position: Vector2;
+            position.x = rect.x + rect.w * (grid_navigation.uv.x + grid_navigation.size / 2);
+            position.y = rect.y + rect.h * (grid_navigation.uv.y + grid_navigation.size / 2);
+            desired_coords := coords_from_screen_position(editor, rect, position);
+
+            // Loop over nearby lines to find the closest possible cursor.
+            cursor := leave_only_original_cursor(editor);
+            cursor.pos = coords_to_offset(editor, buffer, desired_coords);
+            best_pos := cursor.pos;
+            actual_coords := get_cursor_coords(editor, buffer, cursor);
+            cursor_screen_pos := get_cursor_screen_pos(text_origin, actual_coords.pos);
+            cursor_screen_pos.y += line_height / 2; // get_cursor_screen_pos returns the bottom of the cursor.
+            min_distance := distance_squared(position, cursor_screen_pos);
+            for line_offset : -5 .. +5 {
+                if !line_offset  continue;
+                cursor.pos = coords_to_offset(editor, buffer, .{desired_coords.line + cast(s32) line_offset, desired_coords.col});
+                actual_coords := get_cursor_coords(editor, buffer, cursor);
+                cursor_screen_pos := get_cursor_screen_pos(text_origin, actual_coords.pos);
+                cursor_screen_pos.y += line_height / 2;
+                distance := distance_squared(position, cursor_screen_pos);
+                if distance < min_distance {
+                    min_distance = distance;
+                    best_pos = cursor.pos;
+                }
+            }
+            cursor.pos = best_pos;
+            if !grid_navigation.extend_selection  cursor.sel = cursor.pos;
+            cursor.col_wanted = -1;
+            cursor_moved = .jumped;
+            cursors_start_blinking();
+
+            if grid_navigation.size < grid_navigation.finish_when_smaller_than  reset_grid_navigation();
+        }
+
+        if cursors_active && frame_time < grid_navigation.last_press_time + config.settings.grid_navigation_display_duration {
+            remaining_duration : float64 = config.settings.grid_navigation_display_duration - (frame_time - grid_navigation.last_press_time);
+            pulse_rate :: CURSOR_BLINK_SPEED_MS / 1000.0;
+            pulse_t := fmod_cycling(cast(float) frame_time, pulse_rate * 2) / pulse_rate;
+            if pulse_t > 1.0  pulse_t = 2.0 - pulse_t;
+            color := cast,force(Color) lerp(Colors.CURSOR, .{1, 1, 1, 1}, pulse_t * 0.5);
+            color.a = ifx remaining_duration > grid_navigation.fade_out_duration then 1.0 else cast(float) (remaining_duration / grid_navigation.fade_out_duration);
+
+            //Simp.set_shader_for_gradient(cast,force(Vector4) rect, cast(u8) Gradient_Mode.checkered_alpha, char_x_advance / 2);
+
+            grid := Vector2.{rect.w * grid_navigation.size, rect.h * grid_navigation.size};
+            r := Rect.{rect.x + rect.w * grid_navigation.uv.x, rect.y + rect.h * grid_navigation.uv.y, grid.x, grid.y};
+            if !config.settings.grid_navigation_only_quadrants {
+                grid /= 3;
+
+                horizontal := r;
+                horizontal.h = 1;
+                horizontal.y += grid.y;  draw_rect(horizontal, color);
+                horizontal.y += grid.y;  draw_rect(horizontal, color);
+
+                vertical := r;
+                vertical.w = 1;
+                vertical.x += grid.x;  draw_rect(vertical, color);
+                vertical.x += grid.x;  draw_rect(vertical, color);
+            }
+            else {
+                grid /= 2;
+
+                horizontal := r;
+                horizontal.h = 1;
+                horizontal.y += grid.y;  draw_rect(horizontal, color);
+
+                vertical := r;
+                vertical.w = 1;
+                vertical.x += grid.x;  draw_rect(vertical, color);
+            }
+
+            Simp.immediate_flush();
         }
     }
 
@@ -2025,10 +2111,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
                 if entry_index == selected_result then draw_rect(entry_rect, Colors.LIST_CURSOR);
 
-                pen := make_vector2(
+                pen := Vector2.{
                     entry_rect.x + margin + padding,
                     entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-                );
+                };
                 width: float;
 
                 line_range := Offset_Range.{ start = get_real_line_start_offset(buffer, entry.line), end = get_real_line_end_offset(buffer, entry.line) };
@@ -2118,10 +2204,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         padding := floor(4 * dpi_scale);
         left_right_padding := char_x_advance / 2;
         width := 0.0;
-        pen := make_vector2(
+        pen := Vector2.{
             footer_rect.x,
             footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-        );
+        };
 
         #if MINIMAL_FOOTER && FOOTER_AT_TOP {
             outer_footer_rect.y -= floor(char_x_advance / 2);
@@ -2133,10 +2219,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 outer_footer_rect.x = floor(main_area.x + main_area.w - outer_footer_rect.w - scrollbar_size - char_x_advance / 2);
             status_bar_rect = outer_footer_rect;
             footer_rect = shrink_x(outer_footer_rect, left_right_padding);
-            pen = make_vector2(
+            pen = Vector2.{
                 footer_rect.x,
                 footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
         }
 
         #if MINIMAL_FOOTER {
@@ -2231,10 +2317,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             status_bar_rect.x -= width + char_x_advance / 2;
             status_bar_rect.w = width;
             inner_rect := shrink_x(status_bar_rect, left_right_padding);
-            pen := make_vector2(
+            pen := Vector2.{
                 inner_rect.x,
                 inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
 
             push_scissor(status_bar_rect);
             defer pop_scissor();
@@ -2433,7 +2519,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
         label: string;
         if platform_path_equals(buffer.file.full_path, global_config_path) {
             label = "[current global config]";
-        } else if project_config_path && platform_path_equals(buffer.file.full_path, project_config_path) {
+        } else if platform_path_equals(buffer.file.full_path, project_config_path) {
             label = "[current project config]";
         }
         if label {
@@ -2467,8 +2553,8 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
         builder: String_Builder;
         builder.allocator = temp;
 
-        for 0 .. key_sequence_input.active_sequence_length - 1 {
-            combo_strings := key_combo_strings(key_sequence_input.potential_multipart_matches[0].mapping.key_sequence[it]);
+        for combo_index: 0..current_key_sequence_length - 1 {
+            combo_strings := key_combo_strings(matches_for_current_key_sequence[0].key_sequence[combo_index]);
             for combo_strings {
                 print_to_builder(*builder, "%", it);
                 if it_index < combo_strings.count - 1  print_to_builder(*builder, "+");
@@ -2480,7 +2566,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
         print_to_builder(*builder, "...");
 
         pen.x += width + padding;
-        width = xx Simp.prepare_text(font_ui_small, builder_to_string(*builder, allocator = temp));
+        width = xx Simp.prepare_text(font_ui_small, builder_to_string(*builder,, allocator = temp));
         if draw  Simp.draw_prepared_text(font_ui_small, xx pen.x, xx pen.y, color = Colors.UI_DIM);
     }
 
@@ -2556,7 +2642,7 @@ draw_open_file_dialog :: () {
 
     if ui.active != .none && ui.active != ui_id && !is_child(ui.active, ui_id) {
         // Close the dialog on clicks elsewhere
-        hide_open_file_dialog(manual = true);
+        hide_open_file_dialog();
         return;
     }
 
@@ -2606,10 +2692,9 @@ draw_open_file_dialog :: () {
     } else {
         label: string;
         if mode == {
-            case .navigate;
-                label = ifx !path_chunks then " Navigate to file" else "";
-            case .save;
-                label = tprint(" Choose where to save '%'", get_buffer_name(*open_buffers[buffer_id_to_save]));
+            case .navigate;     label = ifx !path_chunks then " Navigate to file" else "";
+            case .save;         label = " Choose where to save the file";
+            case .save_as;      label = " Choose where to save the file";
         }
 
         half_padding := floor(padding / 2);
@@ -2775,10 +2860,10 @@ draw_open_file_dialog :: () {
                 }
             }
 
-            pen := make_vector2(
+            pen := Vector2.{
                 entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
             width: float;
 
             name_color := ifx entry.flags & .MODIFIED then Colors.UI_WARNING else Colors.UI_DEFAULT;
@@ -2791,11 +2876,7 @@ draw_open_file_dialog :: () {
 
             // Draw name
             pen.x += xx font_icons.em_width + padding * 1.5;
-            if entry.type != .save {
-                width = xx Simp.draw_text_with_highlights(font_ui, xx pen.x, xx pen.y, entry.entry_name, entry.name_highlights, color = name_color, highlight_color = Colors.LETTER_HIGHLIGHT);
-            } else {
-                width = xx Simp.draw_text(font_ui, xx pen.x, xx pen.y, entry.entry_name, color = name_color);
-            }
+            width = xx Simp.draw_text_with_highlights(font_ui, xx pen.x, xx pen.y, entry.entry_name, entry.name_highlights, color = name_color, highlight_color = Colors.LETTER_HIGHLIGHT);
 
             if entry.flags & .MODIFIED_ON_DISK {
                 pen.x += width + padding;
@@ -2954,10 +3035,10 @@ draw_commands_dialog :: () {
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
             if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
 
-            pen := make_vector2(
+            pen := Vector2.{
                 entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
             width: float;
 
             // Draw name
@@ -3213,10 +3294,10 @@ draw_open_project_dialog :: () {
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
             if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
 
-            pen := make_vector2(
+            pen := Vector2.{
                 entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
 
             // Draw name
             Simp.draw_text_with_highlights(font_ui, xx pen.x, xx pen.y, entry.name, entry.highlights, color = Colors.UI_DEFAULT, highlight_color = Colors.LETTER_HIGHLIGHT);
@@ -3363,10 +3444,10 @@ draw_icon_search_dialog :: () {
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
             if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
 
-            pen := make_vector2(
+            pen := Vector2.{
                 entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
 
             // Draw entry
             icon, found := table_find(icon_table, entry.name);
@@ -3797,10 +3878,10 @@ draw_finder :: () {
             if selected_by_mouse == entry_index then draw_rect(entry_rect, Colors.LIST_CURSOR);
             if entry_index == selected then draw_rect(entry_rect, Colors.LIST_CURSOR);
 
-            pen := make_vector2(
+            pen := Vector2.{
                 entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
             width: float;
 
             // Not sure if it's cheaper to do this for the visible results only, but every frame,
@@ -3899,10 +3980,9 @@ draw_finder :: () {
                 }
             }
             entry_rect := cut_top(files_rect, entry_height);
-            pen := make_vector2(
-                entry_rect.x + margin + padding,
+            pen := Vector2.{                entry_rect.x + margin + padding,
                 entry_rect.y + (entry_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-            );
+            };
             Simp.draw_text(font_ui_small, xx pen.x, xx pen.y, label, Colors.UI_DIM);
         }
 
@@ -4033,10 +4113,10 @@ draw_buffer_switcher_dialog :: (active_rect: Rect) {
 
 get_cursor_screen_pos :: (text_origin: Vector2, coords: Coords) -> Vector2 {
     using font_data;
-    return make_vector2(
+    return .{
         text_origin.x + coords.col * char_x_advance,
         text_origin.y - coords.line * line_height,
-    );
+    };
 }
 
 draw_range :: (range: Coords_Range, editor: Editor, buffer: Buffer, visible_start: s32, visible_end: s32, text_origin: Vector2, color: Color, be_cool := false) {
@@ -4408,7 +4488,7 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := Colors.CURSOR;
-    if config.settings.cursor_glow_bananas_rotate_hue {
+    if config.settings.go_bananas && config.settings.cursor_glow_bananas_rotate_hue {
         h, s, l := hsl_from_rgb(lightsource_color);
         h = fmod_cycling(config.settings.cursor_glow_bananas_rotate_hue * cast(float)frame_time * 0.00001, 1.0);
         lightsource_color = rgb_from_hsl(h, s, l);
@@ -4450,10 +4530,10 @@ draw_icon_text_rect :: (rect: Rect, background_color: Color, foreground_color: C
     outer_padding := 4.0;
     inner_padding := 10.0;
     inner_rect := shrink_x(rect, outer_padding);
-    pen := make_vector2(
+    pen := Vector2.{
         inner_rect.x,
         inner_rect.y + (inner_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
-    );
+    };
     icon_width := font_ui.character_height + inner_padding;
     if left_icon {
         inner_rect.x += icon_width;

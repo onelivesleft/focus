@@ -501,7 +501,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
         KEYWORD_COUNT :: #run "KEYWORD_".count;
 
         token_kind_lower_without_prefix := _string.slice(token_kind, KEYWORD_COUNT, token_kind.count - KEYWORD_COUNT);
-        token_kind_lower_without_prefix = _string.to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
+        token_kind_lower_without_prefix = _string.to_lower_copy_new(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
 
         if identifier == "xx" {
             keyword = "KEYWORD_AUTO_CAST";

@@ -42,12 +42,12 @@ copy_string :: (str: string, allocator := Allocator.{}, $$null_terminate := fals
     a := get_allocator(allocator);
 
     if null_terminate && str[str.count - 1] != #char "\0" {
-        result = alloc_string(str.count + 1, allocator = a);
+        result = alloc_string(str.count + 1,, allocator = a);
         memcpy(result.data, str.data, str.count);
         result[result.count - 1] = #char "\0";
     }
     else {
-        result = alloc_string(str.count, allocator = a);
+        result = alloc_string(str.count,, allocator = a);
         memcpy(result.data, str.data, str.count);
     }
 
@@ -900,7 +900,7 @@ empty :: () -> string #expand {
     if `null_terminate {
         allocator := `allocator;
         a := get_allocator(allocator);
-        empty := alloc_string(1, allocator = a);
+        empty := alloc_string(1,, allocator = a);
         empty[0] = #char "\0";
         return empty;
     }

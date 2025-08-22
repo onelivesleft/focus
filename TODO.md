@@ -1,5 +1,7 @@
 # Mine
 
+- [ ] Fix Match-bracket at eof crashing
+
 - [.] Ficus
     - [ ] better assert
     - [ ] settings toggle

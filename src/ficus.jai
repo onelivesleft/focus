@@ -244,7 +244,7 @@ ficus_draw_ui :: () {
         return;
 
     using font_data;
-    position := make_vector2(char_x_advance, char_x_advance);
+    position := Vector2.{char_x_advance, char_x_advance};
     stack_width :: 140.0;
     stack_margin :: 2;
     border_size :: 2;
@@ -545,7 +545,7 @@ unique_string :: (s: string, force_store := false) -> string {
         result.data = buffer_location_lookup.*;
     }
     else {
-        result.data = alloc(s.count, ficus_allocator);
+        result.data = alloc(s.count,, ficus_allocator);
         memcpy(result.data, s.data, s.count);
         table_add(*ficus_string_lookup, result, result.data);
     }
@@ -675,7 +675,7 @@ ficus_global_flags : enum_flags {
 ficus_machine_state : enum {
     running;
     continue_running;
-    // <= .continue_running -> Running,  >= .paused -> Paused
+    // <= .continue_running is Running,  >= .paused is Paused
     paused;
     pause_request;
     pause_just_happened;
@@ -1047,7 +1047,7 @@ execute_one_frame :: (request_result := false) -> Ficus_Execution_State, error: 
                     if it_index  append(*builder, " ");
                     append(*builder, to_string(it));
                 }
-                result := builder_to_string(*builder, temp);
+                result := builder_to_string(*builder,, temp);
                 return .stopped, "", result;
             }
             else {
@@ -1976,7 +1976,7 @@ intrinsics :: #code if word_name == {
 
 intrinsic_words :: #insert -> string { // is: string.[]
     builder: String_Builder;
-    append(*builder, "string. [\n");
+    append(*builder, "string.[\n");
     _if := cast(*Code_If) compiler_get_nodes(intrinsics);
     assert(_if.kind == .IF);
     for _if.then_block.statements {

@@ -134,21 +134,21 @@ toggle_console_maximize :: () {
 
 set_build_task_name :: (s: string) -> success: bool {
     if build_task_running  return false;
-    if next_build_task_name  free(next_build_task_name.data, console_allocator);
-    next_build_task_name = copy_string(s, console_allocator);
+    if next_build_task_name  free(next_build_task_name.data,, console_allocator);
+    next_build_task_name = copy_string(s,, console_allocator);
     return true;
 }
 
 set_build_task_dir :: (s: string) -> success: bool {
     if build_task_running  return false;
-    if next_build_task_dir  free(next_build_task_dir.data, console_allocator);
-    next_build_task_dir = copy_string(s, console_allocator);
+    if next_build_task_dir  free(next_build_task_dir.data,, console_allocator);
+    next_build_task_dir = copy_string(s,, console_allocator);
     return true;
 }
 
 add_build_task_command :: (s: string) -> success: bool {
     if build_task_running  return false;
-    array_add(*next_build_task_commands, copy_string(s, console_allocator));
+    array_add(*next_build_task_commands, copy_string(s,, console_allocator));
     return true;
 }
 
@@ -170,11 +170,11 @@ build :: () {
 
     save_all(null, null, false, false);
 
-    task := New(Console_Task, allocator=console_allocator);
+    task := New(Console_Task,, allocator=console_allocator);
     if next_build_task_name
         task.title = next_build_task_name;
     else
-        task.title = copy_string(current_project_name, console_allocator);
+        task.title = copy_string(current_project_name,, console_allocator);
 
     add_work(*console_thread_group, task, task.title);
 }
@@ -310,7 +310,7 @@ add_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error.
 make_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error.kind), _message: string) -> Build_Error {
     result : Build_Error = ---;
 
-    result.path = copy_string(platform_normalize_path(location), console_allocator);
+    result.path = copy_string(platform_normalize_path(location),, console_allocator);
     result.coords = coords;
     if result.coords.col < 0  result.coords.col = 0;
     result.kind = kind;
@@ -335,16 +335,16 @@ make_build_error :: (location: string, coords: Coords, kind: type_of(Build_Error
                 break;
             }
         }
-        message = builder_to_string(*builder, temp);
+        message = builder_to_string(*builder,, temp);
     }
-    result.message = copy_string(trim_end(message), console_allocator);
+    result.message = copy_string(trim_end(message),, console_allocator);
 
     return result;
 }
 
 free_build_error_members :: (build_error: *Build_Error) {
-    if build_error.path     free(build_error.path.data, console_allocator);
-    if build_error.message  free(build_error.message.data, console_allocator);
+    if build_error.path     free(build_error.path.data,, console_allocator);
+    if build_error.message  free(build_error.message.data,, console_allocator);
 }
 
 decorate_with_build_error :: (build_error: *Build_Error ) {
@@ -375,11 +375,11 @@ Build_Error :: struct {
 }
 
 reset_build :: () {
-    if next_build_task_name  free(next_build_task_name.data, console_allocator);
+    if next_build_task_name  free(next_build_task_name.data,, console_allocator);
     next_build_task_name = "";
-    if next_build_task_dir  free(next_build_task_dir.data, console_allocator);
+    if next_build_task_dir  free(next_build_task_dir.data,, console_allocator);
     next_build_task_dir = "";
-    for next_build_task_commands  free(it.data, console_allocator);
+    for next_build_task_commands  free(it.data,, console_allocator);
     array_reset(*next_build_task_commands);
 }
 

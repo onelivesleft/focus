@@ -14,7 +14,7 @@ build :: () {
     context.logger = logger;
 
     options := get_build_options();
-    options.minimum_macos_version = .{12, 0};
+    options.minimum_os_version = .{12, 0};
     args := options.compile_time_command_line;
 
     import_path: [..] string;
@@ -46,7 +46,7 @@ build :: () {
             include_profiling = false;
           case "debug";
           case "dev";
-            include_profiling = true;
+            include_profiling = false;
             build_dir = ".";
             options.output_executable_name = "locus_dev";
             dev_build = true;
@@ -247,7 +247,7 @@ has_note :: (header: *Code_Procedure_Header, note: string) -> bool {
 
 logger :: (message: string, data: *void, info: Log_Info) {
     if info.common_flags & .ERROR || !begins_with(message, "[Iprof]")
-        context.default_logger(message, data, info);
+        Context.{}.logger(message, data, info);
 }
 
 #import "Compiler";

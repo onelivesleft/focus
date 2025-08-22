@@ -25,11 +25,6 @@ set_index_algorithm :: (first_index_proc := default_first_index, last_index_proc
 }
 
 
-equal :: inline (a: string, b: string) -> bool {
-    return equal(a, b, current_compare);
-}
-
-
 slice :: inline (str: string, from_index: int, to_index: int) -> string, normalized_from_index: int, normalized_to_index: int {
     #if strict {
         if from_index < 0  from_index = str.count + from_index;
