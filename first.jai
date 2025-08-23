@@ -45,6 +45,7 @@ build :: () {
             options.arithmetic_overflow_check = .OFF;
             include_profiling = false;
           case "debug";
+            options.output_executable_name = "locus_debug";
           case "dev";
             include_profiling = false;
             build_dir = ".";

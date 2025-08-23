@@ -472,6 +472,9 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
     }
 
     look_for_special_case := false;
+    swap_with_previous_error := false;
+    previous_error_decoration_index := 0;
+    previous_error_error_index := 0;
 
     for line: line_split(s) {
         if !line {
@@ -525,6 +528,7 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
                     error_kind = .warning;
 
                     case " Info";
+                    error_kind = .info;
                 }
                 set_color(kind_string, color);
 
@@ -533,6 +537,20 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
                 if target_buffer_index >= 0 {
                     add_source_location_decoration(buffer, xx (parts[2].data - buffer.bytes.data), xx target_buffer_index, real_coords_to_offset(open_buffers[target_buffer_index], build_error.coords));
                 }
+
+                if swap_with_previous_error {
+                    swap_with_previous_error = false;
+                    if previous_error_decoration_index >= 0
+                        Swap(*buffer.decorations[buffer.decorations.count - 1], *buffer.decorations[previous_error_decoration_index]);
+                    Swap(*build_errors[build_errors.count - 1], *build_errors[previous_error_error_index]);
+                }
+
+                if error_kind == .info {
+                    swap_with_previous_error = true;
+                    previous_error_decoration_index = ifx target_buffer_index >= 0 then buffer.decorations.count - 1 else -1;
+                    previous_error_error_index = build_errors.count - 1;
+                }
+
             }
         }
         else {

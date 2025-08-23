@@ -192,12 +192,12 @@ put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector2, color: Vector
 }
 
 put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4, u: float, v: float) {
-    position     = p;
+    position     = p.xy;
     color_scale  = color;
-    normal       = .{z=1};
+    //normal       = .{z=1};
     uv0.x        = u;
     uv0.y        = v;
-    uv1          = .{};
+    //uv1          = .{};
 }
 
 put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4, _normal: Vector3, u: float, v: float) {
@@ -211,12 +211,12 @@ put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector
 
 put_vertex :: inline (using vertex: *Immediate_Vertex, p: Vector3, color: Vector4,
                       _normal: Vector3, _tangent: Vector4, _uv0: Vector2, _uv1: Vector2) {
-    position     = p;
+    position     = p.xy;
     color_scale  = color;
-    normal       = _normal;
-    tangent      = _tangent;
+    //normal       = _normal;
+    //tangent      = _tangent;
     uv0          = _uv0;
-    uv1          = _uv1;
+    //uv1          = _uv1;
 }
 
 #scope_export
