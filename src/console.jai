@@ -505,7 +505,7 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
         }
 
         parts : [4] string;
-        split(*parts, line, #char ":");
+        to_array(*parts, split(line, #char ":"));
         if parts[3] {
             if replaced_early_colon  line[1] = #char ":";
             coords, is_location_message := coords_from_string(parts[1]);

@@ -103,9 +103,9 @@ open_file_dialog_open_entry :: (selected: s64, placement: Editor_Placement, fold
                 dir_path: string;
                 if root_dir {
                     path_chunks_trimmed := array_view(path_chunks, 1, path_chunks.count - 1);
-                    dir_path = sprint("%/%", root_dir, join(..path_chunks_trimmed, separator = "/"));
+                    dir_path = sprint("%/%", root_dir, join(path_chunks_trimmed, separator = "/"));
                 } else {
-                    dir_path = join(..path_chunks, separator = "/");
+                    dir_path = join(path_chunks, separator = "/");
                 }
                 defer free(dir_path);
 
@@ -423,9 +423,9 @@ scan_current_folder :: () {
     dir_path: string;
     if root_dir {
         path_chunks_trimmed := array_view(path_chunks, 1, path_chunks.count - 1);
-        dir_path = sprint("%/%", root_dir, join(..path_chunks_trimmed, separator = "/"));
+        dir_path = sprint("%/%", root_dir, join(path_chunks_trimmed, separator = "/"));
     } else {
-        dir_path = join(..path_chunks, separator = "/");
+        dir_path = join(path_chunks, separator = "/");
     }
     while dir_path != "/" && ends_with(dir_path, #char "/") dir_path.count -= 1;
 

@@ -245,14 +245,14 @@ convert_active_buffer_to_colors :: () {
                 hex = color_to_hex(color, true);
             }
 
-            print_to_builder(*builder, "%1:%2%3", name, slice(spaces, 0, 33 - name.count), temp_strings.upper(hex));
+            print_to_builder(*builder, "%1:%2%3", name, slice(spaces, 0, 33 - name.count), to_upper(hex,, temp));
             if hex.count == 6  append(*builder, "FF");
             append(*builder, "\n");
             return;
         }
 
         hex := "FF00FFFF";
-        print_to_builder(*builder, "%1:%2%3\n", name, slice(spaces, 0, 33 - name.count), temp_strings.upper(hex));
+        print_to_builder(*builder, "%1:%2%3\n", name, slice(spaces, 0, 33 - name.count), to_upper(hex,, temp));
     }
 
     append(*builder, "[colors]\n");

@@ -51,7 +51,7 @@ parse_config :: (name: string, filename: string, file_data: string, space: Space
                     if line[i] <= #char " "  break;
                     if line[i] == #char ":" {
                         word_name := unique_string(slice(line, 0, i));
-                        action_name := unsafe_slice(word_name, 1);
+                        action_name := raw_slice(word_name, 1);
                         array_add(*ACTIONS_SCRIPT, action_name);
                         if space == .global  actions_script_global_cutoff = ACTIONS_SCRIPT.count;
                     }
@@ -374,7 +374,7 @@ parse_workspace_line :: (using parser: *Config_Parser, line: string) -> success:
                 return true, "";
             }
         }
-        error_msg := log_parser_error(handler, "Unknown workspace subsection '%'.\nAvailable options are: %.", line, join(..WORKSPACE_SUBSECTIONS, ", ",, allocator = temp));
+        error_msg := log_parser_error(handler, "Unknown workspace subsection '%'.\nAvailable options are: %.", line, join(WORKSPACE_SUBSECTIONS, ", ",, allocator = temp));
         return false, error_msg;
     }
     if #complete workspace_subsection == {
@@ -424,7 +424,7 @@ parse_style_line :: (using parser: *Config_Parser, line: string) -> success: boo
         for STYLE_SUBSECTIONS {
             if line == it { style_subsection = xx it_index; return true, ""; }
         }
-        error_msg := log_parser_error(handler, "Unknown style subsection '%'.\nAvailable options are: %.", line, join(..STYLE_SUBSECTIONS, ", ",, allocator = temp));
+        error_msg := log_parser_error(handler, "Unknown style subsection '%'.\nAvailable options are: %.", line, join(STYLE_SUBSECTIONS, ", ",, allocator = temp));
         return false, error_msg;
     }
     if #complete style_subsection == {
@@ -599,7 +599,7 @@ parse_keymap_line :: (using parser: *Config_Parser, line: string) -> success: bo
         for KEYMAP_SUBSECTIONS {
             if line == it { keymap_subsection = xx it_index; return true, ""; }
         }
-        error_msg := log_parser_error(handler, "Unknown keymap subsection '%'.\nAvailable options are: %.", line, join(..KEYMAP_SUBSECTIONS, ", ",, allocator = temp));
+        error_msg := log_parser_error(handler, "Unknown keymap subsection '%'.\nAvailable options are: %.", line, join(KEYMAP_SUBSECTIONS, ", ",, allocator = temp));
         return false, error_msg;
     }
 
@@ -734,7 +734,7 @@ platform_parse_config_line :: (using parser: *Config_Parser, line: string) -> su
         for PLATFORM_SUBSECTION_NAMES {
             if line == it { platform_subsection = xx it_index; return true, ""; }
         }
-        error_msg := log_parser_error(handler, "Unknown platform subsection '%'.\nAvailable options are: %.", line, join(..PLATFORM_SUBSECTION_NAMES, ", ",, allocator = temp));
+        error_msg := log_parser_error(handler, "Unknown platform subsection '%'.\nAvailable options are: %.", line, join(PLATFORM_SUBSECTION_NAMES, ", ",, allocator = temp));
         return false, error_msg;
     }
     success, error_msg := platform_parse_config_line(*parsed_config.platform, platform_subsection, line);

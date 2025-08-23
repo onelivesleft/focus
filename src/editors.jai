@@ -3378,10 +3378,10 @@ change_case_of_selected_text :: (editor: *Editor, buffer: *Buffer, mode: enum { 
 
         if mode == {
             case .upper;
-            to_upper(s);
+            to_upper(*s);
 
             case .lower;
-            to_lower(s);
+            to_lower(*s);
 
             case .caps;
             caps_next := true;

@@ -502,7 +502,7 @@ draw_error_message :: (build_error_index: s32, parent: Rect, top_left: Vector2) 
     padding := floor( 4 * dpi_scale);
 
     // Figure out message height
-    lines := temp_strings.line_split(build_error.message);
+    lines := to_array(line_split(build_error.message),, temp);
 
     max_seen_width := 0;
     last_line_width := 0;
@@ -2732,7 +2732,7 @@ draw_open_file_dialog :: () {
                         path_chunks_trimmed := array_view(path_chunks, 1, it_index);
                         dir_path: string = ---;
                         if path_chunks_trimmed.count == 0 dir_path = root_dir;
-                        else dir_path = tprint("%/%", root_dir, join(..path_chunks_trimmed, separator = "/"));
+                        else dir_path = tprint("%/%", root_dir, join(path_chunks_trimmed, separator = "/"));
                         platform_open_in_explorer(dir_path);
                     } else {
                         // Regular Click = Trim chunks past this dir

@@ -1212,7 +1212,7 @@ Memory :: #import "Memory";
 #import "Flat_Pool";
 #import "Random";
 #import "System";
-using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #import "String";
+using,except(slice,split,ends_with,trim,contains,starts_with,replace,join,equal) jai_string :: #import "String";
 #import "Sort";
 #import "Simple_Bucket_Array";
 #import "Unicode";
@@ -1221,8 +1221,6 @@ using,except(slice,split,ends_with,trim,contains,starts_with) jai_string :: #imp
 #import "Compiler";
 #import "Machine_X64";
 #import "Strings";
-temp_strings :: #import "Strings_Alloc"(temp);
-new_strings :: #import "Strings_Alloc";
 
 re :: #import "uniform";
 

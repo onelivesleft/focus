@@ -947,7 +947,7 @@ find_buffer :: (path: string) -> buffer_id: s64 {
     defer unlock(*open_buffers_lock);
 
     #if OS == .WINDOWS {
-        buffer_id, found_buffer := table_find(*buffers_table, temp_strings.lower(path));
+        buffer_id, found_buffer := table_find(*buffers_table, to_lower(path,, temp));
     }
     else {
         buffer_id, found_buffer := table_find(*buffers_table, path);
@@ -965,7 +965,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
     lock(*open_buffers_lock);
 
     #if OS == .WINDOWS {
-        buffer_id, found_buffer := table_find(*buffers_table, temp_strings.lower(path));
+        buffer_id, found_buffer := table_find(*buffers_table, to_lower(path,, temp));
     }
     else {
         buffer_id, found_buffer := table_find(*buffers_table, path);
@@ -976,7 +976,7 @@ find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
         buffer_id = open_buffers.count;
         buffer = bucket_array_add(*open_buffers);
         init_buffer(buffer, buffer_id);
-        table_add(*buffers_table, new_strings.lower(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
+        table_add(*buffers_table, to_lower(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
     }
 
     unlock(*open_buffers_lock);  // only hold the lock when it's critical
