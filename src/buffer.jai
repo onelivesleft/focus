@@ -914,6 +914,31 @@ _get_line_as_string :: (buffer: Buffer, line_starts: [] s32, line_num: s32) -> s
     return result;
 }
 
+canonical_path: [256] u8;
+
+get_canonical_path :: (_path: string) -> string {
+    #if OS == .WINDOWS {
+        path := replace(_path, "/", "\\", null_terminate=true,, temp);
+        handle := CreateFileA(path.data, 0, FILE_SHARE_READ|FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, null);
+        if handle == INVALID_HANDLE_VALUE {
+            print("Got an invalid handle while reading file: %. Defaulting to its lower case form on windows.\n", path);
+            print("Error was: %\n", GetLastError());
+            return to_lower(path,, temp);
+        }
+
+        GetFinalPathNameByHandleA(handle, canonical_path.data, 256, 0);
+        CloseHandle(handle);
+
+        result := copy_string(to_string(canonical_path.data),, temp);
+        if starts_with(result, "\\\\?\\")  advance(*result, 4);
+        replace(*result, #char "\\", #char "/");
+        return result;
+    }
+    else {
+        return _path;
+    }
+}
+
 find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
     if workspace_scan_complete {
         // Return the first empty standalone buffer to avoid creating a million new buffers.
@@ -946,37 +971,29 @@ find_buffer :: (path: string) -> buffer_id: s64 {
     lock(*open_buffers_lock);
     defer unlock(*open_buffers_lock);
 
-    #if OS == .WINDOWS {
-        buffer_id, found_buffer := table_find(*buffers_table, to_lower(path,, temp));
-    }
-    else {
-        buffer_id, found_buffer := table_find(*buffers_table, path);
-    }
+    canonical_path := get_canonical_path(path);
+    buffer_id, found_buffer := table_find(*buffers_table, canonical_path);
 
     if found_buffer return buffer_id;
     else            return -1;
 }
 
-find_or_create_buffer :: (path: string) -> buffer_id: s64, created: bool {
+find_or_create_buffer :: (_path: string) -> buffer_id: s64, created: bool {
     #if OS == .WINDOWS {
-        if path.count > 248 return -1, false;  // Windows bad
+        if _path.count > 248 return -1, false;  // Windows bad
     }
 
     lock(*open_buffers_lock);
 
-    #if OS == .WINDOWS {
-        buffer_id, found_buffer := table_find(*buffers_table, to_lower(path,, temp));
-    }
-    else {
-        buffer_id, found_buffer := table_find(*buffers_table, path);
-    }
+    path := get_canonical_path(_path);
+    buffer_id, found_buffer := table_find(*buffers_table, path);
     buffer: *Buffer = ---;
 
     if !found_buffer {
         buffer_id = open_buffers.count;
         buffer = bucket_array_add(*open_buffers);
         init_buffer(buffer, buffer_id);
-        table_add(*buffers_table, to_lower(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
+        table_add(*buffers_table, copy_string(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
     }
 
     unlock(*open_buffers_lock);  // only hold the lock when it's critical

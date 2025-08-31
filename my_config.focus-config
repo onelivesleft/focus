@@ -38,13 +38,14 @@ __pycache__
 
 on_load:
     4 console_location!
-    "Locus" open_project
-    #if_else [ locus_executable? "locus_debug" contains ]
-            #[ "Escape Room" open_project ]
+    3840 0 3840 2160 window_location!
+    #"Locus" open_project
+    #"TTS Server Browser" open_project
+    if [ locus_executable? "locus_debug" contains ]
+       [ "Remedy" open_project ]
     #        [ "GUI" open_project ]
-    #        [ "Locus" open_project ]
 
-on_editor:
+xon_editor:
     editor_filename? "TODO.md" !=
     editor_language? "Markdown" =
     and (=>) zen_mode!
@@ -113,7 +114,13 @@ zen_mode_blend_percent                  100
 zen_mode_minimal                        true
 zen_mode_width_in_chars                 70
 
-ficus_debug_on_error                    true
+ficus_debug_on_error                    false
+
+grid_navigation_display_duration        1.0
+grid_navigation_only_quadrants          false
+
+remedy_executable_path                  c:/program files/remedybg/rbg.exe
+
 
 [[keymap]]
 
@@ -146,13 +153,27 @@ Ctrl-Shift-D                jump_to_definition #duplicate_lines
 #Alt-Delete                  do_nothing #delete_line_and_go_up
 Alt-Delete                  delete_line
 
-F5                          ficus_run_current_or_continue
-Shift-F5                    ficus_halt
+F5                          debugger_run
+Ctrl-F10                    debugger_run_to_cursor
+Shift-F5                    debugger_stop
+Ctrl-Shift-F5               debugger_detach
+Pause                       debugger_break
+Alt-F5                      debugger_toggle_autostep
+F9                          debugger_toggle_breakpoint
+Ctrl-Shift-F9               debugger_remove_all_breakpoints
+F10                         debugger_step_over
+F11                         debugger_step_into
+Shift-F11                   debugger_step_out
+F6                          debugger_temporary_test
+
+
+Alt-F5                      ficus_run_current_or_continue
+Alt-Shift-F5                ficus_halt
 F7                          toggle_show_keystrokes
-F9                          ficus_toggle_breakpoint
-Ctrl-F10                    ficus_debug_current
-F10                         ficus_step_over
-F11                         ficus_step_into
+Alt-F9                      ficus_toggle_breakpoint
+Alt-Ctrl-F10                    ficus_debug_current
+Alt-F10                         ficus_step_over
+Alt-F11                         ficus_step_into
 F12                         jump_to_definition
 
 Alt-F11                    toggle_profiling
@@ -202,7 +223,16 @@ Alt-L                       scroll_viewport_right
 {Shift}-Alt-PageUp          move_up_one_important_section
 {Shift}-Alt-PageDown        move_down_one_important_section
 
-
+{Shift}-Numpad0             grid_navigation_reset
+{Shift}-Numpad1             grid_navigation_southwest
+{Shift}-Numpad2             grid_navigation_south
+{Shift}-Numpad3             grid_navigation_southeast
+{Shift}-Numpad4             grid_navigation_west
+{Shift}-Numpad5             grid_navigation_center
+{Shift}-Numpad6             grid_navigation_east
+{Shift}-Numpad7             grid_navigation_northwest
+{Shift}-Numpad8             grid_navigation_north
+{Shift}-Numpad9             grid_navigation_northeast
 
 #Ctrl-Alt-ArrowUp            scroll_viewport_up
 #Ctrl-Alt-ArrowDown          scroll_viewport_down
@@ -228,7 +258,6 @@ Ctrl-Shift-Enter            do_nothing #new_line_above_without_breaking
 Ctrl-1                      switch_to_left_editor
 Ctrl-2                      switch_to_right_editor
 Ctrl-\                      switch_to_other_editor
-Ctrl-Shift-\                duplicate_editor
 
 #Ctrl-Alt-Shift-ArrowLeft    move_editor_to_the_left
 #Ctrl-Alt-Shift-ArrowRight   move_editor_to_the_right
@@ -298,6 +327,7 @@ Ctrl-F8                     build_debug
 Alt-C                       compile
 Alt-B                       build_debug
 Ctrl-Shift-F8               build_release
+Alt-V                       build_release
 
 Ctrl-G                      go_to_line
 
@@ -314,7 +344,7 @@ Ctrl-A                      select_all
 
 Alt-W                       hide_current_buffer
 Ctrl-Shift-W                do_nothing #close_other_editor
-Alt-\                       close_other_editor
+Ctrl-Shift-\                close_other_editor
 
 Ctrl-Shift-L                toggle_expand
 Ctrl-I                      toggle_collapse_leading_whitespace
@@ -370,7 +400,7 @@ Ctrl-.                      open_project_config
 
 [user interface]
 font:       default
-font_size:  14
+font_size:  16
 console_font_size: 17
 
 [colors]
@@ -436,6 +466,10 @@ code_keyword:                   CFC9DBFF
 code_jump:                      E67D74FF
 code_directive:                 EDE694FF
 code_format_item:               55FFFFFF
+
+debugger_next_instruction:      F8AD34FF
+debugger_breakpoint:            F8343455
+debugger_cursor:                F83434FF
 
 zen_foreground:                 FFFFFF8F
 zen_background:                 222222FF

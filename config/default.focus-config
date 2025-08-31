@@ -345,6 +345,10 @@ code_keyword:                   BFC9DBFF
 code_jump:                      E67D74FF
 code_directive:                 7DE674FF
 
+debugger_next_instruction:      F8AD34FF
+debugger_breakpoint:            F8AD34FF
+debugger_cursor:                F8AD34FF
+
 zen_foreground:                 FFFFFF8F
 zen_background:                 222222FF
 zen_margins:                    191919FF

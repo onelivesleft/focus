@@ -70,9 +70,15 @@ init_named_pipe_pair :: (pipe: *Process.Pipe, is_input: bool) -> success: bool, 
     return true, client_handle;
 }
 
-create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true, enable_color := false) -> success: bool {
+create_process :: (process: *Process, args: .. string, working_directory := "", capture_and_return_output := false, arg_quoting := Process_Argument_Quoting.QUOTE_IF_NEEDED, kill_process_if_parent_exits := true, enable_color := false, no_activate := false) -> success: bool {
     startup_info: STARTUPINFOW;
     startup_info.cb = size_of(type_of(startup_info));
+    if no_activate {
+        STARTF_USESHOWWINDOW :: 0x00000001;
+        SW_SHOWMINNOACTIVATE :: 7;
+        startup_info.dwFlags |= STARTF_USESHOWWINDOW;
+        startup_info.wShowWindow |= SW_SHOWMINNOACTIVATE;
+    }
 
     child_input_read:   HANDLE;
     child_output_write: HANDLE;

@@ -158,6 +158,10 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "collapsed_area_marker";              return *config.colors.COLLAPSED_AREA_MARKER;
         case "gutter";                             return *config.colors.GUTTER;
 
+        case "debugger_next_instruction";          return *config.colors.DEBUGGER_NEXT_INSTRUCTION;
+        case "debugger_breakpoint";                return *config.colors.DEBUGGER_BREAKPOINT;
+        case "debugger_cursor";                    return *config.colors.DEBUGGER_CURSOR;
+
         case "zen_foreground";                     return *config.colors.ZEN_FOREGROUND;
         case "zen_background";                     return *config.colors.ZEN_BACKGROUND;
         case "zen_margins";                        return *config.colors.ZEN_MARGINS;
@@ -207,6 +211,29 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
     }
 
     return xx 0;
+}
+
+get_setting_by_name :: (setting_name: string) -> *void, Type {
+    #insert -> string {
+        builder: String_Builder;
+
+        append(*builder, #string jai
+    if setting_name == {
+        jai);
+
+        for setting: type_info(Settings).members {
+            print_to_builder(*builder, #string jai
+        case "%1";  return *config.settings.%1, type_of(config.settings.%1);
+        jai, setting.name);
+        }
+
+        append(*builder, #string jai
+    }
+    return null, *void;
+    jai);
+
+        return builder_to_string(*builder);
+    }
 }
 
 
@@ -571,6 +598,13 @@ parse_settings_line :: (using parser: *Config_Parser, line: string) -> success: 
                             error_msg := log_parser_error(handler, "Couldn't parse '%1' - expected a valid float, got '%%'", setting_value);
                             return false, error_msg;
                         }
+                    __jai;
+                    print_to_builder(*b, code, setting.name);
+
+                case .STRING;
+                    code := #string __jai
+                        if parsed_config.settings.%1  free(parsed_config.settings.%1);
+                        parsed_config.settings.%1 = trim(value);
                     __jai;
                     print_to_builder(*b, code, setting.name);
 

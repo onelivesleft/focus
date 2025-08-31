@@ -997,7 +997,33 @@ execute_one_frame :: (request_result := false) -> Ficus_Execution_State, error: 
             case .number_literal;
                 pause_check();
                 s := token_string;
-                if contains(s, #char ".") {
+                if starts_with(s, "0x") || starts_with(s, "-0x") {
+                    is_negative := false;
+                    if s[0] == #char "-" {
+                        is_negative = true;
+                        advance(*s, 3);
+                    }
+                    else {
+                        advance(*s, 2);
+                    }
+                    int_value, ok := string_to_int(s, 16, s64);
+                    if ok  push(ifx is_negative then -int_value else int_value, stack);
+                    else   error = tprint("We failed to parse a hex int [%].", token_as_string());
+                }
+                else if starts_with(s, "0b") || starts_with(s, "-0b") {
+                    is_negative := false;
+                    if s[0] == #char "-" {
+                        is_negative = true;
+                        advance(*s, 3);
+                    }
+                    else {
+                        advance(*s, 2);
+                    }
+                    int_value, ok := string_to_int(s, 2, s64);
+                    if ok  push(ifx is_negative then -int_value else int_value, stack);
+                    else   error = tprint("We failed to parse a binary int [%].", token_as_string());
+                }
+                else if contains(s, #char ".") {
                     float_value, ok := parse_float(*s);
                     if ok  push(float_value, stack);
                     else   error = tprint("We failed to parse a float [%], but we shouldn't have because the tokenizer should only tokenize floats!", token_as_string());
@@ -1662,6 +1688,7 @@ intrinsics :: #code if word_name == {
         push(color.g, stack);
         push(color.b, stack);
 
+
     // utils
 
     case "words?";
@@ -1786,6 +1813,9 @@ intrinsics :: #code if word_name == {
     case "locus_executable?";
         push(executable_name, stack);
 
+    case "start_time?";
+        push(cast(float)application_start_time, stack);
+
     case "frame_time?";
         push(cast(float)frame_time, stack);
 
@@ -1818,6 +1848,18 @@ intrinsics :: #code if word_name == {
         push(window_y, stack);
         push(window_width, stack);
         push(window_height, stack);
+
+    case "setting?";
+        setting_name := pop(.text, "setting");
+        setting_ptr, setting_type := get_setting_by_name(to_string(setting_name));
+        if setting_ptr {
+            if setting_type == {
+                case string;  push((cast(*string) setting_ptr).*, stack);
+                case int;     push((cast(*int) setting_ptr).*, stack);
+                case float;   push((cast(*float) setting_ptr).*, stack);
+                case bool;   push((cast(*bool) setting_ptr).*, stack);
+            }
+        }
 
     // Locus commands
 

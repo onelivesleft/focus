@@ -140,9 +140,12 @@ draw_frame :: () {
         case .confirm_overwrite_dialog; draw_confirm_overwrite_dialog();
         case .commands_dialog;          draw_commands_dialog();
         case .icon_search_dialog;       draw_icon_search_dialog();
+        case .debugger;                 draw_debugger(active_pane_rect);
     }
 
     ficus_draw_ui();
+
+    debugger_draw_ui();
 
     user_message_rect := ifx console_is_at_bottom_right()
                          then ifx editors.floating == editors.active
@@ -583,6 +586,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         font_data = *console_font_info;
         editor_font = font_console;
     }
+
+    cursor_color := ifx debugger.state == .DORMANT then Colors.CURSOR else Colors.DEBUGGER_CURSOR;
 
     using font_data;
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
@@ -1404,6 +1409,44 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
+        // Debugger
+        if debugger.state == .SUSPENDED {
+            if buffer_id == debugger.current_buffer_id {
+                line_number := clamp(debugger.current_line_number, 0, get_max_real_line_num(buffer));
+                line_start := get_real_line_start_offset(buffer, cast(s32)line_number);
+                screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, line_start));
+                marker_thickness :: 3;
+                marker_color := Colors.DEBUGGER_NEXT_INSTRUCTION;
+                background_color := marker_color;
+                background_color.a = 0.2;
+                r := make_rect(rect.x, screen_pos.y, rect.w, line_height);
+                draw_rect(r, background_color);
+                r = make_rect(rect.x, screen_pos.y + line_height - marker_thickness, rect.w, marker_thickness);
+                draw_rect(r, marker_color);
+            }
+        }
+
+        for debugger.breakpoints {
+            if it.buffer_id != buffer_id  continue;
+
+            line_number := clamp(it.line_number, 0, get_max_real_line_num(buffer));
+            line_start := get_real_line_start_offset(buffer, cast(s32)line_number);
+            screen_pos := get_cursor_screen_pos(text_origin, offset_to_coords(editor, buffer, line_start));
+            background_color_left := Colors.DEBUGGER_BREAKPOINT;
+            icon_color := background_color_left;
+            icon_color.a = 1;
+            background_color_right := background_color_left;
+            background_color_right.a = 0;
+
+            icon_position := Vector2.{rect.x, screen_pos.y};
+            icon_position.x += char_x_advance * 0.5;
+            icon_position.y += (line_height - font_icons_small_size) * 0.5 - 1;
+            r := make_rect(rect.x, screen_pos.y, char_x_advance * 40, line_height);
+            Simp.set_shader_for_color(enable_blend = true);
+            draw_rect_raw(r, background_color_left, background_color_left, background_color_right, background_color_right);
+            draw_icon(debugger.icons.breakpoint, icon_position, icon_color, .small);
+        }
+
         // Draw scrollbar marks
         if !line_wrap_is_active(editor) && not_minimal_zen_mode() {
             Simp.set_shader_for_color(enable_blend = true);
@@ -1464,7 +1507,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     selection_mark_rect.h = max_pos - min_pos + cursor_mark_rect.h;
                     draw_rect_raw(selection_mark_rect, Colors.SELECTION_INACTIVE);
                 }
-                draw_rect_raw(cursor_mark_rect, Colors.CURSOR);
+                draw_rect_raw(cursor_mark_rect, cursor_color);
             }
         }
 
@@ -1571,7 +1614,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
                 cursor_rect := make_rect(screen_pos.x, screen_pos.y, char_x_advance, line_height);
-                draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                draw_rounded_rect(cursor_rect, cursor_color, radius = rounding_radius_small, set_shader = true);
                 draw_rounded_rect(shrink(cursor_rect, 1), Colors.BACKGROUND, radius = rounding_radius_small, set_shader = false);
             }
         }
@@ -1687,12 +1730,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     cursor_rect.y += offscreen_cursor_shrink_margin;
                     cursor_rect.h -= offscreen_cursor_shrink_margin * 2;
                 }
+                if debugger.state  cursor_rect = shrink_y(cursor_rect, line_height / 4);
                 if it_index == main_cursor {
-                    draw_rounded_rect(lerp(main_cursor_rect, cursor_rect, 0.5), Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                    draw_rounded_rect(lerp(main_cursor_rect, cursor_rect, 0.5), cursor_color, radius = rounding_radius_small, set_shader = true);
                     main_cursor_rect = cursor_rect;
                 }
                 else {
-                    draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                    draw_rounded_rect(cursor_rect, cursor_color, radius = rounding_radius_small, set_shader = true);
                 }
 
                 // Draw the letter on top for better visibility
@@ -1838,7 +1882,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             pulse_rate :: CURSOR_BLINK_SPEED_MS / 1000.0;
             pulse_t := fmod_cycling(cast(float) frame_time, pulse_rate * 2) / pulse_rate;
             if pulse_t > 1.0  pulse_t = 2.0 - pulse_t;
-            color := cast,force(Color) lerp(Colors.CURSOR, .{1, 1, 1, 1}, pulse_t * 0.5);
+            color := cast,force(Color) lerp(cursor_color, .{1, 1, 1, 1}, pulse_t * 0.5);
             color.a = ifx remaining_duration > grid_navigation.fade_out_duration then 1.0 else cast(float) (remaining_duration / grid_navigation.fade_out_duration);
 
             //Simp.set_shader_for_gradient(cast,force(Vector4) rect, cast(u8) Gradient_Mode.checkered_alpha, char_x_advance / 2);
@@ -2298,11 +2342,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Draw status bar
     #if MINIMAL_FOOTER {
-        if editor_is_active && not_zen_mode() && is_status_bar_showing(editor) {
+        if editor_id == editors.active && not_zen_mode() && is_status_bar_showing(editor) {
             using status_bar;
             text_width := 0.0;
             padding_between_parts := char_x_advance / 2;
-            if parts && parts[parts.count - 1].type == .divider
+            while parts && parts[parts.count - 1].type >= .divider
                 parts.count -= 1;
             for parts {
                 if it_index  text_width += xx padding_between_parts;
@@ -2310,6 +2354,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     case .text;  text_width += Simp.prepare_text(font_ui_bold, it.text);
                     case .icon;  text_width += font_ui.character_height;
                     case .divider; text_width += char_x_advance / 2;
+                    case .margin; text_width += char_x_advance / 8;
                 }
             }
             left_right_padding := char_x_advance / 2;
@@ -4079,6 +4124,59 @@ draw_calculator_dialog :: (active_editor_rect: Rect) {
     draw_text_input(*calculator_dialog.output, output_rect, ui_id = output_id, style = .display);
 }
 
+draw_debugger :: (active_editor_rect: Rect) {
+    editor, buffer := get_active_editor_and_buffer();
+    if !editor return;
+
+    /*
+    using font_data;
+    input_id := get_ui_id_from_loc();
+    output_id := get_ui_id_from_loc();
+
+    margin  := floor(8 * dpi_scale);
+    padding := floor(4 * dpi_scale);
+
+    calculator_width := 0.5 * active_editor_rect.w;
+    if calculator_width < 500 * dpi_scale  calculator_width = 500 * dpi_scale;
+
+    label_width := cast(float) Simp.prepare_text(font_icons, "\U0001f5a9");
+    width  := max(calculator_width, 6 * char_x_advance + 2 * (margin + padding + 1));
+    height := font_ui_line_height + 2 * (margin + padding + 1);
+
+    bar_rect := cut_top(active_editor_rect, height);
+    bar_rect = cut_left(bar_rect, width);
+    bar_rect.x += char_x_advance / 2;
+    bar_rect.y -= char_x_advance / 2;
+
+    input_rect := shrink(bar_rect, margin);
+    input_rect = cut_right(input_rect, input_rect.w - (label_width + margin));
+
+    pen := Vector2.{
+        x = bar_rect.x + margin,
+        y = bar_rect.y + (bar_rect.h - cast(s32)font_ui.character_height) / 2 + 2,  // sigh
+    };
+
+    extra_height_for_output := font_ui_line_height + padding * 4;
+    output_rect := input_rect;
+    output_rect.y -= extra_height_for_output;
+
+    bar_rect.h += extra_height_for_output;
+    bar_rect.y -= extra_height_for_output;
+    maybe_set_hot_or_active(input_id, bar_rect, .NORMAL);
+
+    //draw_rounded_rect_with_shadow(bar_rect, Colors.BACKGROUND_BRIGHT);
+    draw_rounded_rect(bar_rect, Colors.BACKGROUND_BRIGHT);
+    Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+    draw_text_input(*calculator_dialog.input, input_rect, ui_id = input_id, active = true, label = " ficus");
+
+    pen.x = bar_rect.x + margin;
+    pen.y -= extra_height_for_output;
+    Simp.prepare_text(font_icons, "\U0000f52c");
+    Simp.draw_prepared_text(font_icons, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
+    draw_text_input(*calculator_dialog.output, output_rect, ui_id = output_id, style = .display);
+    */
+}
+
 draw_buffer_switcher_dialog :: (active_rect: Rect) {
     using font_data;
 
@@ -4487,10 +4585,11 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 }
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
-    lightsource_color := Colors.CURSOR;
+    lightsource_color := ifx debugger.state == .DORMANT then Colors.CURSOR else Colors.DEBUGGER_CURSOR;
+    t := cast(float)(frame_time);// + application_start_time);
     if config.settings.go_bananas && config.settings.cursor_glow_bananas_rotate_hue {
         h, s, l := hsl_from_rgb(lightsource_color);
-        h = fmod_cycling(config.settings.cursor_glow_bananas_rotate_hue * cast(float)frame_time * 0.00001, 1.0);
+        h = fmod_cycling(config.settings.cursor_glow_bananas_rotate_hue * t * 0.00001, 1.0);
         lightsource_color = rgb_from_hsl(h, s, l);
     }
     lightsource_color.a = 0.01 * ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_percent else config.settings.cursor_glow_percent;
@@ -4837,6 +4936,7 @@ Ui_Id :: enum s64 {
     status_bar_right    :: -20;
     confirm_overwrite   :: -21;
     user_messages       :: -22;
+    debugger            :: -23;
 
     // The rest will be derived from loc
 }
@@ -4853,7 +4953,7 @@ selection_mode: Selection_Mode;
 
 scissor_stack: [..] Rect;
 
+GOLDEN_RATIO :: 1.6180339;
+
 // Please keep at the bottom - needed for ui elements parent-child relationships
 NUM_LINES_OF_CODE :: #run #location().line_number;
-
-GOLDEN_RATIO :: 1.6180339;

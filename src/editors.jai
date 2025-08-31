@@ -261,6 +261,9 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .ficus_debug_current;              ficus_execute_editor(editor, buffer); ficus_pause();
         case .ficus_toggle_breakpoint;          ficus_toggle_breakpoint(editor, buffer);
 
+        case .debugger_run_to_cursor;           debugger_run_to_cursor(editor, buffer);
+        case .debugger_toggle_breakpoint;       debugger_toggle_breakpoint(editor, buffer);
+
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
         case .select_all_occurrences;               enabled_whole_words = select_all_occurrences              (editor, buffer); keep_selection = true;
@@ -311,7 +314,7 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case;                                   handled = false;
     }
 
-    if !handled && !(buffer.flags & .readonly) {
+    if !handled && !(buffer.flags & .readonly) && !editting_locked_this_frame {
         if action == {
             case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
             case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -400,7 +403,8 @@ active_editor_type_char :: (char: u32) {
         return;
     }
 
-    if buffer.flags & .readonly return;
+    if buffer.flags & .readonly || editting_locked_this_frame
+        return;
 
     soft_reset_grid_navigation();
 
@@ -762,7 +766,7 @@ jump_to_eye_tracker :: inline (using editor: *Editor, buffer: Buffer) {
             should_jump_to_eye_tracker = editors.active;
     }
     else {
-        add_user_message_error("Eye Tracking is not available in this build of Focus", dismiss_in_seconds = 2, icon="\uf070");
+        add_user_message_error("Eye Tracking is not available in this build of Focus", duration_in_seconds = 2, icon="\uf070");
     }
 }
 
@@ -3937,7 +3941,14 @@ Editor :: struct {
 Status_Bar_Part :: struct {
     text: string;
     color: Color;
-    type: enum { text; icon; divider; }
+    type: enum {
+        text;
+        icon;
+
+        // From divider onward is counted as inconsequential
+        divider;
+        margin;
+    }
 }
 
 Cursor_Movement :: enum u8 {

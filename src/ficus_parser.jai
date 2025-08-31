@@ -285,6 +285,7 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) -
             return false;
         }
     }
+
     if t.* == #char "." {
         has_period = true;
         t += 1;
@@ -295,7 +296,31 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) -
     }
 
     token.type = .number_literal;
-    t += 1;
+    base := 10;
+
+    // Check if we're a hex or binary literal
+    if t.* == #char "0" {
+        t += 1;
+        if t >= max_t  return true;
+        if t.* == #char "b" {
+            t += 1;
+            base = 2;
+        }
+        else if t.* == #char "x" {
+            t += 1;
+            base = 16;
+        }
+    }
+
+    is_valid_char :: (c: u8) -> bool #expand {
+        if base == 10  return #char "0" <= c && c <= #char "9";
+        if base == 2   return c == #char "0" || c == #char "1";
+        // base == 16
+        if #char "0" <= c && c <= #char "9"  return true;
+        if #char "a" <= c && c <= #char "f"  return true;
+        if #char "A" <= c && c <= #char "F"  return true;
+        return false;
+    }
 
     while t < max_t && !is_whitespace(t.*) && t.* != #char "\n" {
         if t.* == #char "." {
@@ -308,7 +333,7 @@ ficus_parse_number :: (using tokenizer: *Ficus_Tokenizer, token: *Ficus_Token) -
                 has_period = true;
             }
         }
-        else if t.* < #char "0" || t.* > #char "9" {
+        else if !is_valid_char(t.*) {
             if !(ficus_is_reserved(t.*) && t.* != #char "\"") {
                 token.type = .error;
                 t += 1;

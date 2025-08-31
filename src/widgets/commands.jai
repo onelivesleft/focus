@@ -239,6 +239,17 @@ commands := #run Command.[
     .{ .ficus_continue,                                     "Ficus Continue",                     0, .None },
     .{ .ficus_open_baked_words_buffer,                      "Ficus Open Baked Words",             0, .None },
 
+    .{ .debugger_run,                                       "Debug: Run Debugger",                    0, .None },
+    .{ .debugger_run_to_cursor,                             "Debug: Run Debugger To Cursor Location", 0, .None },
+    .{ .debugger_stop,                                      "Debug: Stop Debugger",                   0, .None },
+    .{ .debugger_detach,                                    "Debug: Detach Debugger (Kill Remedy)",   0, .None },
+    .{ .debugger_break,                                     "Debug: Break",                           0, .None },
+    .{ .debugger_toggle_breakpoint,                         "Debug: Toggle Breakpoint",               0, .None },
+    .{ .debugger_remove_all_breakpoints,                    "Debug: Remove All Breakpoints",          0, .None },
+    .{ .debugger_step_over,                                 "Debug: Step Over",                       0, .None },
+    .{ .debugger_step_into,                                 "Debug: Step Into",                       0, .None },
+    .{ .debugger_step_out,                                  "Debug: Step Out",                        0, .None },
+    .{ .debugger_toggle_autostep,                           "Debug: Toggle Autostep",                 0, .None },
 
     .{ .build_debug,                                        "Build Debug",                        0, .None },
     .{ .build_release,                                      "Build Release",                      0, .None },

@@ -412,6 +412,8 @@ Settings :: struct {
     go_bananas                             := false;
     grid_navigation_display_duration       := 2.0;
     grid_navigation_only_quadrants         := false;
+    remedy_executable_path                 := "";
+    debug_target_path                      := "";
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

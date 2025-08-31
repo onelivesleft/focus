@@ -54,6 +54,10 @@ Color_Values :: struct {
     CONSOLE_HEADER_ERROR    := Color.{ r = 0.50, g = 0.00, b = 0.00, a = 1.0 };
     CONSOLE_HEADER_TEXT     := Color.{ r = 0.65, g = 0.69, b = 0.66, a = 1.0 };
 
+    DEBUGGER_NEXT_INSTRUCTION := Color.{ r = 0.85, g = 0.68, b = 0.33, a = 1.0 };
+    DEBUGGER_BREAKPOINT     := Color.{ r = 0.85, g = 0.68, b = 0.33, a = 1.0 };
+    DEBUGGER_CURSOR         := Color.{ r = 0.85, g = 0.68, b = 0.33, a = 1.0 };
+
     ZEN_FOREGROUND          := Color.{r = 0.6,      g = 0.6,      b = 0.666667, a = 0.686275};
     ZEN_BACKGROUND          := Color.{r = 0.058824, g = 0.027451, b = 0,        a = 0.498039};
     ZEN_MARGINS             := Color.{r = 0.011765, g = 0.011765, b = 0.011765, a = 1};

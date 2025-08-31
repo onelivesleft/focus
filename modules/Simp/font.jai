@@ -488,9 +488,10 @@ draw_code :: (font: *Dynamic_Font, x: s64, y: s64, char_x_advance: float, line_h
                 quad.v0 = glyph.y0 / cast(float) texture.height;
                 quad.v1 = (cast(float) glyph.y0 + glyph.height) / texture.height;
 
-                assert(colors.count > t - line.data);
-                assert(color_map.count > colors[t - line.data]);
-                color := color_map[colors[t - line.data]];
+                //assert(colors.count > t - line.data);
+                //assert(color_map.count > colors[t - line.data]);
+                i := t - line.data;
+                color := ifx i < colors.count then color_map[colors[t - line.data]];
                 if utf32 != #char "\t" {
                     sx  += char_x_advance;
                     col += 1;

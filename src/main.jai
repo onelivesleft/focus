@@ -13,7 +13,7 @@ REMOVE_TITLE_BAR :: true;
 SKIP_CUTSCENES :: true;
 AUTO_JUMP_TO_ERROR :: true;
 
-EYE_TRACKING :: true;
+EYE_TRACKING :: false;
 
 HIDE_CONSOLE_ON_SUCCESS :: true;
 BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
@@ -28,6 +28,8 @@ zen_mode_t := 0.0;
 
 executable_name: string;
 frame_time_buffer : [256] Time;
+
+editting_locked_this_frame := false;
 
 
 main :: () {
@@ -52,6 +54,8 @@ main :: () {
     is_standalone_debug_build := contains(executable_name, "locus_debug");
     debug_change_color &= is_standalone_debug_build;
     debug_small_window &= is_standalone_debug_build;
+
+    application_start_time = cast(Time) to_float64_seconds(current_time_consensus());
 
     // Meow hash relies on AES instruction support, so fall back to a standard hash function
     if !check_feature(cpu_info.feature_leaves, x86_Feature_Flag.AES) then calculate_hash = fallback_hash;
@@ -81,6 +85,7 @@ main :: () {
     init_workspace();
     init_buffers();
     init_console();
+    init_debugger();
 
     if config.settings.open_on_monitor_one {
         window_x = 1920;
@@ -194,6 +199,7 @@ main :: () {
 
         clear_status_bars();
 
+        editting_locked_this_frame = false;
         redraw_requested = true;
         if !redraw_requested platform_wait_message();
 
@@ -202,6 +208,7 @@ main :: () {
                 eye_tracking_tick();
         }
 
+        update_attached_debugger();
         ficus_update();
 
         Input.update_window_events();
@@ -380,6 +387,7 @@ main :: () {
                     case .confirm_overwrite_dialog; handled = confirm_overwrite_dialog_handle_event(event);
                     case .commands_dialog;          handled = commands_dialog_handle_event(event);
                     case .icon_search_dialog;       handled = icon_search_dialog_handle_event(event);
+                    case .debugger;                 handled = debugger_handle_event(event);
                 }
             }
 
@@ -437,6 +445,8 @@ main :: () {
         if eye_tracking_active
             eye_tracking_done();
     }
+
+    detach_debugger();
 
     // report := make_leak_report();
     // log_leak_report(report);
@@ -509,6 +519,17 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .compile;                                          run_build_script(.Compile);                         return true;
         case .build_debug;                                      run_build_script(.Debug);                           return true;
         case .build_release;                                    run_build_script(.Release);                         return true;
+
+        case .debugger_run;                                     run_debugger();                                     return true;
+        case .debugger_stop;                                    stop_debugger();                                    return true;
+        case .debugger_detach;                                  detach_debugger();                                  return true;
+        case .debugger_break;                                   debugger_break();                                   return true;
+        case .debugger_remove_all_breakpoints;                  debugger_remove_all_breakpoints();                  return true;
+        case .debugger_step_over;                               debugger_step_over();                               return true;
+        case .debugger_step_into;                               debugger_step_into();                               return true;
+        case .debugger_step_out;                                debugger_step_out();                                return true;
+        case .debugger_toggle_autostep;                         debugger_toggle_autostep();                         return true;
+        case .debugger_temporary_test;                          debugger_temporary_test();                          return true;
 
         case .ficus_step_into;                                  ficus_step_into();                                  return true;
         case .ficus_step_over;                                  ficus_step_over();                                  return true;
@@ -917,6 +938,7 @@ should_reload_workspace := false;
 frame_count: s64;                 // ever-increasing frame counter
 frame_time: Time;                 // ever-increasing time since start in seconds
 prev_frame_time: Time;
+application_start_time: Time;     // real world time program was started at
 frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
 QUICK_FRAME_DT: Time : xx (1.0 / 300);  // sorry 300Hz monitor users
@@ -1102,6 +1124,7 @@ active_global_widget: enum {
     icon_search_dialog;
     //save_file_dialog;
     confirm_overwrite_dialog;
+    debugger;
 } = .editors;
 
 Project_Dir :: struct {
@@ -1134,6 +1157,7 @@ dont_ignore_next_window_resize := false;
 #load "utils.jai";
 #load "ficus.jai";
 #load "ficus_parser.jai";
+#load "debugger.jai";
 #load "files.jai";
 #load "workspace.jai";
 #load "config.jai";
@@ -1221,6 +1245,7 @@ using,except(slice,split,ends_with,trim,contains,starts_with,replace,join,equal)
 #import "Compiler";
 #import "Machine_X64";
 #import "Strings";
+Remedy :: #import "Remedy"(REMEDY_SERVERNAME="locus", VERBOSE=true);
 
 re :: #import "uniform";
 
