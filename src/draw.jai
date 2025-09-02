@@ -587,7 +587,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         editor_font = font_console;
     }
 
-    cursor_color := ifx debugger.state == .DORMANT then Colors.CURSOR else Colors.DEBUGGER_CURSOR;
+    cursor_color := debugger_color_for_state(Colors.CURSOR);
 
     using font_data;
     scrollbar_id := get_ui_id_from_loc(parent_id = ui_id);
@@ -1730,8 +1730,21 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     cursor_rect.y += offscreen_cursor_shrink_margin;
                     cursor_rect.h -= offscreen_cursor_shrink_margin * 2;
                 }
-                if debugger.state  cursor_rect = shrink_y(cursor_rect, line_height / 4);
-                if it_index == main_cursor {
+
+                if debugger.state {
+                    icon_position := cursor_rect.xy;
+                    icon_position.x -= dpi_scale * (font_icons_size * 0.5 - 1);
+                    icon_position.y += (line_height - font_icons_size) * 0.5 - 1;
+                    //pen.x -= dpi_scale * font_icons_size * 0.5;
+                    //pen.y += (line_height - char_x_advance) / 2 - dpi_scale;
+
+                    icon := ifx debugger.state == .RUNNING
+                            then debugger.icons.cursor_running
+                            else debugger.icons.cursor_suspended;
+                    draw_icon(debugger.icons.cursor_background, icon_position, Colors.BACKGROUND_DARK, .default);
+                    draw_icon(icon, icon_position, cursor_color, .default);
+                }
+                else if it_index == main_cursor {
                     draw_rounded_rect(lerp(main_cursor_rect, cursor_rect, 0.5), cursor_color, radius = rounding_radius_small, set_shader = true);
                     main_cursor_rect = cursor_rect;
                 }

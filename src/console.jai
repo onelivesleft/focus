@@ -175,11 +175,17 @@ build :: () {
         task.title = next_build_task_name;
     else
         task.title = copy_string(current_project_name,, console_allocator);
+    task.completion_callback = build_finished_callback;
 
     add_work(*console_thread_group, task, task.title);
 }
 
-build_finished_callback :: (error: string) { }
+build_finished_callback :: (error: string) {
+    if debugger_is_waiting_to_run() {
+        if error  debugger_cancel_delayed_run();
+        else      debugger_trigger_delayed_run();
+    }
+}
 
 console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
     using task := cast(*Console_Task) work;
@@ -233,6 +239,8 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     }
 
     defer { free(error); free(output); }
+
+    if task.completion_callback  task.completion_callback(error);
 
     if successful {
         duration : float64 : 5;
@@ -411,6 +419,7 @@ next_build_task_commands : [..] string;
 
 Console_Task :: struct {
     title : string;
+    completion_callback: #type (error: string);
 }
 
 Color :: enum {

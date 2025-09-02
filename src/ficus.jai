@@ -483,7 +483,7 @@ focus_config, word_name, current_project_name, mode), .Focus_Config);
         return;
     }
 
-    ficus_execute_string(word, .user, .default, build_finished_callback);
+    ficus_execute_string(word, .user, .default);
 }
 
 ficus_stored_string :: (s: string) -> string, Space {

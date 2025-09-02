@@ -240,6 +240,8 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
 
     if !file_is_watched(file_path) start_watching_file(file_path);
 
+    run_config_refresh_hooks();
+
     return true, changed, warnings.count > 0 || clamp_warnings;
 }
 
@@ -414,6 +416,8 @@ Settings :: struct {
     grid_navigation_only_quadrants         := false;
     remedy_executable_path                 := "";
     debug_target_path                      := "";
+    save_on_debug                          := false;
+    build_on_debug_if_needed               := "";
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

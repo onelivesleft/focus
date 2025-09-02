@@ -1,7 +1,24 @@
-debugger : struct {
+// TODO
+// [ ] Add key layer for debug commands
+
+debugger: struct {
     process: Process;
     process_started := false;
     is_attached := false;
+    target_pdb_path: string;
+    last_file_save_at: Apollo_Time;
+    last_build_at: Apollo_Time;
+    last_jump_to_source_location_invalid := false;
+
+    waiting_to_run := 0;
+    waiting_to_run_attempts := 0;
+    waiting_to_run_filename: string;
+    waiting_to_run_line_number: int;
+
+    max_step_outs_before_giving_up :: 100;
+    advance_to_next_valid_location_attempts := 0;
+    disable_advance_to_next_valid_location := false;
+
     autostep := false;
     currently_updating_breakpoints := false;
     current_session_config_id: Remedy.rdbg_Id;
@@ -25,16 +42,29 @@ debugger : struct {
 
     icons :: struct {
         bug :: "\U0000f188";
+        build_out_of_date :: "\U0000e4eb";
         play :: "\U0000f04b";
         pause :: "\U0000f04c";
         step :: "\U0000f051";
         breakpoint :: "\U0001f518";  // circle="\U0001f7e4";
+        cursor_suspended :: "\U0000f28c";
+        cursor_running :: "\U0000f144";
+        cursor_background :: "\U0001f7e4";
         blank :: " ";
     }
+
+    // Remedy only knows the paths to files from the PDB, but files may be accessed via different path strings
+    // (e.g. case, symlinks).  Hopefully in future Remedy will check the canonical paths of files to deduplicate
+    // them, but until then we keep track of the filenames which are used to create buffers in this table.
+    // If we step into a file via remedy then it will give us the filename it expects, so we will work for those
+    // cases if we use this lookup. We're still potentially screwed if the user has opened the file via the open
+    // file dialog...  This table goes away if Remedy gets patched.
+    remedy_filenames: Table(string, string);
 }
 
 Breakpoint :: struct {
     uid: u32;
+    pos: s32;
     buffer_id: int;
     line_number: int;
 }
@@ -49,25 +79,65 @@ init_debugger :: () {
     Remedy.event_handles.breakpoint_removed = handle_breakpoint_removed_event;
 }
 
-debugger_draw_ui :: () {
-    if !debugger.state  return;
+refresh_from_config_debugger_info :: () {
+    if !config.settings.debug_target_path  return;
 
-    h, s, l := hsl_from_rgb(Colors.UI_DEFAULT);
-    h = fmod_cycling(cast(float)frame_time, 1.0);
-    s = 1.0;
-    color := rgb_from_hsl(h, s, l);
-    color.a = 1;
+    path, basename, extension, basename_with_extension := path_decomp(config.settings.debug_target_path);
+    if debugger.target_pdb_path  free(debugger.target_pdb_path);
+    debugger.target_pdb_path = join(path, basename, ".pdb");
+} @OnConfigRefresh
 
-    r := screen;
-    r.w = dpi_scale;
-    draw_rect(r, color);
-    r.x += screen.w - dpi_scale;
-    draw_rect(r, color);
-    r = screen;
-    r.h = dpi_scale;
-    draw_rect(r, color);
-    r.y += screen.h - dpi_scale;
-    draw_rect(r, color);
+attach_remedy :: () -> success: bool {
+    if debugger.is_attached  return true;
+
+    if !debugger.is_attached {
+        debugger.is_attached = Remedy.init();
+        if debugger.is_attached  return true;
+    }
+
+    // Failed to attach pipes: probably remedy hasn't been started.
+
+    success := create_process(*debugger.process, config.settings.remedy_executable_path, "--servername", Remedy.REMEDY_SERVERNAME, no_activate=true);
+    if !success  return false;
+
+    debugger.process_started = true;
+    debugger.is_attached = Remedy.init();
+    attempts := 5;
+    while !debugger.is_attached && attempts {
+        sleep_milliseconds(200);
+        debugger.is_attached = Remedy.init();
+        attempts -= 1;
+    }
+
+    if !debugger.is_attached  return false;
+
+
+    check :: (result: *$T/Remedy.Result) -> *T #expand {
+        if result.result != .OK {
+            stop_debugger();
+            debugger.is_attached = false;
+            `return false;
+        }
+        return result;
+    }
+
+    check(Remedy.set_bring_to_foreground_on_suspended(false));
+    check(Remedy.new_session());
+    add_session_result := check(Remedy.add_session_config(
+                                        command=config.settings.debug_target_path,
+                                        working_dir=get_parent_dir_path(config.settings.debug_target_path),
+                                        name="Locus attached session"));
+    debugger.current_session_config_id = add_session_result.uid;
+    check(Remedy.set_active_session_config(debugger.current_session_config_id));
+
+    debugger.currently_updating_breakpoints = true;
+    for * breakpoint: debugger.breakpoints {
+        add_breakpoint_result := check(Remedy.add_breakpoint_at_filename_line(get_remedy_filename(open_buffers[breakpoint.buffer_id].file.full_path), cast(u32) breakpoint.line_number + 1));
+        breakpoint.uid = add_breakpoint_result.bp_id;
+    }
+    debugger.currently_updating_breakpoints = false;
+
+    return debugger.is_attached;
 }
 
 update_attached_debugger :: () {
@@ -91,25 +161,37 @@ update_attached_debugger :: () {
         return;
     }
 
-    if debugger.state == .DORMANT  return;
+    if debugger.state  editting_locked_this_frame = true;
 
-    if debugger.state == .SUSPENDED && debugger.autostep {
-        debugger_step_over();
+    if debugger.state == .SUSPENDED {
+        if debugger.autostep {
+            debugger_step_over();
+        }
+        else if debugger.last_jump_to_source_location_invalid && !debugger.disable_advance_to_next_valid_location {
+            debugger.advance_to_next_valid_location_attempts -= 1;
+            if debugger.advance_to_next_valid_location_attempts == 0
+                debugger.disable_advance_to_next_valid_location = true;
+            else
+                debugger_step_out();
+        }
     }
-
-    editting_locked_this_frame = true;
 
     editor, buffer := get_active_editor_and_buffer();
     if !editor return;
 
-    add_status_part(editor, .icon, debugger.icons.bug, .{r=0, g=1, b=0, a=1});
-    add_status_part(editor, .margin);
-    if debugger.state == {
+    color := debugger_color_for_state(Colors.UI_DEFAULT);
+
+    if #complete debugger.state == {
+        case .DORMANT;
+        add_status_part(editor, .icon, debugger.icons.bug);
+        if debugger.last_file_save_at > debugger.last_build_at {
+            add_status_part(editor, .margin);
+            add_status_part(editor, .icon, debugger.icons.build_out_of_date);
+        }
+
         case .RUNNING;
-        h, s, l := hsl_from_rgb(Colors.UI_DEFAULT);
-        h = fmod_cycling(cast(float)frame_time, 1.0);
-        s = 1.0;
-        color := rgb_from_hsl(h, s, l);
+        add_status_part(editor, .icon, debugger.icons.bug, .{r=0, g=1, b=0, a=1});
+        add_status_part(editor, .margin);
         add_status_part(editor, .icon, debugger.icons.play, color);
 
         case .SUSPENDED;
@@ -117,19 +199,126 @@ update_attached_debugger :: () {
         icon := ifx debugger.stepped_on_frame + animation_frame_duration >= frame_count
                 then debugger.icons.step
                 else debugger.icons.pause;
+        add_status_part(editor, .icon, debugger.icons.bug, color);
+        add_status_part(editor, .margin);
         add_status_part(editor, .icon, icon);
     }
     add_status_part(editor, .divider);
 }
 
+debugger_color_for_state :: (dormant_color: Color) -> Color {
+    if #complete debugger.state == {
+        case .DORMANT;
+            return dormant_color;
+
+        case .SUSPENDED;
+            return Colors.DEBUGGER_NEXT_INSTRUCTION;
+
+        case .RUNNING;
+            h, s, l := hsl_from_rgb(Colors.UI_DEFAULT);
+            h = fmod_cycling(cast(float)frame_time, 1.0);
+            s = 1.0;
+            return rgb_from_hsl(h, s, l);
+    }
+}
+
+debugger_draw_ui :: () {
+    if !debugger.state  return;
+
+    color := debugger_color_for_state(Colors.UI_DEFAULT);
+
+    r := screen;
+    r.w = dpi_scale;
+    draw_rect(r, color);
+    r.x += screen.w - dpi_scale;
+    draw_rect(r, color);
+    r = screen;
+    r.h = dpi_scale;
+    draw_rect(r, color);
+    r.y += screen.h - dpi_scale;
+    draw_rect(r, color);
+}
+
+debugger_is_waiting_to_run :: () -> bool {
+    return debugger.waiting_to_run > debugger.waiting_to_run_attempts;
+}
+
+debugger_request_delayed_run :: (filename := "", line_number := 0) {
+    debugger.waiting_to_run += 1;
+    debugger.waiting_to_run_filename = filename;
+    debugger.waiting_to_run_line_number = line_number;
+}
+
+debugger_trigger_delayed_run :: () {
+    if !debugger_is_waiting_to_run()  return;
+    debugger.waiting_to_run_attempts += 1;
+    if debugger.waiting_to_run_filename
+        run_debugger_to_location(debugger.waiting_to_run_filename, debugger.waiting_to_run_line_number);
+    else
+        run_debugger();
+}
+
+debugger_cancel_delayed_run :: () {
+    if debugger_is_waiting_to_run()
+        debugger.waiting_to_run_attempts += 1;
+}
+
+#scope_file
+
+reset_for_new_run :: () {
+    debugger.autostep = false;
+    debugger.disable_advance_to_next_valid_location = false;
+    debugger.last_jump_to_source_location_invalid = false;
+}
+
+check_debug_target :: () -> path_ok: bool {
+    check :: (condition: bool, message: string, duration_in_seconds := 10) #expand {
+        if !condition {
+            add_user_message_error(message, duration_in_seconds=duration_in_seconds, icon=debugger.icons.bug);
+            log_error(message);
+            `return false;
+        }
+    }
+
+    check(config.settings.debug_target_path != "", "debug_target_path not set in any config file!\n");
+    check(file_exists(config.settings.debug_target_path), tprint("debug_target_path is: %, but that file does not exist.\n", config.settings.debug_target_path));
+    check(file_exists(debugger.target_pdb_path), tprint("debugger.target_pdb_path is: %, but that file does not exist.\n", debugger.target_pdb_path));
+
+    modtime, size, success := file_modtime_and_size(debugger.target_pdb_path);
+    if !success && config.settings.build_on_debug_if_needed && !debugger_is_waiting_to_run() {
+        ficus_execute_string(config.settings.build_on_debug_if_needed, .user, .default);
+        debugger_request_delayed_run();
+        return false;
+    }
+    check(success, tprint("debugger.target_pdb_path is: %, but it could not be read.\n", debugger.target_pdb_path));
+
+    debugger.last_build_at = modtime;
+    build_time_ok := debugger.last_file_save_at <= debugger.last_build_at;
+    if !build_time_ok && config.settings.build_on_debug_if_needed && !debugger_is_waiting_to_run() {
+        ficus_execute_string(config.settings.build_on_debug_if_needed, .user, .default);
+        debugger_request_delayed_run();
+        return false;
+    }
+    check(build_time_ok, "Files have been saved since the debug target was last built: to debug it you must build it again.\n");
+
+    return true;
+}
+
+#scope_export
+
 run_debugger :: () {
     if debugger.state == .RUNNING  return;
 
-    // @TODO check debug target exists and dont run if it doesnt
+    if config.settings.save_on_debug  save_all(include_fileless_buffers=false);
+
+    if !check_debug_target()  return;
+
     if !debugger.is_attached {
         success := attach_remedy();
         if !success  return;
     }
+
+    reset_for_new_run();
 
     if debugger.state == .DORMANT {
         result := Remedy.start_debugging(break_at_entry_point=false);
@@ -148,32 +337,35 @@ run_debugger :: () {
 run_debugger_to_location :: (filename: string, line_number: int) {
     if debugger.state == .RUNNING  return;
 
-    // @TODO check debug target exists and dont run if it doesnt
+    if config.settings.save_on_debug  save_all(include_fileless_buffers=false);
+
+    if !check_debug_target()  return;
+
     if !debugger.is_attached {
         success := attach_remedy();
         if !success  return;
     }
 
-    result := Remedy.run_to_file_at_line(filename, line_number + 1);
+    reset_for_new_run();
+
+    result := Remedy.run_to_file_at_line(get_remedy_filename(filename), cast,trunc(u32) line_number + 1);
 }
 
 stop_debugger :: () {
+    if !check_debugger_command_is_valid()  return;
+
     Remedy.stop_debugging();
-    debugger.autostep = false;
+    debugger.state = .DORMANT;
     if active_global_widget == .debugger
         active_global_widget = .editors;
 }
 
 detach_debugger :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if debugger.is_attached      stop_debugger();
     if debugger.process_started  deinit(*debugger.process);
     debugger.is_attached = false;
-}
-
-debugger_run_to_cursor :: (editor: *Editor, using buffer: *Buffer) {
-    cursor := leave_only_original_cursor(editor);
-    coords := get_cursor_coords(editor, buffer, cursor);
-    run_debugger_to_location(buffer.file.full_path, coords.pos.line);
 }
 
 debugger_handle_event :: (event: Input.Event) -> handled: bool {
@@ -212,15 +404,23 @@ debugger_handle_event :: (event: Input.Event) -> handled: bool {
     return true;
 }
 
+debugger_run_to_cursor :: (editor: *Editor, using buffer: *Buffer) {
+    cursor := leave_only_original_cursor(editor);
+    coords := get_cursor_coords(editor, buffer, cursor);
+    run_debugger_to_location(buffer.file.full_path, coords.pos.line);
+}
 
 debugger_toggle_breakpoint :: (editor: *Editor, using buffer: *Buffer) {
+    if !check_debugger_command_is_valid()  return;
+
     for * cursor: editor.cursors {
         removed_it := false;
+        pos := get_real_line_end_offset(buffer, offset_to_real_line(buffer, cursor.pos));
         coords := get_cursor_coords(editor, buffer, cursor);
         for debugger.breakpoints {
             if it.buffer_id == buffer.id && it.line_number == coords.pos.line {
-                if debugger.state
-                    Remedy.delete_breakpoint(it.uid);
+                if debugger.is_attached
+                    debugger_remove_breakpoint(it.uid);
                 else
                     remove it;
                 removed_it = true;
@@ -228,78 +428,66 @@ debugger_toggle_breakpoint :: (editor: *Editor, using buffer: *Buffer) {
             }
         }
         if !removed_it {
-            if debugger.state
-                Remedy.add_breakpoint_at_filename_line(buffer.file.full_path, cast,trunc(u32) coords.pos.line + 1);
-            else
-                array_add(*debugger.breakpoints, Breakpoint.{ cast(u32) it_index, buffer.id, coords.pos.line });
+            breakpoint := array_add(*debugger.breakpoints);
+            if debugger.is_attached {
+                result := Remedy.add_breakpoint_at_filename_line(get_remedy_filename(buffer.file.full_path), cast,trunc(u32) coords.pos.line + 1);
+                breakpoint.* = .{ result.bp_id, pos, buffer.id, coords.pos.line };
+            }
+            else {
+                breakpoint.* = .{ get_uid(), pos, buffer.id, coords.pos.line };
+            }
+        }
+    }
+}
+
+debugger_update_breakpoint_line :: (uid: u32, line_number: int) {
+    if debugger.is_attached {
+        Remedy.update_breakpoint_line(uid, cast,trunc(u32) line_number + 1);
+    }
+    else {
+        for * debugger.breakpoints {
+            if it.uid == uid {
+                it.line_number = line_number;
+                return;
+            }
+        }
+    }
+}
+
+debugger_remove_breakpoint :: (uid: u32) {
+    if debugger.is_attached {
+        Remedy.delete_breakpoint(uid);
+    }
+    else {
+        for * debugger.breakpoints {
+            if it.uid == uid {
+                remove it;
+                return;
+            }
         }
     }
 }
 
 debugger_remove_all_breakpoints :: () {
-    if debugger.state
+    if !check_debugger_command_is_valid()  return;
+
+    if debugger.is_attached
         Remedy.delete_all_breakpoints();
 
     array_reset(*debugger.breakpoints);
 }
 
-attach_remedy :: () -> success: bool {
-    if debugger.is_attached  return true;
-
-    debugger.autostep = false;
-
-    if !debugger.is_attached {
-        debugger.is_attached = Remedy.init();
-        if debugger.is_attached  return true;
-    }
-
-    // Failed to attach pipes: probably remedy hasn't been started.
-
-    success := create_process(*debugger.process, config.settings.remedy_executable_path, "--servername", Remedy.REMEDY_SERVERNAME, no_activate=true);
-    if !success  return false;
-
-    debugger.process_started = true;
-    debugger.is_attached = Remedy.init();
-    attempts := 5;
-    while !debugger.is_attached && attempts {
-        sleep_milliseconds(200);
-        debugger.is_attached = Remedy.init();
-        attempts -= 1;
-    }
-
-    if !debugger.is_attached  return false;
-
-
-    check :: (result: *$T/Remedy.Result) -> *T #expand {
-        if result.result != .OK {
-            stop_debugger();
-            debugger.is_attached = false;
-            `return false;
-        }
-        return result;
-    }
-
-    check(Remedy.set_bring_to_foreground_on_suspended(false));
-    check(Remedy.new_session());
-    add_session_result := check(Remedy.add_session_config(command=config.settings.debug_target_path, working_dir=get_parent_dir_path(config.settings.debug_target_path)));
-    debugger.current_session_config_id = add_session_result.uid;
-    check(Remedy.set_active_session_config(debugger.current_session_config_id));
-
-    debugger.currently_updating_breakpoints = true;
-    for debugger.breakpoints  check(Remedy.add_breakpoint_at_filename_line(open_buffers[it.buffer_id].file.full_path, cast(u32) it.line_number + 1));
-    debugger.currently_updating_breakpoints = false;
-    fetch_breakpoints();
-
-    return debugger.is_attached;
-}
-
 debugger_break :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if !debugger.state  return;
 
     Remedy.break_execution();
 }
 
 debugger_step_over :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if !debugger.state  return;
 
     Remedy.step_over_by_line();
@@ -307,6 +495,8 @@ debugger_step_over :: () {
 }
 
 debugger_step_into :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if !debugger.state  return;
 
     Remedy.step_into_by_line();
@@ -314,6 +504,8 @@ debugger_step_into :: () {
 }
 
 debugger_step_out :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if !debugger.state  return;
 
     Remedy.step_out();
@@ -321,18 +513,21 @@ debugger_step_out :: () {
 }
 
 debugger_toggle_autostep :: () {
+    if !check_debugger_command_is_valid()  return;
+
     if !debugger.is_attached  return;
 
     debugger.autostep = !debugger.autostep;
 }
 
 debugger_temporary_test :: () {
-    fetch_breakpoints();
+    if !check_debugger_command_is_valid()  return;
+
+    //fetch_breakpoints();
 }
 
 
 #scope_file
-
 
 
 set_debugger_state :: (state: type_of(debugger.state)) {
@@ -349,12 +544,17 @@ fetch_breakpoints :: () {
         breakpoint.uid = it.uid;
         breakpoint.buffer_id = find_or_create_buffer(it.filename);
         breakpoint.line_number = it.line_num - 1;
+        breakpoint.pos = get_real_line_end_offset(*open_buffers[breakpoint.buffer_id], cast,trunc(s32) breakpoint.line_number);;
     }
 }
 
 jump_to_source_location :: (path: string, line: u32) {
+    debugger.last_jump_to_source_location_invalid = false;
     editors_open_file(path, .in_place);
-    if editors.active < 0 || line == 0  return;
+    if editors.active < 0 || line == 0 {
+        debugger.last_jump_to_source_location_invalid = true;
+        return;
+    }
 
     editor := *open_editors[editors.active];
     buffer := *open_buffers[editor.buffer_id];
@@ -394,11 +594,18 @@ handle_source_location_changed_event :: (event: Remedy.Event_Source_Location_Cha
         case .STEP_IN;
         case .STEP_OUT;
         case .NON_USER_BREAKPOINT;
+
         case .DEBUG_BREAK;
     }
 
     focus_focus();
     if event.filename  jump_to_source_location(event.filename, event.line_num);
+    else               debugger.last_jump_to_source_location_invalid = true;
+
+    if debugger.last_jump_to_source_location_invalid && debugger.advance_to_next_valid_location_attempts == 0 {
+        debugger.advance_to_next_valid_location_attempts = debugger.max_step_outs_before_giving_up;
+    }
+
     set_debugger_state(.SUSPENDED);
 }
 
@@ -415,15 +622,12 @@ handle_breakpoint_resolved_event :: (breakpoint_resolved_event: Remedy.Event_Bre
 
     result := Remedy.get_breakpoint_locations(breakpoint_resolved_event.bp_id);
 
-    for * debugger.breakpoints {
-        if it.uid == result.bp_id {
+    for * breakpoint: debugger.breakpoints {
+        if breakpoint.uid == result.bp_id {
             if result.locations {
-                it.buffer_id = find_or_create_buffer(result.locations[0].filename);
-                it.line_number = result.locations[0].actual_line_num - 1;
-            }
-            else {
-                it.buffer_id = -1;
-                it.line_number = -1;
+                breakpoint.buffer_id = find_or_create_buffer(result.locations[0].filename);
+                breakpoint.line_number = result.locations[0].actual_line_num - 1;
+                breakpoint.pos = get_real_line_end_offset(*open_buffers[breakpoint.buffer_id], cast,trunc(s32) breakpoint.line_number);;
             }
             return;
         }
@@ -435,10 +639,7 @@ handle_breakpoint_resolved_event :: (breakpoint_resolved_event: Remedy.Event_Bre
     if result.locations {
         breakpoint.buffer_id = find_or_create_buffer(result.locations[0].filename);
         breakpoint.line_number = result.locations[0].actual_line_num - 1;
-    }
-    else {
-        breakpoint.buffer_id = -1;
-        breakpoint.line_number = -1;
+        breakpoint.pos = get_real_line_end_offset(*open_buffers[breakpoint.buffer_id], cast,trunc(s32) breakpoint.line_number);;
     }
 }
 
@@ -456,4 +657,27 @@ SetForegroundWindow :: (hwnd: HWND) -> s32 #foreign user32;
 
 focus_focus :: () {
     SetForegroundWindow(window);
+}
+
+
+next_uid: u32 = 0;
+get_uid :: inline () -> u32 {
+    next_uid -= 1;
+    return next_uid;
+}
+
+get_remedy_filename :: (filename: string) -> string {
+    canonical_path := get_canonical_path(filename);
+    remedy_path, found := table_find(*debugger.remedy_filenames, canonical_path);
+    if found  return remedy_path;
+    else      return filename;
+}
+
+check_debugger_command_is_valid :: () -> bool {
+    if !config.settings.debug_target_path {
+        add_user_message_warning("To debug you must set debug_target_path in your config [[settings]].", duration_in_seconds=3, icon=debugger.icons.bug);
+        return false;
+    }
+
+    return true;
 }

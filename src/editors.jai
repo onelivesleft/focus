@@ -494,17 +494,46 @@ get_editor_id :: (desired_editor: *Editor) -> s64 {
     return -1;
 }
 
-refresh_all_editors_for_buffer :: (buffer_id: s64) {
+check_buffer_edits :: (buffer_id: s64) {
+    // When edits have been made on a buffer, persistent objects which are attached to
+    // positions in the buffer (for instance: breakpoints) need to be updated to reflect
+    // those edits.
+
     buffer := *open_buffers[buffer_id];
-    for * editor, editor_id : open_editors {
-        if editor.buffer_id != buffer_id continue;
 
-        if editor.line_wrap == .on then rescan_for_wrapped_lines(editor, buffer);
+    if buffer.num_editors_open > 1 {
+        for * editor, editor_id: open_editors {
+            if editor.buffer_id != buffer_id continue;
 
-        adjust_cursors_and_viewport(editor, buffer, editor_id);
-        editor.refresh_highlights = true;
-        if search_bar_is_open(editor) search_and_update_results(editor, buffer);
+            if editor.line_wrap == .on then rescan_for_wrapped_lines(editor, buffer);
+
+            adjust_cursors_and_viewport(editor, buffer, editor_id);
+            editor.refresh_highlights = true;
+            if search_bar_is_open(editor) search_and_update_results(editor, buffer);
+        }
     }
+
+    for * breakpoint: debugger.breakpoints {
+        if breakpoint.buffer_id != buffer_id  continue;
+
+        for edit: buffer.edit_notifications {
+            if breakpoint.pos <= edit.offset  continue;
+
+            if breakpoint.pos < edit.offset + edit.deleted_count {
+                if debugger.is_attached
+                    debugger_remove_breakpoint(breakpoint.uid);
+                else
+                    remove breakpoint;
+                continue;
+            }
+
+            breakpoint.pos = clamp(breakpoint.pos + edit.delta, 0, cast(s32) buffer.bytes.count);
+            breakpoint.line_number = offset_to_real_line(buffer, breakpoint.pos);
+            if debugger.is_attached
+                debugger_update_breakpoint_line(breakpoint.uid, breakpoint.line_number);
+        }
+    }
+
     array_reset_keeping_memory(*buffer.edit_notifications);
 }
 

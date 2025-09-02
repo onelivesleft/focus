@@ -15,7 +15,7 @@ refresh_open_buffers :: () {
         buffer.flags |= .needs_coloring;
         buffer.last_edit_time = frame_time;
 
-        refresh_all_editors_for_buffer(editor.buffer_id);
+        check_buffer_edits(editor.buffer_id);
 
         session_notify_modified_buffer(editor.buffer_id);
 
@@ -871,6 +871,7 @@ remember_last_modtime_and_size :: (using buffer: *Buffer) {
     if success {
         last_modtime = modtime;
         last_size    = size;
+        debugger.last_file_save_at = modtime;
     } else {
         log_error("Couldn't get modtime and size of file %\n", file.full_path);
     }
@@ -993,7 +994,9 @@ find_or_create_buffer :: (_path: string) -> buffer_id: s64, created: bool {
         buffer_id = open_buffers.count;
         buffer = bucket_array_add(*open_buffers);
         init_buffer(buffer, buffer_id);
-        table_add(*buffers_table, copy_string(path), buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
+        key := copy_string(path);
+        table_add(*buffers_table, key, buffer_id);  // It should be ok to leak some memory here when we no longer need a buffer
+        table_add(*debugger.remedy_filenames, key, copy_string(_path));
     }
 
     unlock(*open_buffers_lock);  // only hold the lock when it's critical
@@ -1135,7 +1138,7 @@ refresh_buffer_from_disk :: (path: string) {
         }
     }
 
-    refresh_all_editors_for_buffer(buffer_id);
+    check_buffer_edits(buffer_id);
     #if DEBUG_FILE_REFRESH log("Refreshed %", path);
 }
 
@@ -1242,11 +1245,11 @@ new_replace_edit :: (buffer: *Buffer, start: s32, end: s32, old_str: string, new
 #scope_file
 
 add_edit_notification :: (using buffer: *Buffer, offset: s64, old_count: s64, new_count: s64) {
-    if num_editors_open < 2 return;
     array_add(*edit_notifications, Buffer.Edit_Notification.{
         editor_id = cast(s32) context.current_editor_id,
         offset    = cast(s32) (offset + min(old_count, new_count)),
         delta     = cast(s32) (new_count - old_count),
+        deleted_count = ifx cast(s32) old_count,
     });
 }
 
@@ -1298,7 +1301,7 @@ deinit :: (using edit_group: *Buffer.Edit_Group) {
             case .delete;  free(delete.old_bytes);
             case .replace; free(replace.new_bytes);
                            free(replace.old_bytes);
-            case .insert_char;  // nothing to free
+            case .insert_char;       // nothing to free
         }
     }
     array_free(edits);
@@ -1396,6 +1399,7 @@ Buffer :: struct {
         editor_id: s32;
         offset:    s32;
         delta:     s32;
+        deleted_count: s32;
     }
 }
 
