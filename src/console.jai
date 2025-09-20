@@ -133,32 +133,39 @@ toggle_console_maximize :: () {
 
 
 set_build_task_name :: (s: string) -> success: bool {
-    if build_task_running  return false;
+    if build_task_is_running_and_started_at  return false;
     if next_build_task_name  free(next_build_task_name.data,, console_allocator);
     next_build_task_name = copy_string(s,, console_allocator);
     return true;
 }
 
 set_build_task_dir :: (s: string) -> success: bool {
-    if build_task_running  return false;
+    if build_task_is_running_and_started_at  return false;
     if next_build_task_dir  free(next_build_task_dir.data,, console_allocator);
     next_build_task_dir = copy_string(s,, console_allocator);
     return true;
 }
 
+set_build_task_mode :: (mode: Build_Mode) -> success: bool {
+    if build_task_is_running_and_started_at  return false;
+    next_build_task_mode = mode;
+    return true;
+}
+
 add_build_task_command :: (s: string) -> success: bool {
-    if build_task_running  return false;
+    if build_task_is_running_and_started_at  return false;
     array_add(*next_build_task_commands, copy_string(s,, console_allocator));
     return true;
 }
 
-build_task_running := false;
+
+build_task_is_running_and_started_at: Time;
 build_task_header: Offset_Range;
 build_task_region_id: int;
 silence_stdout := false;
 
 build :: () {
-    if build_task_running  return;
+    if build_task_is_running_and_started_at  return;
 
     if random_build_icon_set  build_icon_set = xx random_int(xx #run enum_highest_value(type_of(build_icon_set)) + 1);
     if #complete build_icon_set == {
@@ -175,6 +182,7 @@ build :: () {
         task.title = next_build_task_name;
     else
         task.title = copy_string(current_project_name,, console_allocator);
+    task.mode = next_build_task_mode;
     task.completion_callback = build_finished_callback;
 
     add_work(*console_thread_group, task, task.title);
@@ -196,10 +204,10 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
     clear_build_errors();
 
     store_next_build_error = task.title;
-    build_task_running = true;
+    build_task_is_running_and_started_at = frame_time;
     silence_stdout = false;
     defer {
-        build_task_running = false;
+        build_task_is_running_and_started_at = 0;
         reset_build();
     }
     remove_delayed_action(hide_console);
@@ -248,6 +256,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             if !console_was_open  add_delayed_action(hide_console, duration);
         set_build_header(ifx build_errors then .warning else .success);
         print_to_console(tprint("Success: % seconds\n", frame_time - start_time), remain_closed=!config.settings.show_console_on_build);
+        build_complete_sfx = ifx task.mode == .COMPILE then .COMPILE_SUCCESS else .BUILD_SUCCESS;
     }
     else {
         set_build_header(.error);
@@ -263,6 +272,7 @@ console_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Th
             message := split_into_two(error, #char "\n");
             add_user_message_error(message, origin=.build, icon = "\U0000f780");
         }
+        build_complete_sfx = ifx task.mode == .COMPILE then .COMPILE_FAIL else .BUILD_FAIL;
     }
 
     return .CONTINUE;
@@ -411,15 +421,24 @@ build_icons : [] All_Icons;
 
 console_buffer_id : s64 = -1;
 
+Build_Mode :: enum {
+    COMPILE;
+    BUILD_DEBUG;
+    BUILD_RELEASE;
+    CUSTOM;
+}
+
 #scope_file
 
 next_build_task_name := "";
 next_build_task_dir := "";
+next_build_task_mode: Build_Mode;
 next_build_task_commands : [..] string;
 
 Console_Task :: struct {
-    title : string;
+    title: string;
     completion_callback: #type (error: string);
+    mode: Build_Mode;
 }
 
 Color :: enum {

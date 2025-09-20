@@ -165,7 +165,6 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     // NOTE: we're not freeing because the config will take ownership of it (and if you reload it'll leak the old data, which we should probably fix at some point)
     if !success_read {
         error_msg := tprint("Couldn't read the config file file '%'", file_path);
-        log_error(error_msg);
         add_user_message_error(error_msg, icon="\uf06a");
         return false, false, false;
     }
@@ -173,7 +172,6 @@ load_and_merge_config :: (file_path: string, into: Config, hash: *u64, space : S
     parsed_config, success_parse, error_msg, warnings := parse_config(file_path, file_path, file_data, space, is_initial_load);
     if !success_parse {
         if !error_msg assert(false, "No error message on a config error. This is a bug.");
-        log_error(error_msg);
         add_user_message_error(error_msg, icon="\uf06a");
         return false, false, false;
     }
@@ -418,6 +416,9 @@ Settings :: struct {
     debug_target_path                      := "";
     save_on_debug                          := false;
     build_on_debug_if_needed               := "";
+    focus_focus_on_debug                   := true;
+    audio_volume                           := 1.0;
+    audio_building_volume                  := 1.0;
 
     // TODO
     // convert_tabs_to_spaces_on_load:     false

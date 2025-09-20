@@ -12,7 +12,6 @@ add_directory_to_workspace :: (path: string, index := -1) {
     if !is_directory(full_path) || !success {
         error_msg := tprint("Couldn't add % to workspace. Directory doesn't exist or is invalid.", path);
         add_user_message_error(error_msg, duration_in_seconds = 10, icon="\uf06a");
-        log_error(error_msg);
         return;
     }
 

@@ -371,6 +371,7 @@ ACTIONS_COMMON :: string.[
     "debugger_break",
     "debugger_toggle_breakpoint",
     "debugger_remove_all_breakpoints",
+    "debugger_toggle_all_breakpoints",
     "debugger_step_over",
     "debugger_step_into",
     "debugger_step_out",

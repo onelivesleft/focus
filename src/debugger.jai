@@ -33,6 +33,9 @@ debugger: struct {
     current_line_number: int;
 
     breakpoints: [..] Breakpoint;
+    breakpoints_enabled := true;
+
+    //watch_cache: Table(string,
 
     state : enum {
         DORMANT :: 0;
@@ -47,6 +50,7 @@ debugger: struct {
         pause :: "\U0000f04c";
         step :: "\U0000f051";
         breakpoint :: "\U0001f518";  // circle="\U0001f7e4";
+        disabled_breakpoint :: "\U0000006f";
         cursor_suspended :: "\U0000f28c";
         cursor_running :: "\U0000f144";
         cursor_background :: "\U0001f7e4";
@@ -134,6 +138,7 @@ attach_remedy :: () -> success: bool {
     for * breakpoint: debugger.breakpoints {
         add_breakpoint_result := check(Remedy.add_breakpoint_at_filename_line(get_remedy_filename(open_buffers[breakpoint.buffer_id].file.full_path), cast(u32) breakpoint.line_number + 1));
         breakpoint.uid = add_breakpoint_result.bp_id;
+        if !debugger.breakpoints_enabled  check(Remedy.enable_breakpoint(breakpoint.uid, debugger.breakpoints_enabled));
     }
     debugger.currently_updating_breakpoints = false;
 
@@ -146,7 +151,8 @@ update_attached_debugger :: () {
     if frame_time < debugger.started_target_program_at + debugger.WINDOW_FOCUS_REQUEST_DURATION {
         if frame_time > debugger.last_focus_request_time + debugger.WINDOW_FOCUS_REQUEST_INTERVAL  {
             debugger.last_focus_request_time = frame_time;
-            focus_focus();
+            if config.settings.focus_focus_on_debug
+                focus_focus();
         }
     }
 
@@ -154,7 +160,6 @@ update_attached_debugger :: () {
     if error {
         error_msg := tprint("Got an error while updating the attached debugger: %\n", error);
         add_user_message_error(error_msg, duration_in_seconds=10, icon=debugger.icons.bug);
-        log_error(error_msg);
 
         stop_debugger();
         debugger.is_attached = false;
@@ -275,7 +280,6 @@ check_debug_target :: () -> path_ok: bool {
     check :: (condition: bool, message: string, duration_in_seconds := 10) #expand {
         if !condition {
             add_user_message_error(message, duration_in_seconds=duration_in_seconds, icon=debugger.icons.bug);
-            log_error(message);
             `return false;
         }
     }
@@ -440,14 +444,22 @@ debugger_toggle_breakpoint :: (editor: *Editor, using buffer: *Buffer) {
     }
 }
 
+debugger_toggle_all_breakpoints :: () {
+    debugger.breakpoints_enabled = !debugger.breakpoints_enabled;
+    if debugger.is_attached {
+        for * breakpoint: debugger.breakpoints
+            Remedy.enable_breakpoint(breakpoint.uid, debugger.breakpoints_enabled);
+    }
+}
+
 debugger_update_breakpoint_line :: (uid: u32, line_number: int) {
     if debugger.is_attached {
         Remedy.update_breakpoint_line(uid, cast,trunc(u32) line_number + 1);
     }
     else {
-        for * debugger.breakpoints {
-            if it.uid == uid {
-                it.line_number = line_number;
+        for * breakpoint: debugger.breakpoints {
+            if breakpoint.uid == uid {
+                breakpoint.line_number = line_number;
                 return;
             }
         }
@@ -459,9 +471,9 @@ debugger_remove_breakpoint :: (uid: u32) {
         Remedy.delete_breakpoint(uid);
     }
     else {
-        for * debugger.breakpoints {
-            if it.uid == uid {
-                remove it;
+        for * breakpoint: debugger.breakpoints {
+            if breakpoint.uid == uid {
+                remove breakpoint;
                 return;
             }
         }
@@ -521,7 +533,7 @@ debugger_toggle_autostep :: () {
 }
 
 debugger_temporary_test :: () {
-    if !check_debugger_command_is_valid()  return;
+    add_user_message("Doing something!");
 
     //fetch_breakpoints();
 }

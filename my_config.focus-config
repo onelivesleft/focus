@@ -120,6 +120,11 @@ grid_navigation_display_duration        1.0
 grid_navigation_only_quadrants          false
 
 remedy_executable_path                  c:/program files/remedybg/rbg.exe
+build_on_debug_if_needed                build_debug
+save_on_debug                           true
+
+audio_volume                            2.0
+audio_building_volume                   0.7
 
 
 [[keymap]]
@@ -161,6 +166,7 @@ Pause                       debugger_break
 Alt-F5                      debugger_toggle_autostep
 F9                          debugger_toggle_breakpoint
 Ctrl-Shift-F9               debugger_remove_all_breakpoints
+Ctrl-F9                     debugger_toggle_all_breakpoints
 F10                         debugger_step_over
 F11                         debugger_step_into
 Shift-F11                   debugger_step_out

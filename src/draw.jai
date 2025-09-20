@@ -1305,7 +1305,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                                        then Colors.CONSOLE_HEADER_WAITING
                                        else Colors.CONSOLE_HEADER_ERROR;
                     draw_rect(shrink_x(region_rect, 1), color);
-                    if build_task_running && build_task_region_id == region.id {
+                    if build_task_is_running_and_started_at && build_task_region_id == region.id {
                         animation_rate :: 0.44;
                         icon_index := cast(int)(frame_time / animation_rate) % build_icons.count;
                         position := cut_right(region_rect, region_rect.h).xy;
@@ -1443,8 +1443,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             icon_position.y += (line_height - font_icons_small_size) * 0.5 - 1;
             r := make_rect(rect.x, screen_pos.y, char_x_advance * 40, line_height);
             Simp.set_shader_for_color(enable_blend = true);
+            if !debugger.breakpoints_enabled  background_color_left.a *= 0.5;
+            icon := ifx debugger.breakpoints_enabled then debugger.icons.breakpoint else debugger.icons.disabled_breakpoint;
             draw_rect_raw(r, background_color_left, background_color_left, background_color_right, background_color_right);
-            draw_icon(debugger.icons.breakpoint, icon_position, icon_color, .small);
+            draw_icon(icon, icon_position, icon_color, .small);
         }
 
         // Draw scrollbar marks
@@ -1553,7 +1555,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
         }
 
-        cursors_active := editor_is_active && active_global_widget == .editors;
+        cursors_active := editor_id == editors.active && active_global_widget == .editors; // && Input.input_application_has_focus
 
         if !search_bar_is_open(editor) {
             Simp.set_shader_for_rects();
@@ -1662,8 +1664,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             time : float = xx frame_time;
             for cursor_coords {
                 xy := get_cursor_screen_pos(text_origin, it.pos);
-                if xy.y < -100 || xy.y > xx (window_height + 100)
-                    continue;
+                //if xy.y < -100 || xy.y > xx (window_height + 100)
+                //    continue;
+                if xy.y < -100  xy.y = -100;
+                if xy.y > xx (window_height + 100)  xy.y = xx (window_height + 100);
 
                 lightsource := find_or_add(*cursor_lightsources_persisting, (cast(*u64)*it.pos).*);
                 lightsource.xy = xy;
@@ -4599,7 +4603,7 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
 
 draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
     lightsource_color := ifx debugger.state == .DORMANT then Colors.CURSOR else Colors.DEBUGGER_CURSOR;
-    t := cast(float)(frame_time);// + application_start_time);
+    t := cast(float)(frame_time) + cool_time_offset;
     if config.settings.go_bananas && config.settings.cursor_glow_bananas_rotate_hue {
         h, s, l := hsl_from_rgb(lightsource_color);
         h = fmod_cycling(config.settings.cursor_glow_bananas_rotate_hue * t * 0.00001, 1.0);

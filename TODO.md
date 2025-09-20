@@ -1,6 +1,12 @@
 # Mine
 
-- [ ] Fix Match-bracket at eof crashing
+- [x] Audio!
+    - [x] Building sfx.
+
+- [x] When cursors are off screen, add there light source at top or bottom edge
+- [x] When window isn't active, still show cursor light sources
+
+- [x] Fix Match-bracket at eof crashing
 
 - [.] Ficus
     - [ ] better assert

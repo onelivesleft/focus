@@ -462,12 +462,15 @@ ficus_execute_event :: ($event: string) {
         ficus_execute_string(word);
 }
 
-run_build_script :: (mode: enum { Compile; Debug; Release; }) {
-    word_name := ifx mode == .Compile
-                 then "compile"
-                 else ifx mode == .Release
-                      then "build_release"
-                      else "build_debug";
+run_build_script :: (mode: Build_Mode) {
+    word_name : string = ---;
+    if #complete mode == {
+        case .COMPILE;          word_name = "compile";
+        case .BUILD_RELEASE;    word_name = "build_release";
+        case .BUILD_DEBUG;      word_name = "build_debug";
+        case .CUSTOM;           assert(mode != .CUSTOM);
+    }
+
     word, found := get_word(word_name);
     if !found {
         print_console_header("[BUILD] Missing script", is_error = true);
@@ -483,6 +486,7 @@ focus_config, word_name, current_project_name, mode), .Focus_Config);
         return;
     }
 
+    set_build_task_mode(mode);
     ficus_execute_string(word, .user, .default);
 }
 
@@ -1902,6 +1906,17 @@ intrinsics :: #code if word_name == {
     case "build_dir!";
         dir := pop(.text, "path");
         ok := set_build_task_dir(dir.string_value);
+        if !ok  return tprint("Cannot % while a build is already running", word_name);
+
+    case "build_mode!";
+        value := pop(.text, "mode");
+        s := to_lower(value.string_value,, temp);
+        mode: Build_Mode;
+        if      s == "compile"        mode = .COMPILE;
+        else if s == "build_debug"    mode = .BUILD_DEBUG;
+        else if s == "build_release"  mode = .BUILD_RELEASE;
+        else                          mode = .CUSTOM;
+        ok := set_build_task_mode(mode);
         if !ok  return tprint("Cannot % while a build is already running", word_name);
 
     case "build";

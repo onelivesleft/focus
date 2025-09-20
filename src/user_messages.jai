@@ -4,6 +4,7 @@ default_error_duration : float64 : -1;
 user_message_allocator : Allocator;
 
 add_user_message_error :: inline (message: string, duration_in_seconds := default_error_duration, icon := "", origin := User_Message.Origin.general) {
+    log_error(message);
     add_user_message(message, .error, cast(Time) duration_in_seconds, icon, origin);
 }
 

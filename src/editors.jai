@@ -562,14 +562,12 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) -> 
     full_path, success := get_absolute_path(path);  // returns temporary storage
     path_overwrite_separators(full_path, separator = #char "/");
     if !file_exists(full_path) || !success {
-        log_error("Couldn't open file %", path);
         add_user_message_error(tprint("Couldn't open file %", path), duration_in_seconds = 60, icon="\ue4eb");
         print("[%]\n", path);
         return false;
     }
     buffer_id := find_or_create_buffer(full_path);
     if buffer_id < 0 && full_path.count > 248 {
-        log_error("Couldn't open file because path is too long for Windows: %\n", full_path);
         add_user_message_error("Couldn't open file. Path is too long.", icon="\ue4eb");  // not including full path for obvious reasons
         return false;
     }
@@ -1490,6 +1488,7 @@ cursors_stop_blinking :: inline () {
 }
 
 should_draw_cursors :: inline () -> bool {
+    if !Input.input_application_has_focus  return false;
     if !cursors_blinking || config.settings.cursor_blink_time_in_seconds <= 0 return true;
 
     ms_since_start := cast(s64) ((frame_time - cursor_blink_start) * 1000);

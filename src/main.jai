@@ -56,6 +56,7 @@ main :: () {
     debug_small_window &= is_standalone_debug_build;
 
     application_start_time = cast(Time) to_float64_seconds(current_time_consensus());
+    cool_time_offset = fmod_cycling(cast(float) application_start_time, 3600.0);
 
     // Meow hash relies on AES instruction support, so fall back to a standard hash function
     if !check_feature(cpu_info.feature_leaves, x86_Feature_Flag.AES) then calculate_hash = fallback_hash;
@@ -86,6 +87,7 @@ main :: () {
     init_buffers();
     init_console();
     init_debugger();
+    init_audio();
 
     if config.settings.open_on_monitor_one {
         window_x = 1920;
@@ -415,6 +417,7 @@ main :: () {
         update_user_messages();
         update_zen_mode();
         update_editors();
+        update_audio();
 
         draw_frame();
 
@@ -427,6 +430,7 @@ main :: () {
             redraw_requested = true;
             platform_apply_config(*config.platform);
         }
+
 
         reset_temporary_storage();
 
@@ -516,15 +520,16 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .toggle_profiling;                                 toggle_profiling();                                 return true;
         case .calculator;                                       toggle_calculator();                                return true;
 
-        case .compile;                                          run_build_script(.Compile);                         return true;
-        case .build_debug;                                      run_build_script(.Debug);                           return true;
-        case .build_release;                                    run_build_script(.Release);                         return true;
+        case .compile;                                          run_build_script(.COMPILE);                         return true;
+        case .build_debug;                                      run_build_script(.BUILD_DEBUG);                     return true;
+        case .build_release;                                    run_build_script(.BUILD_RELEASE);                   return true;
 
         case .debugger_run;                                     run_debugger();                                     return true;
         case .debugger_stop;                                    stop_debugger();                                    return true;
         case .debugger_detach;                                  detach_debugger();                                  return true;
         case .debugger_break;                                   debugger_break();                                   return true;
         case .debugger_remove_all_breakpoints;                  debugger_remove_all_breakpoints();                  return true;
+        case .debugger_toggle_all_breakpoints;                  debugger_toggle_all_breakpoints();                  return true;
         case .debugger_step_over;                               debugger_step_over();                               return true;
         case .debugger_step_into;                               debugger_step_into();                               return true;
         case .debugger_step_out;                                debugger_step_out();                                return true;
@@ -943,6 +948,8 @@ frame_dt:   Time = MAX_FRAME_DT;  // time delta since the last frame
 MAX_FRAME_DT:   Time : xx (1.0 / 60);
 QUICK_FRAME_DT: Time : xx (1.0 / 300);  // sorry 300Hz monitor users
 MAX_TIME_BEFORE_RESETTING: Time : xx (60 * 60 * 24 * 7);  // reset timer after a week to avoid losing timer precision
+cool_time_offset: float32;
+
 
 EDIT_GROUP_TIMEOUT :: 0.3;  // for undo/redo
 
@@ -1171,6 +1178,7 @@ dont_ignore_next_window_resize := false;
 #load "console.jai";
 #load "threads.jai";
 #load "font_awesome.jai";
+#load "audio.jai";
 
 #load "widgets/text_input.jai";
 #load "widgets/open_file_dialog.jai";
@@ -1245,6 +1253,7 @@ using,except(slice,split,ends_with,trim,contains,starts_with,replace,join,equal)
 #import "Compiler";
 #import "Machine_X64";
 #import "Strings";
+Sound :: #import "Sound_Player";
 Remedy :: #import "Remedy"(REMEDY_SERVERNAME="locus", VERBOSE=true);
 
 re :: #import "uniform";
