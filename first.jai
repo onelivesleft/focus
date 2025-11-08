@@ -29,8 +29,8 @@ build :: () {
     windows7  := false;
     set_optimization(*options, .DEBUG);
     // options.arithmetic_overflow_check = .FATAL; Try uncommenting this line in 0.1.072. Doesn't work correctly on 0.1.071.
-    build_dir := "build_debug";
-    options.output_executable_name = "locus";
+    build_dir := ".";
+    options.output_executable_name = "locus_debug";
     dev_build := false;
 
     for arg: args {
@@ -38,6 +38,7 @@ build :: () {
           case "release";
             optimized = true;
             build_dir = "build_release";
+            options.output_executable_name = "locus";
             set_optimization(*options, .VERY_OPTIMIZED);
             options.llvm_options.enable_split_modules = false;
             options.array_bounds_check = .ON;
@@ -45,10 +46,8 @@ build :: () {
             options.arithmetic_overflow_check = .OFF;
             include_profiling = false;
           case "debug";
-            options.output_executable_name = "locus_debug";
           case "dev";
             include_profiling = false;
-            build_dir = ".";
             options.output_executable_name = "locus_dev";
             dev_build = true;
           case "no_output";
@@ -65,9 +64,6 @@ build :: () {
     if !no_output {
         options.output_path = build_dir;
         make_directory_if_it_does_not_exist(build_dir);
-
-        if !optimized && !dev_build
-            options.output_executable_name = sprint("%_debug", options.output_executable_name);
 
         #if OS == .WINDOWS {
             slash :: "\\";

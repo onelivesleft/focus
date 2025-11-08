@@ -798,3 +798,10 @@ hsl_from_rgb :: (using color: Color) -> h: float, s: float, l: float{
 
     return h, s, l;
 }
+
+frame_hsl_color :: () -> Color {
+    h, s, l := hsl_from_rgb(Colors.UI_DEFAULT);
+    h = fmod_cycling(cast(float)frame_time, 1.0);
+    s = 1.0;
+    return rgb_from_hsl(h, s, l);
+}

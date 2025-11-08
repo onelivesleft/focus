@@ -1,4 +1,4 @@
-create_window :: (width: int, height: int, window_name: string, window_x := -1, window_y := -1, parent: HWND = null, background_color_rgb := DEFAULT_WINDOW_CREATION_COLOR) -> HWND {
+create_window :: (width: int, height: int, window_name: string, window_x := -1, window_y := -1, parent: HWND = null, background_color_rgb := DEFAULT_WINDOW_CREATION_COLOR, show := true) -> HWND {
     if !window_class_initted {
         init_window_class(background_color_rgb);
     }
@@ -49,8 +49,10 @@ create_window :: (width: int, height: int, window_name: string, window_x := -1, 
     }
 
     // Display the window
-    UpdateWindow(hwnd);
-    ShowWindow(hwnd, SW_SHOW);
+    if show {
+        UpdateWindow(hwnd);
+        ShowWindow(hwnd, SW_SHOW);
+    }
 
     return hwnd;
 }

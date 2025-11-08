@@ -1497,7 +1497,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             }
             cursor_mark_rect.h = 2 * dpi_scale;
 
-            for cursor : cursors {
+            for cursor: cursors {
                 coords := cursor_coords[it_index];
                 pos_from_top := rect.h * cast(float) coords.pos.line / total_scrollable_lines;
                 cursor_mark_rect.y = marks_rect_top - pos_from_top - cursor_mark_rect.h;
@@ -1736,15 +1736,42 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 }
 
                 if debugger.state {
-                    icon_position := cursor_rect.xy;
-                    icon_position.x -= dpi_scale * (font_icons_size * 0.5 - 1);
-                    icon_position.y += (line_height - font_icons_size) * 0.5 - 1;
-                    //pen.x -= dpi_scale * font_icons_size * 0.5;
-                    //pen.y += (line_height - char_x_advance) / 2 - dpi_scale;
+                    target_rect := lerp(main_cursor_rect, cursor_rect, 0.5);
+                    target_position := target_rect.xy;
+                    main_cursor_rect = cursor_rect;
+                    running_color := frame_hsl_color();
+
+                    if frame_time >= ball_cursor.next_bounce_at { //  || editor.cursor_moved {
+                        calculate_next_bounce(*ball_cursor, target_position);
+                    }
+
+                    ball_position := get_ball_position(*ball_cursor, frame_time);
+                    draw_icon(debugger.icons.circle, ball_position, running_color, .tiny);
+
+                    if debugger.word_at_cursor {
+                        coords := offset_to_coords(editor, buffer, debugger.word_at_cursor_pos);
+                        pos := get_cursor_screen_pos(text_origin, coords);
+                        r := make_rect(pos.x, pos.y, char_x_advance * debugger.word_at_cursor.count, dpi_scale);
+                        draw_rect(r, running_color);
+                    }
+
+                    underscore := target_rect;
+                    underscore.w = char_x_advance;
+                    underscore.h = dpi_scale * 3;
+                    underscore.y -= dpi_scale;
+
+                    draw_rounded_rect(underscore, running_color, radius = rounding_radius_small);
+                    underscore.x += 2*dpi_scale;
+                    underscore.w -= 4*dpi_scale;
+                    underscore.y -= underscore.h / 2;
+                    draw_rounded_rect(underscore, running_color, radius = rounding_radius_small);
 
                     icon := ifx debugger.state == .RUNNING
                             then debugger.icons.cursor_running
                             else debugger.icons.cursor_suspended;
+                    icon_position := cursor_rect.xy;
+                    icon_position.x = main_area.x + dpi_scale*4;
+                    icon_position.y += (line_height - font_icons_size) * 0.5 - 1;
                     draw_icon(debugger.icons.cursor_background, icon_position, Colors.BACKGROUND_DARK, .default);
                     draw_icon(icon, icon_position, cursor_color, .default);
                 }
@@ -4822,7 +4849,6 @@ get_floating_area :: (rect: Rect) -> Rect {
     return floating_area;
 }
 
-
 draw_line :: (x0: $T, y0: T, x1: T, y1: T, color := Vector4.{1, 1, 1, 1}) {
     triangles : [2] Triangle;
     stroke_width :: 2;
@@ -4862,6 +4888,7 @@ Triangle :: struct {
 }
 
 #scope_file
+
 
 push_scissor :: (rect: Rect) {
     set_scissor_rect(rect);

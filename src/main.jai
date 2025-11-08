@@ -9,6 +9,7 @@ FOOTER_AT_TOP :: true;
 MINIMAL_FOOTER :: true;
 HIDE_SCROLLBARS :: true;
 REMOVE_TITLE_BAR :: true;
+FADE_IN_AT_STARTUP :: true;
 
 SKIP_CUTSCENES :: true;
 AUTO_JUMP_TO_ERROR :: true;
@@ -18,6 +19,8 @@ EYE_TRACKING :: false;
 HIDE_CONSOLE_ON_SUCCESS :: true;
 BUILD_SILENCE_STDOUT_AFTER_ERROR :: true;
 
+fade_in_at_startup_duration :: 0.33;
+fade_in_at_startup_start_time: Time;
 show_keystrokes := false;
 show_filename := true;
 zen_mode := false;
@@ -222,6 +225,23 @@ main :: () {
         frame_time = current_time;
         frame_count += 1;
         frame_time_buffer[frame_count % frame_time_buffer.count] = frame_dt;
+
+        #if FADE_IN_AT_STARTUP {
+            if fade_in_at_startup_start_time > 0 {
+                delta := frame_time - fade_in_at_startup_start_time;
+                if delta > fade_in_at_startup_duration {
+                    platform_set_window_opacity(1.0);
+                    fade_in_at_startup_start_time = -1;
+                }
+                else {
+                    t := delta / fade_in_at_startup_duration;
+                    platform_set_window_opacity(cast(float) t);
+                }
+            }
+            else if fade_in_at_startup_start_time == 0 {
+                fade_in_at_startup_start_time = frame_time + 0.01;
+            }
+        }
 
         for delayed_actions {
             if (it.type == .time && it.at_frame_time <= frame_time)

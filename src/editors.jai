@@ -943,9 +943,9 @@ add_paste_animation :: (using editor: *Editor, range: Offset_Range) {
     anim.started_at = frame_time;
 }
 
-select_word :: (buffer: Buffer, cursor: *Cursor) {
+bracket_word_at_cursor :: (buffer: Buffer, cursor: *Cursor) -> start_pos: s32, end_pos: s32 {
     pos       := cursor.pos;
-    pos_left  := ifx cursor.pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
+    pos_left  := ifx pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
     char      := get_char_at_offset(buffer, pos);
     char_left := get_char_at_offset(buffer, pos_left);
 
@@ -955,10 +955,19 @@ select_word :: (buffer: Buffer, cursor: *Cursor) {
     }
 
     char_type := get_char_type(char);
-    if char_type == .other return;
+    if char_type == .other return pos, pos;
 
-    cursor.pos = scan_through_similar_chars_on_the_right(buffer, pos, char_type, skip_one_space = false);
-    cursor.sel = scan_through_similar_chars_on_the_left (buffer, pos, char_type, skip_one_space = false);
+    end_pos := scan_through_similar_chars_on_the_right(buffer, pos, char_type, skip_one_space = false);
+    start_pos := scan_through_similar_chars_on_the_left(buffer, pos, char_type, skip_one_space = false);
+    return start_pos, end_pos;
+}
+
+select_word :: inline (buffer: Buffer, cursor: *Cursor) {
+    start_pos, end_pos := bracket_word_at_cursor(buffer, cursor);
+    if end_pos > start_pos {
+        cursor.pos = start_pos;
+        cursor.sel = end_pos;
+    }
 }
 
 get_selected_text_all_cursors :: (using editor: Editor, buffer: Buffer) -> string {  // returns view into buffer
@@ -1489,6 +1498,7 @@ cursors_stop_blinking :: inline () {
 
 should_draw_cursors :: inline () -> bool {
     if !Input.input_application_has_focus  return false;
+    if debugger.state  return true;
     if !cursors_blinking || config.settings.cursor_blink_time_in_seconds <= 0 return true;
 
     ms_since_start := cast(s64) ((frame_time - cursor_blink_start) * 1000);

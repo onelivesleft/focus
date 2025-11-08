@@ -165,7 +165,7 @@ build_task_region_id: int;
 silence_stdout := false;
 
 build :: () {
-    if build_task_is_running_and_started_at  return;
+    if build_task_is_running_and_started_at || debugger.state  return;
 
     if random_build_icon_set  build_icon_set = xx random_int(xx #run enum_highest_value(type_of(build_icon_set)) + 1);
     if #complete build_icon_set == {

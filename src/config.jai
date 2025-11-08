@@ -416,6 +416,7 @@ Settings :: struct {
     debug_target_path                      := "";
     save_on_debug                          := false;
     build_on_debug_if_needed               := "";
+    hide_debugger_attached_icon            := false;
     focus_focus_on_debug                   := true;
     audio_volume                           := 1.0;
     audio_building_volume                  := 1.0;

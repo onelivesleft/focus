@@ -35,7 +35,12 @@ debugger: struct {
     breakpoints: [..] Breakpoint;
     breakpoints_enabled := true;
 
-    //watch_cache: Table(string,
+    watch_allocator: Allocator;
+    watch_allocator_pool: Flat_Pool;
+    watch_cache: Table(string, Watch_Entry);
+
+    word_at_cursor: string;
+    word_at_cursor_pos: s32;
 
     state : enum {
         DORMANT :: 0;
@@ -54,6 +59,7 @@ debugger: struct {
         cursor_suspended :: "\U0000f28c";
         cursor_running :: "\U0000f144";
         cursor_background :: "\U0001f7e4";
+        circle :: "\U0001f7e4";
         blank :: " ";
     }
 
@@ -73,8 +79,17 @@ Breakpoint :: struct {
     line_number: int;
 }
 
+Watch_Entry :: struct  {
+    value_buffer: u64;
+    value: Any;
+}
+
 
 init_debugger :: () {
+    debugger.watch_allocator.proc = flat_pool_allocator_proc;
+    debugger.watch_allocator.data = *debugger.watch_allocator_pool;
+    init(*debugger.watch_cache,, debugger.watch_allocator);
+
     Remedy.event_handles.exit_process = handle_exit_process_event;
     Remedy.event_handles.source_location_changed = handle_source_location_changed_event;
     Remedy.event_handles.target_continued = handle_target_continued_event;
@@ -184,20 +199,39 @@ update_attached_debugger :: () {
     editor, buffer := get_active_editor_and_buffer();
     if !editor return;
 
+    cursor := *editor.cursors[editor.main_cursor];
+    debugger.word_at_cursor = "";
+    start_pos, end_pos := bracket_word_at_cursor(buffer, cursor);
+    if start_pos >= 0 && start_pos < buffer.bytes.count && end_pos > start_pos {
+        word : string = ---;
+        word.data = buffer.bytes.data + start_pos;
+        word.count = end_pos - start_pos;
+        if get_char_type(word[0]) == .word {
+            debugger.word_at_cursor = word;
+            debugger.word_at_cursor_pos = start_pos;
+        }
+    }
+
     color := debugger_color_for_state(Colors.UI_DEFAULT);
 
     if #complete debugger.state == {
         case .DORMANT;
-        add_status_part(editor, .icon, debugger.icons.bug);
         if debugger.last_file_save_at > debugger.last_build_at {
+            add_status_part(editor, .icon, debugger.icons.bug);
             add_status_part(editor, .margin);
             add_status_part(editor, .icon, debugger.icons.build_out_of_date);
+            add_status_part(editor, .divider);
+        }
+        else if !config.settings.hide_debugger_attached_icon {
+            add_status_part(editor, .icon, debugger.icons.bug);
+            add_status_part(editor, .divider);
         }
 
         case .RUNNING;
         add_status_part(editor, .icon, debugger.icons.bug, .{r=0, g=1, b=0, a=1});
         add_status_part(editor, .margin);
         add_status_part(editor, .icon, debugger.icons.play, color);
+        add_status_part(editor, .divider);
 
         case .SUSPENDED;
         animation_frame_duration :: 10;
@@ -207,8 +241,9 @@ update_attached_debugger :: () {
         add_status_part(editor, .icon, debugger.icons.bug, color);
         add_status_part(editor, .margin);
         add_status_part(editor, .icon, icon);
+        add_status_part(editor, .divider);
     }
-    add_status_part(editor, .divider);
+
 }
 
 debugger_color_for_state :: (dormant_color: Color) -> Color {
@@ -220,10 +255,7 @@ debugger_color_for_state :: (dormant_color: Color) -> Color {
             return Colors.DEBUGGER_NEXT_INSTRUCTION;
 
         case .RUNNING;
-            h, s, l := hsl_from_rgb(Colors.UI_DEFAULT);
-            h = fmod_cycling(cast(float)frame_time, 1.0);
-            s = 1.0;
-            return rgb_from_hsl(h, s, l);
+            return frame_hsl_color();
     }
 }
 
@@ -258,9 +290,9 @@ debugger_trigger_delayed_run :: () {
     if !debugger_is_waiting_to_run()  return;
     debugger.waiting_to_run_attempts += 1;
     if debugger.waiting_to_run_filename
-        run_debugger_to_location(debugger.waiting_to_run_filename, debugger.waiting_to_run_line_number);
+        run_debugger_to_location(debugger.waiting_to_run_filename, debugger.waiting_to_run_line_number, from_delay=true);
     else
-        run_debugger();
+        run_debugger(from_delay=true);
 }
 
 debugger_cancel_delayed_run :: () {
@@ -274,35 +306,34 @@ reset_for_new_run :: () {
     debugger.autostep = false;
     debugger.disable_advance_to_next_valid_location = false;
     debugger.last_jump_to_source_location_invalid = false;
+    debugger.word_at_cursor = "";
+    reset(*debugger.watch_allocator_pool);
+    table_reset(*debugger.watch_cache);
 }
 
-check_debug_target :: () -> path_ok: bool {
-    check :: (condition: bool, message: string, duration_in_seconds := 10) #expand {
+check_debug_target :: (from_delay := true) -> path_ok: bool {
+    check :: (condition: bool, message: string, duration_in_seconds := 10, build_if_unsuccessful := true) #expand {
         if !condition {
-            add_user_message_error(message, duration_in_seconds=duration_in_seconds, icon=debugger.icons.bug);
+            if build_if_unsuccessful && config.settings.build_on_debug_if_needed && !debugger_is_waiting_to_run() && !from_delay {
+                ficus_execute_string(config.settings.build_on_debug_if_needed, .user, .default);
+                debugger_request_delayed_run();
+            }
+            else {
+                add_user_message_error(message, duration_in_seconds=duration_in_seconds, icon=debugger.icons.bug);
+            }
             `return false;
         }
     }
 
-    check(config.settings.debug_target_path != "", "debug_target_path not set in any config file!\n");
+    check(config.settings.debug_target_path != "", "debug_target_path not set in any config file!\n", build_if_unsuccessful=false);
     check(file_exists(config.settings.debug_target_path), tprint("debug_target_path is: %, but that file does not exist.\n", config.settings.debug_target_path));
     check(file_exists(debugger.target_pdb_path), tprint("debugger.target_pdb_path is: %, but that file does not exist.\n", debugger.target_pdb_path));
 
     modtime, size, success := file_modtime_and_size(debugger.target_pdb_path);
-    if !success && config.settings.build_on_debug_if_needed && !debugger_is_waiting_to_run() {
-        ficus_execute_string(config.settings.build_on_debug_if_needed, .user, .default);
-        debugger_request_delayed_run();
-        return false;
-    }
     check(success, tprint("debugger.target_pdb_path is: %, but it could not be read.\n", debugger.target_pdb_path));
 
     debugger.last_build_at = modtime;
     build_time_ok := debugger.last_file_save_at <= debugger.last_build_at;
-    if !build_time_ok && config.settings.build_on_debug_if_needed && !debugger_is_waiting_to_run() {
-        ficus_execute_string(config.settings.build_on_debug_if_needed, .user, .default);
-        debugger_request_delayed_run();
-        return false;
-    }
     check(build_time_ok, "Files have been saved since the debug target was last built: to debug it you must build it again.\n");
 
     return true;
@@ -310,12 +341,12 @@ check_debug_target :: () -> path_ok: bool {
 
 #scope_export
 
-run_debugger :: () {
+run_debugger :: (from_delay := false) {
     if debugger.state == .RUNNING  return;
 
     if config.settings.save_on_debug  save_all(include_fileless_buffers=false);
 
-    if !check_debug_target()  return;
+    if !check_debug_target(from_delay)  return;
 
     if !debugger.is_attached {
         success := attach_remedy();
@@ -338,7 +369,7 @@ run_debugger :: () {
     }
 }
 
-run_debugger_to_location :: (filename: string, line_number: int) {
+run_debugger_to_location :: (filename: string, line_number: int, from_delay := false) {
     if debugger.state == .RUNNING  return;
 
     if config.settings.save_on_debug  save_all(include_fileless_buffers=false);
@@ -572,7 +603,7 @@ jump_to_source_location :: (path: string, line: u32) {
     buffer := *open_buffers[editor.buffer_id];
 
     cursor := leave_only_original_cursor(editor);
-    position := coords_to_offset(editor, buffer, .{ cast(s32)line - 1, 0 });
+    position := coords_to_offset(editor, buffer, .{ cast(s32)line - 1, cursor.col_wanted });
     cursor.pos = position;
     cursor.sel = position;
     add_paste_animation(editor, get_selection(cursor));
@@ -692,4 +723,45 @@ check_debugger_command_is_valid :: () -> bool {
     }
 
     return true;
+}
+
+
+#scope_module
+
+
+Ball_Cursor :: struct {
+    gravity :: 3000.0;
+    normal_leap_duration :: 0.33;
+
+    leap_duration: float;
+    started_bounce_at: Time;
+    next_bounce_at: Time;
+
+    start_position: Vector2;
+    end_position: Vector2;
+    current_position: Vector2;
+    velocity: Vector2;
+}
+
+ball_cursor: Ball_Cursor;
+
+calculate_next_bounce :: (using ball: *Ball_Cursor, target_position: Vector2) {
+    leap_duration = ifx frame_time < next_bounce_at // interrupted
+                    then normal_leap_duration / 2
+                    else normal_leap_duration;
+    started_bounce_at = frame_time;
+    next_bounce_at = frame_time + cast(Time)leap_duration;
+    start_position = .{ current_position.x, end_position.y };
+    end_position = target_position;
+
+    delta := end_position - start_position;
+    velocity.x = delta.x / leap_duration;
+    velocity.y = (delta.y + 0.5 * gravity * leap_duration * leap_duration) / leap_duration;
+}
+
+get_ball_position :: (using ball: *Ball_Cursor, t: Time) -> Vector2 {
+    time := cast(float)(frame_time - started_bounce_at);
+    current_position = start_position + (velocity * time);
+    current_position.y -= 0.5 * gravity * time * time;
+    return current_position;
 }

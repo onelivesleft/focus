@@ -65,7 +65,7 @@ platform_get_centered_window_dimensions :: (open_on_biggest: bool) -> s32, s32, 
 normal_style : s32;
 
 platform_create_window :: () {
-    window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND));
+    window = create_window(window_width, window_height, window_generic_title, window_x, window_y, background_color_rgb = as_3_floats(Colors.BACKGROUND), show = !FADE_IN_AT_STARTUP);
     #if REMOVE_TITLE_BAR {
         old_style := cast(s32) GetWindowLongW(window, GWL_STYLE);
         normal_style = old_style & ~cast(s32)(WS_CAPTION | WS_THICKFRAME);
@@ -73,6 +73,12 @@ platform_create_window :: () {
         SetWindowPos(window,null,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
     }
     platform_set_border_color();
+    #if FADE_IN_AT_STARTUP {
+        platform_set_window_opacity(0.0, 0.0);
+        UpdateWindow(window);
+        ShowWindow(window, SW_SHOW);
+    }
+
 }
 
 platform_set_window_location :: (x: s32, y: s32, w: s32, h: s32) {
@@ -289,6 +295,41 @@ platform_set_border_color :: () {
 
     darkmode := ifx config.settings.dark_titlebar then 1 else 0;
     DwmSetWindowAttribute(window, USE_IMMERSIVE_DARK_MODE , *darkmode, size_of(type_of(darkmode)));
+}
+
+#scope_file
+last_set_opacity: u8 = 255;
+#scope_export
+
+platform_set_window_opacity :: (opacity: float, min_opacity := 0.1) {
+    // WARNING! If you set the opacity too low you will make it very hard for the user to interact with your program!
+    // Leave the min_opacity alone unless you really mean it.
+
+    #if OS == .WINDOWS {
+        clamped := clamp(opacity, min_opacity, 1.0);
+        a := cast(u8) clamp(clamped * 256, 0, 255);
+        if last_set_opacity == a
+            return;
+
+        if a < 255 {
+            if last_set_opacity == 255 {
+                extended_style := GetWindowLongW(window, GWL_EXSTYLE);
+                extended_style |= WS_EX_LAYERED;
+                SetWindowLongW(window, GWL_EXSTYLE, extended_style);
+            }
+            LWA_ALPHA :: 2;
+            user32 :: #system_library "user32";
+            SetLayeredWindowAttributes :: (hwnd: *void, crKey: u32, bAlpha: u8, dwFlags: u32) -> bool #foreign user32;
+            SetLayeredWindowAttributes(window, 0, a, LWA_ALPHA);
+        }
+        else { // We must have been translucent to get here, so just remove the style that enables opacity.
+            extended_style := GetWindowLongW(window, GWL_EXSTYLE);
+            extended_style &= ~cast(s32)WS_EX_LAYERED;
+            SetWindowLongW(window, GWL_EXSTYLE, extended_style);
+        }
+
+        last_set_opacity = a;
+    }
 }
 
 platform_show_cursor :: (show: bool) {

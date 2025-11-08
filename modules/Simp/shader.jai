@@ -23,7 +23,7 @@ set_shader_for_color :: (enable_blend := false) {
     }
 }
 
-set_shader_for_cool :: (time: float, value: float, lightsources: *[]Vector3, lightsource_intensity: float, lightsource_color: Vector4, line_height: float, lightsource_fade_duration: float, screen_offset: Vector2, go_bananas := false) {
+set_shader_for_cool :: (time: float, value: float, lightsources: *[] Vector3, lightsource_intensity: float, lightsource_color: Vector4, line_height: float, lightsource_fade_duration: float, screen_offset: Vector2, go_bananas := false) {
     CheckInit();
     wanted_shader := ifx go_bananas then *shader_cool_shmokin else *shader_cool;
     if wanted_shader != state.current_shader {
