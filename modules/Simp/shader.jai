@@ -4,6 +4,15 @@ Shader :: struct {
     using platform: Shader_Platform;
 }
 
+Lightsource :: struct {
+    #as using xyz: Vector3;
+
+    #place z;
+    t: float;
+}
+
+Lightsource_Trail :: Vector2;
+
 set_projection :: () {
     t := context.simp.texture_render_target;
     if t {
@@ -23,7 +32,7 @@ set_shader_for_color :: (enable_blend := false) {
     }
 }
 
-set_shader_for_cool :: (time: float, value: float, lightsources: *[] Vector3, lightsource_intensity: float, lightsource_color: Vector4, line_height: float, lightsource_fade_duration: float, screen_offset: Vector2, go_bananas := false) {
+set_shader_for_cool :: (time: float, value: float, lightsources: *[] Lightsource, lightsource_trails: *[] Lightsource_Trail, lightsource_intensity: float, lightsource_color: Vector4, line_height: float, lightsource_fade_duration: float, screen_offset: Vector2, go_bananas := false) {
     CheckInit();
     wanted_shader := ifx go_bananas then *shader_cool_shmokin else *shader_cool;
     if wanted_shader != state.current_shader {
@@ -43,6 +52,8 @@ set_shader_for_cool :: (time: float, value: float, lightsources: *[] Vector3, li
             glUniform1f(loc, xx lightsource_fade_duration);
             loc = glGetUniformLocation(wanted_shader.gl_handle, "lightsources");
             glUniform3fv(loc, xx lightsources.count, xx lightsources.data);
+            loc = glGetUniformLocation(wanted_shader.gl_handle, "lightsource_trails");
+            glUniform2fv(loc, xx lightsource_trails.count, xx lightsource_trails.data);
             loc = glGetUniformLocation(wanted_shader.gl_handle, "lightsource_color");
             glUniform4f(loc, lightsource_color.x, lightsource_color.y, lightsource_color.z, lightsource_color.w);
             loc = glGetUniformLocation(wanted_shader.gl_handle, "lightsource_intensity");
@@ -82,7 +93,7 @@ set_shader_for_text :: () {
     }
 }
 
-set_shader_for_text :: (lightsources: *[]Vector3, lightsource_intensity: float, lightsource_color: Vector4) {
+set_shader_for_text :: (lightsources: *[] Lightsource, lightsource_intensity: float, lightsource_color: Vector4) {
     CheckInit();
     if state.current_shader != *shader_text {
         immediate_set_shader(*shader_text);

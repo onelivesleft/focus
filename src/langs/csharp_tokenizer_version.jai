@@ -1,17 +1,9 @@
-CSharp :: struct {
-    tokens: [..] Token;
-    token_index: int;
+// [x] [Attributes]
+// [x] public Type
+// [x] List<Generic>
+// [x] Generic<Call>()
 
-    nodes: [..] CSNode;
-    current_parent_node_index: int;
-    attributes_to_assign: [..] int;
-    current_flags: CSNode.Flags;
-
-    done_with_using_block := false;
-}
-
-#add_context csharp: CSharp;
-
+// [ ] Fix erroneous type coloring foo in foo.Bar()
 
 highlight_csharp_syntax :: (using buffer: *Buffer) {
     tokenizer := get_tokenizer(buffer);
@@ -25,623 +17,220 @@ highlight_csharp_syntax :: (using buffer: *Buffer, start_index: s32, count: s32)
         max_t      = bytes.data + start_index + count,
         t          = bytes.data + start_index,
     };
-    add_recent_token(tokenizer, .{0, 0, .eof, "", .DEFAULT});
+    add_recent_token(tokenizer, .{0, 0, .eof, ""});
     highlight_csharp_syntax(buffer, tokenizer);
 }
 
-
-
 highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
-    using context.csharp;
-
-    print("%\n", frame_time);
-
-    tokenize_csharp(buffer, tokenizer);
-
-    if tokens.count == 0  return;
-
-    for * nodes  array_reset(*it.children);
-    array_reset(*nodes);
-    array_reset(*attributes_to_assign);
-    root_node := array_add(*nodes);
-    current_parent_node_index = 0;
-    current_flags = .NONE;
-    done_with_using_block = false;
-
-    token_index = 0;
-    parse_csharp();
-
-    for tokens
-        memset(colors.data + it.start, xx it.color, it.len);
-}
-
-
-parse_csharp :: () {
-    using context.csharp;
-
-    is_error :: () -> bool #expand {
-        if `error != "" {
-            print("%\n", `error);
-            return true;
-        }
-        else {
-            return false;
-        }
+    colorize_token :: (token: Token) #expand #no_debug {
+        color := COLOR_MAP[token.type];
+        memset(colors.data + token.start, xx color, token.len);
     }
 
-    while true {
-        ends_using_block := true;
-        defer if ends_using_block  done_with_using_block = true;
-
-        token, ok := peek_token();
-        if !ok  break;
-
-        error := "";
-
-        start_token_index := token_index;
-
-        if token.type == {
-            case .keyword;
-                if token.keyword == {
-                    case .kw_using;
-                        ends_using_block = false;
-                        if done_with_using_block {
-                            // @TODO
-                        }
-                        else {
-                            eat_token();
-                            error := parse_using_directive_tail();
-                            if !is_error() {
-                                paint_tokens(start_token_index, 1, .directive);
-                                // Make node
-                                current_flags = .NONE;
-                            }
-                            continue;
-                        }
-                }
-
-            case .punctuation;
-                if token.punctuation == {
-                    case .l_bracket;
-                    eat_token();
-                    error = parse_attribute_tail();
-                    if !is_error() {
-                        array_add(*attributes_to_assign, nodes.count);
-                        node := array_add(*nodes);
-                        node.start_token_index = start_token_index;
-                        node.end_token_index = token_index - 1;
-                        node.type = .ATTRIBUTE;
-                        current_flags |= .HAS_ATTRIBUTES;
-                        paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
-                        paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
-                    }
-                    continue;
-                }
-
-            case .modifier_keyword;
-                flag := flag_from_modifier(token.keyword);
-                if flag == .NONE {
-                    print("Error: got .NONE from flag_from_modifier");
-                }
-                else {
-                    current_flags |= flag;
-                }
-                eat_token();
-                continue;
-
-            case .type_keyword;
-                if token.keyword == {
-                    case .kwt_class;
-                        eat_token();
-                        error := ifx current_flags & .RECORD then parse_record_class() else parse_class();
-                        if !is_error() {
-                        }
-                        continue;
-
-                }
-
-
-            case .identifier;
-
-            case .directive;
-                ends_using_block = false;
-        }
-
-        eat_token();
-    }
-}
-
-
-parse_record_class :: () -> error: string {
-    // @TODO
-    return "";
-}
-
-
-
-parse_class :: () -> error: string {
-    /*
-    public class MyGenericClass<T>
-    : IInterface1, IInterface2, IInterface3     // ← List of interfaces
-    where T : class, IConstraintInterface, new()   // ← where clause(s)
-        {
-    */
-
-    identifier := eat_identifier();
-
-    // next is either { < :
-
-    token := expect_token();
-
-    is_generic := false;
-
-    if is_operation(token, .less_than) {
-        is_generic = true;
-
-        eat_identifier();
-        eat_operation(.greater_than);
-
-        token = expect_token();
-    }
-
-
-    if is_punctuation(token, .colon) {
-        eat_token();
-        parse_comma_separated_types();
-
-        token = expect_token();
-    }
-
-    if is_generic && is_keyword(token, .kw_where) {
-        eat_token();
-        expect_
-    }
-
-/*
-            case .colon;
-                error := parse_comma_separated_identifiers(.l_brace);
-                if error  return error;
-        }
-    }
-*/
-
-    eat_punctuation(.l_brace);
-
-    return parse_class_body();
-}
-
-
-parse_comma_separated_types :: () -> error: string {
-    return "";
-}
-
-
-parse_class_body :: () -> error: string {
-    return "";
-}
-
-
-
-parse_using_directive_tail :: () -> error: string {
-    using context.csharp;
-
-    token := expect_token();
-
-    if is_modifier(token, .kwm_static) {
-        current_flags |= .STATIC;
-        token = expect_token();
-    }
-
-    if token.type != .identifier  return "using should be followed by identifier";
-
-    eat_token();
-
-    identifier := token;
-
-    token = expect_token();
-
-    if token.type == .punctuation  if token.punctuation == {
-        case .semicolon;
-            eat_token();
-            return "";
-
-        case .period;
-            eat_token();
-            error := parse_identifier_dot_chain(.semicolon, identifier);
-            if error  return error;
-
-            eat_token();
-            return "";
-    }
-
-    if is_operation(token, .equal) {
-        eat_token();
-        error := parse_identifier_dot_chain(.semicolon);
-        if error  return error;
-
-        eat_token();
-        return "";
-    }
-
-    return "Expected . or = or ; in using";
-}
-
-
-parse_identifier_dot_chain :: (terminator: Punctuation, first_identifier : *Token = null) -> error: string {
-    while true {
-        eat_identifier();
-
-        token := expect_token();
-        if token.type == .punctuation {
-            if token.punctuation == terminator {
-                return "";
-            }
-            else if token.punctuation == .period {
-                eat_token();
-                continue;
-            }
-        }
-
-        return "Unexpected token in identifier dot chain";
-    }
-}
-
-
-parse_attribute_tail :: () -> error: string {
-    using context.csharp;
-
-    identifier := eat_identifier();
-    expect_paren_or_bracket := expect_token();
-
-    if expect_paren_or_bracket.type == .punctuation {
-        if expect_paren_or_bracket.punctuation == .r_bracket {
-            // [attribute]
-            eat_token();
-            return "";
-        }
-        else if expect_paren_or_bracket.punctuation == .l_paren {
-            // [attribute(positional_parameters, name_parameter = value)]
-            error := parse_attribute_call(identifier);
-            if error  return error;
-
-            token := eat_punctuation(.r_bracket);
-            token.type = .attribute;
-            token.color = .HIGHLIGHT;
-            return "";
-        }
-    }
-
-    return "Unexpected token in Attribute";
-}
-
-
-parse_attribute_call :: (identifier : *Token = null) -> error: string {
-    using context.csharp;
-
-    if !identifier
-        identifier = eat_identifier();
-    else
-        assert(peek_token(-1).type == .identifier);
-
-    eat_punctuation(.l_paren);
-
-    while true {
-        is_named_parameter := false;
-        parameter_name := expect_token();
-        if parameter_name.type == .identifier {
-            maybe_equals := expect_token(1);
-            is_named_parameter = is_operation(maybe_equals, .equal);
-        }
-
-        if is_named_parameter  eat_tokens(2);
-
-        error := ifx is_named_parameter
-                 then parse_attribute_assignment(parameter_name)
-                 else parse_expression(.r_paren, .comma);
-        if error  return error;
-
-        comma_or_paren := expect_token();
-        if comma_or_paren.punctuation == {
-            case .r_paren;
-                eat_token();
-                return "";
-
-            case .comma;
-                eat_token();
-        }
-    }
-
-    return ""; // Unreachable
-}
-
-
-parse_attribute_assignment :: (identifier : *Token = null) -> error: string {
-    if !identifier {
-        identifier = eat_identifier();
-        eat_operation(.equal);
-    }
-    else {
-        assert(peek_token(-2).type == .identifier);
-        assert(is_operation(peek_token(-1), .equal));
-    }
-
-    return parse_expression(.r_paren, .comma);
-}
-
-
-parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> error: string {
-    token, ok := peek_token();
-    if !ok  return "EOF in expression";
-
-    while ok {
-        if #complete token.type == {
-            case .invalid;
-                eat_token();
-                return "Invalid token in expression";
-
-            case .punctuation;
-                if token.punctuation == terminator1 || token.punctuation == terminator2
-                    return "";
-
-                if #complete token.punctuation == {
-                    case .l_paren;
-                    eat_token();
-                    error := parse_expression(.r_paren);
-                    if error  return error;
-                    eat_token();
-
-                    case .l_brace;
-                    eat_token();
-                    error := parse_expression(.r_brace);
-                    if error  return error;
-                    eat_token();
-
-                    case .l_bracket;
-                    eat_token();
-                    error := parse_expression(.r_bracket);
-                    if error  return error;
-                    eat_token();
-
-                    case .double_bracket; #through;
-                    case .period;
-                    eat_token();
-
-                    case .semicolon;
-                    return "Unexpected ; in expression";
-
-                    case .comma;
-                    return "Unexpected , in expression";
-
-                    case .backslash;
-                    return "Unexpected \\ in expression";
-
-                    case .r_paren;
-                    return "Unexpected ) in expression";
-
-                    case .r_brace;
-                    return "Unexpected } in expression";
-
-                    case .r_bracket;
-                    return "Unexpected ] in expression";
-                }
-
-            case .operation;
-                if is_assignment_operation(token.operation)
-                    return "Unexpected assignment in expression";
-
-                eat_token();
-
-            case .keyword;
-                if token.keyword == {
-                    case .kw_sizeof; #through;
-                    case .kw_typeof;
-                        eat_token();
-
-                    case;
-                        return "Unexpected keyword in expression";
-                }
-
-            case .value_keyword; #through;
-            case .type_keyword; #through;
-            case .identifier; #through;
-            case .string_literal; #through;
-            case .char_literal; #through;
-            case .number; #through;
-            case .multiline_comment; #through;
-            case .function_like; #through;
-            case .attribute;
-                eat_token();
-
-            case .comment;
-                return "Unexpected // in expression";
-
-            case .modifier_keyword;
-                return "Unexpected modifier keyword in expression";
-
-            case .jump_keyword;
-                return "Unexpected jump keyword in expression";
-
-            case .directive;
-                return "Unexpected directive in expression";
-
-            case .eof;
-                return "Unexpected EOF in expression";
-
-            case .eol;
-                return "Unexpected EOL in expression";
-        }
-
-        token, ok = peek_token();
-    }
-
-    return "EOF in expression";
-}
-
-
-paint_tokens :: (start_index: int, count: int, type: Token.Type, color: Code_Color) {
-    using context.csharp;
-
-    for 0 .. count - 1 {
-        token := *tokens[start_index + it];
-        token.type = type;
-        token.color = color;
-    }
-}
-
-paint_tokens :: (start_index: int, count: int, type: Token.Type) {
-    using context.csharp;
-
-    for 0 .. count - 1 {
-        token := *tokens[start_index + it];
-        token.type = type;
-        token.color = COLOR_MAP[type];
-    }
-}
-
-paint_tokens :: (start_index: int, count: int, color: Code_Color) {
-    using context.csharp;
-
-    for 0 .. count - 1 {
-        token := *tokens[start_index + it];
-        token.color = color;
-    }
-}
-
-
-peek_token :: (offset := 0) -> *Token, ok: bool {
-    using context.csharp;
-
-    if token_index + offset < tokens.count
-        return *tokens[token_index + offset], true;
-    else
-        return null, false;
-}
-
-eat_token :: () -> eof: bool {
-    return inline eat_tokens(1);
-}
-
-eat_tokens :: (count: int) -> eof: bool {
-    using context.csharp;
-    token_index += count;
-    return token_index >= tokens.count;
-}
-
-get_token :: () -> *Token, ok: bool {
-    token, ok := peek_token();
-    if ok {
-        eat_tokens(1);
-        return token, true;
-    }
-    else {
-        return null, false;
-    }
-}
-
-
-#scope_module
-
-
-tokenize_csharp :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
-    using context.csharp;
-    array_reset(*tokens);
+    //do_log := true;
 
     while true {
         token := get_next_token(tokenizer);
         if token.type == .eof break;
 
-        token.color = COLOR_MAP[token.type];
-        array_add(*tokens, token);
+        defer if token.type != .eol then colorize_token(token);
 
-        // Only record .eol where it is needed.
-        if token.type == {
-            case .directive; #through;
-            case .comment;
-                tokenizer.return_eol = true;
+        scope := *tokenizer.scope_stack[tokenizer.brace_depth];
+        if #complete scope.state == {
+            case .DEFAULT;
+            case .MAYBE_GENERIC;
 
-            case .eol;
-                tokenizer.return_eol = false;
+            case .IS_ATTRIBUTE;
+                if token.type == .identifier
+                    token.type = .attribute;
+
+            case .IS_DIRECTIVE;
+                if token.type == .eol {
+                    scope.state = .DEFAULT;
+                }
+                else {
+                    if token.type == .identifier then token.type = .directive;
+                    continue;
+                }
         }
+
+        still_maybe_generic := false;
+
+        //if do_log && buffer.file.name == "Biplane.cs"
+        //    print("% % % %\n", token, scope.state, scope.flags, tokenizer.angle_bracket_depth);
+
+        if token.type == {
+            case .punctuation;
+                scope.flags |= .SAW_PUNCTUATION;
+
+                if token.punctuation == {
+                    case .l_paren;
+                        last_token := get_recent_token(tokenizer, 0);
+                        if scope.state == .MAYBE_GENERIC {
+                            scope.state = .DEFAULT;
+                            if tokenizer.angle_bracket_depth == 0 {
+                                i := tokenizer.start_of_generic_index;
+                                prev_index := i - 1;
+                                while i != tokenizer.recent_token_head {
+                                    generic_token := tokenizer.recent_tokens[i];
+                                    if generic_token.type == .identifier {
+                                        generic_token.type = .type_keyword;
+                                        colorize_token(generic_token);
+                                    }
+                                    i = (i + 1) % tokenizer.recent_tokens.count;
+                                }
+
+                                if prev_index < 0  prev_index += tokenizer.recent_tokens.count;
+                                prev_token := tokenizer.recent_tokens[prev_index];
+                                if !(prev_token.type == .modifier_keyword && prev_token.keyword == .kwm_new) {
+                                    function_token := tokenizer.recent_tokens[tokenizer.start_of_generic_index];
+                                    function_token.type = .function_like;
+                                    colorize_token(function_token);
+                                }
+                            }
+                        }
+                        else if last_token.type == .identifier {
+                            last_token.type = .function_like;
+                            colorize_token(last_token);
+                        }
+
+                    case .l_bracket;
+                        if tokenizer.brace_depth == 1 && !(scope.flags & (.SAW_MODIFIER_KEYWORD|.SAW_TYPE)) {
+                            token.type = .attribute;
+                            scope.state = .IS_ATTRIBUTE;
+                        }
+
+                    case .r_bracket;
+                        if tokenizer.brace_depth == 1 && scope.state == .IS_ATTRIBUTE {
+                            token.type = .attribute;
+                            scope.state = .DEFAULT;
+                        }
+
+                    case .l_brace;
+                        tokenizer.brace_depth += 1;
+                        scope = *tokenizer.scope_stack[tokenizer.brace_depth];
+                        scope.flags = .NONE;
+
+                    case .r_brace;
+                        tokenizer.brace_depth -= 1;
+                        if tokenizer.brace_depth < 0  tokenizer.brace_depth = 0;
+                        scope = *tokenizer.scope_stack[tokenizer.brace_depth];
+                        scope.flags = .NONE;
+
+                    case .period;
+                        scope.state = .DEFAULT;
+                        scope.flags = .NONE;
+
+                    case .semicolon;
+                        scope.flags = .NONE;
+                }
+
+
+            case .keyword;
+                scope.flags |= .SAW_KEYWORD;
+
+
+            case .modifier_keyword;
+                scope.flags |= .SAW_MODIFIER_KEYWORD;
+
+
+            case .jump_keyword;
+                scope.flags |= .SAW_JUMP_KEYWORD;
+
+
+            case .type_keyword;
+                scope.flags |= .SAW_TYPE;
+                still_maybe_generic = true;
+
+
+            case .operation;
+                if scope.state == .DEFAULT && token.operation == .less_than && get_recent_token(tokenizer, 0).type == .identifier {
+                    scope.state = .MAYBE_GENERIC;
+                    tokenizer.angle_bracket_depth = 1;
+                    tokenizer.start_of_generic_index = tokenizer.recent_token_head;
+                    still_maybe_generic = true;
+
+                }
+                else if scope.state == .MAYBE_GENERIC {
+                    still_maybe_generic = true;
+
+                    if token.operation == .less_than
+                        tokenizer.angle_bracket_depth += 1;
+                    else if token.operation == .greater_than
+                        tokenizer.angle_bracket_depth -= 1;
+                    else
+                        still_maybe_generic = false;
+
+                    if tokenizer.angle_bracket_depth < 0 {
+                        scope.state = .DEFAULT;
+                        scope.flags |= .SAW_OPERATOR;
+                    }
+                }
+                else if token.operation == .equal {
+                    scope.state = .DEFAULT;
+                    scope.flags = 0;
+                }
+                else {
+                    scope.flags |= .SAW_OPERATOR;
+                }
+
+
+            case .identifier;
+                //if do_log && buffer.file.name == "Biplane.cs" {
+                //    if scope.state == .MAYBE_GENERIC && token.as_string == "active_teams" {
+                //        do_log = false;
+                //        print("% % % %\n", token, scope.state, scope.flags, tokenizer.angle_bracket_depth);
+                //    }
+                //}
+
+                if !(scope.flags & (.SAW_KEYWORD|.SAW_JUMP_KEYWORD|.SAW_OPERATOR|.INFERRED_TYPE))
+                && (scope.flags & .SAW_IDENTIFIER)
+                && tokenizer.last_identifier_token.type == .identifier
+                && (scope.state != .MAYBE_GENERIC || tokenizer.angle_bracket_depth == 0) {
+                    if scope.state == .MAYBE_GENERIC {
+                        scope.flags |= .SAW_OPERATOR;
+                        scope.state = .DEFAULT;
+
+                        i := tokenizer.start_of_generic_index;
+                        while i != tokenizer.recent_token_head {
+                            generic_token := tokenizer.recent_tokens[i];
+                            if generic_token.type == .identifier {
+                                generic_token.type = .type_keyword;
+                                colorize_token(generic_token);
+                            }
+                            i = (i + 1) % tokenizer.recent_tokens.count;
+                        }
+                    }
+                    else {
+                        tokenizer.last_identifier_token.type = .type_keyword;
+                        colorize_token(tokenizer.last_identifier_token);
+                    }
+
+                    scope.flags |= .SAW_TYPE|.INFERRED_TYPE;
+                }
+
+                scope.flags |= .SAW_IDENTIFIER;
+                still_maybe_generic = true;
+
+
+            case .directive;
+                scope.state = .IS_DIRECTIVE;
+        }
+
+        if scope.state == .MAYBE_GENERIC && !still_maybe_generic {
+            scope.flags |= .SAW_OPERATOR;
+            scope.state = .DEFAULT;
+        }
+
+        add_recent_token(tokenizer, token);
+        if scope.state != .MAYBE_GENERIC && token.type == .identifier
+            tokenizer.last_identifier_token = token;
+
     }
 }
 
-CSNode :: struct {
-    start_token_index: int;
-    end_token_index: int;
 
-    parent: int;
-    children: [..] int;
-
-    type: Type;
-    flags: Flags;
-
-    Type :: enum {
-        DECLARATION;
-        ASSIGNMENT;
-        STATEMENT;
-        DIRECTIVE;
-        ATTRIBUTE;
-    };
-
-    Flags :: enum_flags {
-        NONE :: 0;
-
-        // Modifier keywords
-        ABSTRACT :: 1;
-        ASYNC;
-        DELEGATE;
-        CONST;
-        EVENT;
-        EXTERN;
-        FILE;
-        GLOBAL;
-        INTERNAL;
-        NEW;
-        OVERRIDE;
-        PRIVATE;
-        PROTECTED;
-        PUBLIC;
-        READONLY;
-        RECORD;
-        SEALED;
-        STATIC;
-        UNSAFE;
-        VIRTUAL;
-        VOLATILE;
-
-        // Misc
-        HAS_ATTRIBUTES;
-    }
-}
-
-
-flag_from_modifier :: (modifier: Keyword) -> CSNode.Flags {
-    if modifier == {
-        case .kwm_abstract;  return .ABSTRACT;
-        case .kwm_async;     return .ASYNC;
-        case .kwm_delegate;  return .DELEGATE;
-        case .kwm_const;     return .CONST;
-        case .kwm_event;     return .EVENT;
-        case .kwm_extern;    return .EXTERN;
-        case .kwm_file;      return .FILE;
-        case .kwm_global;    return .GLOBAL;
-        case .kwm_internal;  return .INTERNAL;
-        case .kwm_new;       return .NEW;
-        case .kwm_override;  return .OVERRIDE;
-        case .kwm_private;   return .PRIVATE;
-        case .kwm_protected; return .PROTECTED;
-        case .kwm_public;    return .PUBLIC;
-        case .kwm_readonly;  return .READONLY;
-        case .kwm_record;    return .RECORD;
-        case .kwm_sealed;    return .SEALED;
-        case .kwm_static;    return .STATIC;
-        case .kwm_unsafe;    return .UNSAFE;
-        case .kwm_virtual;   return .VIRTUAL;
-        case .kwm_volatile;  return .VOLATILE;
-    }
-
-    return .NONE;
-}
+#scope_module
 
 
 csharp_is_keyword_which_can_braceless_indent :: (buffer: *Buffer, first_token_pos: s64, cursor_pos: s64) -> bool {
@@ -733,17 +322,14 @@ get_tokenizer :: (using buffer: Buffer) -> *Tokenizer {
     tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
-    add_recent_token(tokenizer, .{0, 0, .eof, "", .DEFAULT});
+    add_recent_token(tokenizer, .{0, 0, .eof, ""});
 
     return tokenizer;
 }
 
 
 get_next_token :: (using tokenizer: *Tokenizer) -> Token {
-    if tokenizer.return_eol
-        t = eat_white_space_no_newline(t, max_t);
-    else
-        t = eat_white_space(t, max_t);
+    t = eat_white_space(t, max_t);
 
     token: Token;
     token.start = cast(s32) (t - buf.data);
@@ -765,7 +351,6 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     } else if char == {
         // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/
         case #char "=";  parse_equal                 (tokenizer, *token);
-        case #char "[";  parse_l_bracket             (tokenizer, *token);
         case #char "-";  parse_minus                 (tokenizer, *token);
         case #char "+";  parse_plus                  (tokenizer, *token);
         case #char "*";  parse_asterisk              (tokenizer, *token);
@@ -794,6 +379,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         case #char "}";  token.type = .punctuation; token.punctuation = .r_brace;   t += 1;
         case #char "(";  token.type = .punctuation; token.punctuation = .l_paren;   t += 1;
         case #char ")";  token.type = .punctuation; token.punctuation = .r_paren;   t += 1;
+        case #char "[";  token.type = .punctuation; token.punctuation = .l_bracket; t += 1;
         case #char "]";  token.type = .punctuation; token.punctuation = .r_bracket; t += 1;
 
         case;            token.type = .invalid; t += 1;
@@ -927,21 +513,6 @@ parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
         t += 1;
     }
 }
-
-
-parse_l_bracket :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .punctuation;
-    token.punctuation = .l_bracket;
-
-    t += 1;
-    if t >= max_t return;
-
-    if <<t == #char "]" {
-        token.punctuation = .double_bracket;
-        t += 1;
-    }
-}
-
 
 parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     token.type = .operation;
@@ -1307,17 +878,9 @@ read_identifier_string :: (using tokenizer: *Tokenizer) -> string {
     return identifier;
 }
 
-eat_white_space_no_newline :: inline (start: *u8, max_t: *u8) -> *u8 {
-    t := start;
-    while t < max_t && (t.* != #char "\n" && is_white_space(t.*)) {
-        t += 1;
-    }
-    return t;
-}
-
 eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
     t := start;
-    while t < max_t && is_white_space(t.*) {
+    while t < max_t && (t.* != #char "\n" && is_white_space(t.*)) {
         t += 1;
     }
     return t;
@@ -1341,8 +904,6 @@ Tokenizer :: struct {
     max_t:   *u8;
     start_t: *u8;  // Cursor when starting parsing new token
     t:       *u8;  // Cursor
-
-    return_eol := false;
 
     last_identifier_token: Token;
     recent_tokens: [64] Token;
@@ -1408,86 +969,12 @@ Token :: struct {
         invalid;
         jump_keyword;
         function_like;
+        directive_like;
         attribute;
     }
 
     as_string: string;
-    color: Code_Color;
 }
-
-
-is_keyword :: (type: Token.Type) -> bool {
-    return type == .keyword || type == .jump_keyword || type == .value_keyword || type == .modifier_keyword || type == .type_keyword;
-}
-
-is_keyword :: (token: *Token, keyword: Keyword) -> bool {
-    return is_keyword(token.type) && token.keyword == keyword;
-}
-
-is_modifier :: (token: *Token, keyword: Keyword) -> bool {
-    return token.type == .modifier_keyword && token.keyword == keyword;
-}
-
-is_punctuation :: (token: *Token, punctuation: Punctuation) -> bool {
-    return token.type == .punctuation && token.punctuation == punctuation;
-}
-
-is_operation :: (token: *Token, operation: Operation) -> bool {
-    return token.type == .operation && token.operation == operation;
-}
-
-is_directive :: (token: *Token, directive: Directive) -> bool {
-    return token.type == .directive && token.directive == directive;
-}
-
-
-expect_token :: (offset := 0) -> *Token #expand {
-    proc_name :: #procedure_name(#this);
-
-    token, ok := peek_token(offset);
-    if !ok  `return #run sprint("EOF in %", proc_name);
-    return token;
-}
-
-eat_identifier :: () -> *Token #expand {
-    proc_name :: #procedure_name(#this);
-
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
-
-    if token.type != .identifier
-        `return #run sprint("Expected identifier in %", proc_name);
-
-    eat_token();
-    return token;
-}
-
-eat_punctuation :: (punctuation: Punctuation) -> *Token #expand {
-    proc_name :: #procedure_name(#this);
-
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
-
-    if !is_punctuation(token, punctuation)
-        `return #run sprint("Expected % in %", punctuation, proc_name);
-
-    eat_token();
-    return token;
-}
-
-eat_operation :: (operation: Operation) -> *Token #expand {
-    proc_name :: #procedure_name(#this);
-
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
-
-    if !is_operation(token, operation)
-        `return #run sprint("Expected % in %", operation, proc_name);
-
-    eat_token();
-    return token;
-}
-
 
 // Must match the order of the types in the enum above
 COLOR_MAP :: Code_Color.[
@@ -1510,6 +997,7 @@ COLOR_MAP :: Code_Color.[
     .ERROR,             // invalid
     .JUMP_KEYWORD,      // jump keyword
     .FUNCTION,          // function-like
+    .DIRECTIVE,         // directive-like
     .HIGHLIGHT,         // attribute
 ];
 
@@ -1564,13 +1052,11 @@ Keyword :: enum u16 {
     kwv_value;
 
     kwm_abstract;
-    kwm_async;
     kwm_delegate;
     kwm_const;
     kwm_event;
     kwm_extern;
     kwm_file;
-    kwm_global;
     kwm_internal;
     kwm_new;
     kwm_override;
@@ -1578,7 +1064,6 @@ Keyword :: enum u16 {
     kwm_protected;
     kwm_public;
     kwm_readonly;
-    kwm_record;
     kwm_sealed;
     kwm_static;
     kwm_unsafe;
@@ -1634,6 +1119,7 @@ Keyword :: enum u16 {
     kw_equals;
     kw_file;
     kw_from;
+    kw_global;
     kw_group;
     kw_init;
     kw_into;
@@ -1653,17 +1139,20 @@ Keyword :: enum u16 {
     kw_scoped;
     kw_select;
     kw_unmanaged;
-    kw_using;
     kw_var;
     kw_when;
     kw_where;
     kw_with;
+
+    kwm_async;
 
     kwt_nint;
     kwt_nuint;
 
     kwf_get;
     kwf_set;
+
+    kwj_using;
 }
 
 Operation :: enum u16 {
@@ -1698,28 +1187,10 @@ Operation :: enum u16 {
     ampersand_equal;
     tilde;
     question;
+    unknown;
     caret;
     caret_equal;
 }
-
-is_assignment_operation :: (operation: Operation) -> bool {
-    if operation == {
-        case .equal; #through;
-        case .pipe_equal; #through;
-        case .percent_equal; #through;
-        case .minus_equal; #through;
-        case .asterisk_equal; #through;
-        case .plus_equal; #through;
-        case .slash_equal; #through;
-        case .ampersand_equal; #through;
-        case .caret_equal;
-            return true;
-
-        case;
-            return false;
-    }
-}
-
 
 Punctuation :: enum u16 {
     semicolon;
@@ -1730,7 +1201,6 @@ Punctuation :: enum u16 {
     r_brace;
     l_bracket;
     r_bracket;
-    double_bracket;
     period;
     comma;
 }
@@ -1768,6 +1238,8 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
             table_add(*table, slice(name, 4), .{.jump_keyword, it});
         } else if starts_with(name, "kwf") {
             table_add(*table, slice(name, 4), .{.function_like, it});
+        } else if starts_with(name, "kwd") {
+            table_add(*table, slice(name, 4), .{.directive_like, it});
         } else {
             table_add(*table, slice(name, 3), .{.keyword, it});
         }

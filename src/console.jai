@@ -499,13 +499,30 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
         }
     }
 
-    look_for_special_case := false;
     swap_with_previous_error := false;
     previous_error_decoration_index := 0;
     previous_error_error_index := 0;
+    code_block_is_overload_info := false;
+
+    end_code_block :: (start: s32, end: s32) #expand {
+        in_code_block = false;
+        highlight_jai_syntax(buffer, start, end - start);
+        add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
+        highlight_last_caret(start, end);
+
+        if code_block_is_overload_info {
+            code_block_is_overload_info = false;
+
+            s : string = ---;
+            s.data = buffer.bytes.data + start;
+            s.count = end - start;
+
+            parse_overloads(s);
+        }
+    }
 
     for line: line_split(s) {
-        if !line {
+        if !trim(line) {
             if !code_start
                 code_start = line.data;
             continue;
@@ -518,12 +535,9 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
         }
 
         if in_code_block {
-            in_code_block = false;
             start := cast(s32)(code_start - buffer.bytes.data);
             end := cast(s32)(line.data - buffer.bytes.data - 1);
-            highlight_jai_syntax(buffer, start, end - start);
-            add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
-            highlight_last_caret(start, end);
+            end_code_block(start, end);
             code_start = null;
         }
 
@@ -583,20 +597,168 @@ highlight_console_jai_output :: (buffer: *Buffer, start_index: s32, count: s32, 
         }
         else {
             if replaced_early_colon  line[1] = #char ":";
+
+            if parts[2] == " Possible overloads"
+                code_block_is_overload_info = true;
         }
     }
 
     if in_code_block {
         start := cast(s32)(code_start - buffer.bytes.data);
         end := cast(s32)(start_index + count - 1);
-        highlight_jai_syntax(buffer, start, end - start);
-        add_buffer_region(buffer, start, end, false, 1, .todo_definitely_todo_this);
-        highlight_last_caret(start, end);
+        end_code_block(start, end);
     }
+
+    //print("%\n", build_errors);
 }
 
+parse_overloads :: (s: string) {
+    state: enum { LOOKING_FOR_LOCATION; LOOKING_FOR_MESSAGE; IN_MESSAGE; };
+
+    state = .LOOKING_FOR_LOCATION;
+
+    location: string;
+    coords: Coords;
+    message: string;
+
+    lexer: Jai_Lexer.Lexer;
+
+    for line: line_split(s) {
+        if #complete state == {
+            case .LOOKING_FOR_LOCATION;
+                trimmed := trim(line);
+                if !trimmed  continue;
+
+                last_paren, found := last_index(trimmed, #char ")");
+                assert(found);
+
+                first_paren:, found = last_index(trimmed, #char "(");
+                assert(found);
+
+                colon:, found = last_index(trimmed, #char ":");
+                assert(found);
+                location = slice(trimmed, first_paren + 1, colon);
+
+                coords_s := slice(trimmed, colon + 1, last_paren);
+                coords=, has_col, has_row := coords_from_string(coords_s);
+                assert(has_row);
+
+                state = .LOOKING_FOR_MESSAGE;
+
+            case .LOOKING_FOR_MESSAGE;
+                trimmed := trim(line);
+                if !trimmed || trimmed[0] == #char "^"
+                    continue;
+
+                message = trimmed;
+                add_build_error(location, coords, .info, message);
+                state = .IN_MESSAGE;
+
+            case .IN_MESSAGE;
+                trimmed := trim(line);
+                if !trimmed {
+                    state = .LOOKING_FOR_LOCATION;
+                    continue;
+                }
+
+                sentinel := " in argument ";
+                location_at_end_of_line := true;
+                sentinel_start, found := first_index(trimmed, sentinel);
+                if !found {
+                    sentinel = " in checking argument ";
+                    location_at_end_of_line = false;
+                    sentinel_start, found = first_index(trimmed, sentinel);
+                }
+
+                if found {
+                    argument_index_s := slice(trimmed, sentinel_start + sentinel.count);
+                    argument_index, ok := parse_int(*argument_index_s);
+                    assert(ok);
+                    argument_index -= 1;
+
+                    build_error := *build_errors[build_errors.count - 1];
+                    buffer_index := find_or_create_buffer(build_error.path);
+                    if buffer_index < 0  continue;
+
+                    buffer := *open_buffers[buffer_index];
+                    line_num := clamp(build_error.coords.line, 0, get_max_real_line_num(buffer));
+                    line_start := get_real_line_start_offset(buffer, cast(s32)line_num);
+                    line_end   := get_real_line_end_offset  (buffer, cast(s32)line_num);
+
+                    declaration_line : string = ---;
+                    declaration_line.data = buffer.bytes.data + line_start;
+                    declaration_line.count = line_end - line_start;
+
+                    i, found := last_index(trimmed, #char ":", sentinel_start);
+                    assert(found);
+                    end_colon:, found = last_index(trimmed, #char ":", i);
+                    assert(found);
+                    ends_with_coords := slice(trimmed, 0, end_colon);
+                    start_colon:, found = last_index(ends_with_coords, #char ":");
+                    assert(found);
+                    coords_s := slice(ends_with_coords, start_colon + 1);
+                    coords, has_col := coords_from_string(coords_s);
+                    assert(has_col);
+
+                    first_param := coords.col + 1;
+                    if !location_at_end_of_line  first_param += 1;
+
+                    if argument_index == 0 {
+                        build_error.coords.col = xx first_param;
+                        continue;
+                    }
+
+                    Jai_Lexer.set_input_from_string(*lexer, declaration_line);
+                    index := 0;
+                    use_next_token := false;
+                    bracket_depth := 0;
+
+                    while true {
+                        token := Jai_Lexer.peek_next_token(*lexer);
+                        if token.type == .END_OF_INPUT break;
+
+                        if token.c0 < first_param {
+                            Jai_Lexer.eat_token(*lexer);
+                            continue;
+                        }
+
+                        if token.type == {
+                            case #char "("; #through;
+                            case #char "["; #through;
+                            case #char "{";
+                                bracket_depth += 1;
+
+                            case #char ")"; #through;
+                            case #char "]"; #through;
+                            case #char "}";
+                                bracket_depth -= 1;
+
+                            case #char ",";
+                                if bracket_depth <= 0
+                                    use_next_token = true;
+
+                            case;
+                                if use_next_token {
+                                    use_next_token = false;
+                                    index += 1;
+                                    if index >= argument_index {
+                                        build_error.coords.col = token.c0 - 1;
+                                        break;
+                                    }
+                                }
+                        }
+
+                        Jai_Lexer.eat_token(*lexer);
+                    }
+                }
+        }
+    }
+}
 
 set_color :: (s: string, color: Color) #expand {
     offset := s.data - `first_u8_byte;
     memset(`first_color_byte + offset, xx COLOR_MAP[color], s.count);
 }
+
+
+Jai_Lexer :: #import "Jai_Lexer";

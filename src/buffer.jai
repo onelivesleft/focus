@@ -1408,6 +1408,8 @@ Cursor :: struct {
     sel: s32;
     col_wanted: s32 = -1;
     travel_direction: Direction;
+    pos_at_start_of_frame: s32;
+    old_pos: s32;
 }
 
 Direction :: enum_flags s32 {
@@ -1424,7 +1426,7 @@ set_direction_horizontal:: (dir: *Direction, horizontal_dir: Direction) {
     dir |= horizontal_dir;
 }
 
-#assert size_of(Cursor) == (2 + 2) * size_of(s32);  // make sure no padding accidentally gets added
+#assert size_of(Cursor) == (2 + 2 + 2) * size_of(s32);  // make sure no padding accidentally gets added
 
 Cursor_Coords :: struct {
     pos, sel: Coords;
@@ -1434,18 +1436,19 @@ Coords :: struct {
     line, col: s32;
 }
 
-coords_from_string :: (s: string) -> Coords, ok: bool {
-    result : Coords = ---;
+coords_from_string :: (s: string) -> Coords, has_column: bool, has_row: bool {
+    result: Coords;
+
     line_s, col_s := split_into_two(s, #char ",");
     line, ok := parse_int(*line_s);
-    if !ok  return result, false;
+    if !ok  return result, false, false;
     result.line = xx (line - 1);
 
     col, ok= := parse_int(*col_s);
-    if !ok  return result, false;
+    if !ok  return result, false, true;
     result.col = xx (col - 1);
 
-    return result, ok;
+    return result, true, true;
 }
 
 Offset_Range :: struct {

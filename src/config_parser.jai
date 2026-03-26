@@ -206,6 +206,7 @@ map_color_name_to_color_struct :: (config: *Config, color_name: string) -> *Colo
         case "code_error";                         return *config.colors.CODE_ERROR;
         case "code_keyword";                       return *config.colors.CODE_KEYWORD;
         case "code_jump";                          return *config.colors.CODE_JUMP;
+        case "code_modifier";                      return *config.colors.CODE_MODIFIER;
         case "code_directive";                     return *config.colors.CODE_DIRECTIVE;
         case "code_format_item";                   return *config.colors.CODE_FORMAT_ITEM;
     }

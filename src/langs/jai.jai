@@ -106,7 +106,7 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                     pop_scope_stack(token.start + 1);
             }
 
-            case .keyword;
+            case .modifier_keyword;
             if token.keyword == .kw_inline {
                 // Handle "func :: inline"
                 if before_prev_token.type == .identifier && prev_token.type == .operation && prev_token.operation == .double_colon {
@@ -115,7 +115,9 @@ highlight_jai_syntax :: (using buffer: *Buffer, using tokenizer: *Tokenizer, res
                     // @TODO next token should be l_paren, and should start scope
                 }
             }
-            else if token.keyword == .kw_else {
+
+            case .keyword;
+            if token.keyword == .kw_else {
                 if prev_token.mark_else_as_directive
                     token.type = .compiler_directive;
             }
@@ -1015,8 +1017,8 @@ Token :: struct {
         multiline_comment;
         operation;
         punctuation;
-        modifier_keyword;
         keyword;
+        modifier_keyword;
         type_keyword;
         jump_keyword;
         value_keyword;
@@ -1048,22 +1050,22 @@ to_string :: (buffer: *Buffer, token: Token) -> string {
 
 // Must match the order of the types in the enum
 COLOR_MAP :: Code_Color.[
-    .COMMENT,       // eof - obviously not used
-    .DEFAULT,       // identifier
-    .STRING,        // string_literal
-    .STRING,        // here_string
-    .VALUE,         // number
-    .COMMENT,       // comment
-    .COMMENT,       // multiline_comment
-    .OPERATION,     // operation
-    .PUNCTUATION,   // punctuation
-    .KEYWORD,       // keyword
-    .KEYWORD,       // modifier_keyword
-    .TYPE,          // type_keyword
-    .JUMP_KEYWORD,  // jump_keyword
-    .VALUE_KEYWORD, // value_keyword
-    .DIRECTIVE,     // compiler_directive
-    .ERROR,         // invalid
+    .COMMENT,          // eof - obviously not used
+    .DEFAULT,          // identifier
+    .STRING,           // string_literal
+    .STRING,           // here_string
+    .VALUE,            // number
+    .COMMENT,          // comment
+    .COMMENT,          // multiline_comment
+    .OPERATION,        // operation
+    .PUNCTUATION,      // punctuation
+    .KEYWORD,          // keyword
+    .MODIFIER_KEYWORD, // modifier_keyword
+    .TYPE,             // type_keyword
+    .JUMP_KEYWORD,     // jump_keyword
+    .VALUE_KEYWORD,    // value_keyword
+    .DIRECTIVE,        // compiler_directive
+    .ERROR,            // invalid
 ];
 
 PUNCTUATION :: string.[
@@ -1081,8 +1083,8 @@ OPERATIONS :: string.[
 
 KEYWORDS :: string.[
     "align_of", "case", "cast", "code_of", "else", "enum", "enum_flags", "for",
-    "if", "ifx", "is_constant", "inline", "push_context", "size_of", "struct", "then", "type_info", "type_of",
-    "union", "using", "while", "xx", "operator", "remove",
+    "if", "ifx", "is_constant", "push_context", "size_of", "struct", "then", "type_info", "type_of",
+    "union", "while", "xx", "operator", "remove",
 ];
 
 JUMP_KEYWORDS :: string.[
@@ -1096,6 +1098,10 @@ TYPE_KEYWORDS :: string.[
 
 VALUE_KEYWORDS :: string.[
     "context", "it", "it_index", "null", "true", "false", "temp",
+];
+
+MODIFIER_KEYWORDS :: string.[
+    "using", "inline",
 ];
 
 COMPILER_DIRECTIVES :: string.[
@@ -1133,7 +1139,7 @@ MODIFIERS :: string.[
 
     define_enum(*b, "Punctuation",        "",           .[PUNCTUATION]);
     define_enum(*b, "Operation",          "",           .[OPERATIONS]);
-    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, JUMP_KEYWORDS, VALUE_KEYWORDS]);
+    define_enum(*b, "Keyword",            "kw_",        .[KEYWORDS, TYPE_KEYWORDS, JUMP_KEYWORDS, MODIFIER_KEYWORDS, VALUE_KEYWORDS]);
     define_enum(*b, "Compiler_Directive", "directive_", .[COMPILER_DIRECTIVES]);
 
     return builder_to_string(*b);
@@ -1146,15 +1152,16 @@ Keyword_Token :: struct {
 
 KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
     table: Table(string, Keyword_Token);
-    size := 10 * (KEYWORDS.count + TYPE_KEYWORDS.count + VALUE_KEYWORDS.count);
+    size := 10 * (KEYWORDS.count + TYPE_KEYWORDS.count + MODIFIER_KEYWORDS.count + VALUE_KEYWORDS.count);
     init(*table, size);
 
     #insert -> string {
         b: String_Builder;
-        for KEYWORDS        append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .keyword,       keyword = .kw_% });\n", it, it));
-        for TYPE_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .type_keyword,  keyword = .kw_% });\n", it, it));
-        for JUMP_KEYWORDS   append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .jump_keyword,  keyword = .kw_% });\n", it, it));
-        for VALUE_KEYWORDS  append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .value_keyword, keyword = .kw_% });\n", it, it));
+        for KEYWORDS           append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .keyword,       keyword = .kw_% });\n", it, it));
+        for TYPE_KEYWORDS      append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .type_keyword,  keyword = .kw_% });\n", it, it));
+        for JUMP_KEYWORDS      append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .jump_keyword,  keyword = .kw_% });\n", it, it));
+        for MODIFIER_KEYWORDS  append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .modifier_keyword, keyword = .kw_% });\n", it, it));
+        for VALUE_KEYWORDS     append(*b, sprint("table_add(*table, \"%\", Keyword_Token.{ type = .value_keyword, keyword = .kw_% });\n", it, it));
         return builder_to_string(*b);
     }
 
@@ -1180,9 +1187,10 @@ COMPILER_DIRECTIVES_MAP :: #run -> Table(string, Compiler_Directive) {
 
 MAX_KEYWORD_LENGTH :: #run -> s32 {
     result: s64;
-    for KEYWORDS       { if it.count > result then result = it.count; }
-    for TYPE_KEYWORDS  { if it.count > result then result = it.count; }
-    for VALUE_KEYWORDS { if it.count > result then result = it.count; }
+    for KEYWORDS          { if it.count > result then result = it.count; }
+    for TYPE_KEYWORDS     { if it.count > result then result = it.count; }
+    for MODIFIER_KEYWORDS { if it.count > result then result = it.count; }
+    for VALUE_KEYWORDS    { if it.count > result then result = it.count; }
     return xx result;
 }
 

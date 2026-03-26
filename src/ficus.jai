@@ -1898,6 +1898,17 @@ intrinsics :: #code if word_name == {
         }
         push(opened, stack);
 
+    case "cmd";
+        index, new_count := index_after_separator();
+        command_and_args: [..] string;
+        for i: index .. stack.count - 1
+            array_add(*command_and_args, to_string(stack.*[i]),, temp);
+        stack.count = new_count;
+        if command_and_args.count > 0
+            run_command(.. command_and_args);
+        else
+            return tprint("% expected a command", word_name);
+
     case "build_name!";
         name := pop(.text, "name");
         ok := set_build_task_name(name.string_value);

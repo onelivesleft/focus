@@ -7,9 +7,17 @@ main_cursor_rect: Rect;
 right_file_rect: Rect;
 left_file_rect: Rect;
 
-cursor_lightsources_buffer: [512] Vector3;
-cursor_lightsources: [] Vector3;
-cursor_lightsources_persisting: Table(u64, Vector3);
+Lightsource_Bundle :: struct {
+    lightsources: [] Simp.Lightsource;
+    lightsource_trails: [] Simp.Lightsource_Trail;
+}
+
+cursor_lightsources_persisting: Table(u64, Simp.Lightsource);
+
+cursor_lightsources_buffer: [256] Simp.Lightsource;
+cursor_lightsource_trails_buffer: [256] Simp.Lightsource_Trail;
+cursor_lightsources: Lightsource_Bundle;
+
 cursor_lightsource_background_intensity: float;
 cursor_lightsource_foreground_intensity: float;
 cursor_lightsource_screen_offset: Vector2;
@@ -1518,7 +1526,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             for highlights {
                 start, end := it.offset, it.offset + it.count;
                 if end   < visible_offset_range.start continue;
-                if start > visible_offset_range.end   break;
+                if start >= visible_offset_range.end   break;
+                end = min(end, visible_offset_range.end);
 
                 range: Coords_Range = ---;
                 range.start = offset_to_coords(editor, buffer, start);
@@ -1669,14 +1678,18 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if xy.y < -100  xy.y = -100;
                 if xy.y > xx (window_height + 100)  xy.y = xx (window_height + 100);
 
-                lightsource := find_or_add(*cursor_lightsources_persisting, (cast(*u64)*it.pos).*);
+                lightsource, added := find_or_add(*cursor_lightsources_persisting, (cast(*u64)*it.pos).*);
                 lightsource.xy = xy;
                 lightsource.y += line_height / 2;
                 lightsource.z = time;
+                //if added  lightsource.old_xy = lightsource.xy;
+
             }
 
-            cursor_lightsources.data = cursor_lightsources_buffer.data;
-            cursor_lightsources.count = 0;
+            cursor_lightsources.lightsources.data = cursor_lightsources_buffer.data;
+            cursor_lightsources.lightsources.count = 0;
+            cursor_lightsources.lightsource_trails.data = cursor_lightsource_trails_buffer.data;
+            cursor_lightsources.lightsource_trails.count = 0;
             gone_away_time := time - (cast(float) ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_fade_ms else config.settings.cursor_glow_fade_ms) * 0.001;
 
             for * cursor_lightsources_persisting {
@@ -1685,17 +1698,20 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     continue;
                 }
 
-                i := cursor_lightsources.count;
-                cursor_lightsources.count += 1;
-                cursor_lightsources[i] = it;
-                if cursor_lightsources.count >= cursor_lightsources_buffer.count
+                i := cursor_lightsources.lightsources.count;
+                cursor_lightsources.lightsources.count += 1;
+                cursor_lightsources.lightsource_trails.count += 1;
+                cursor_lightsources.lightsources[i] = it;
+                cursor_lightsources.lightsource_trails[i] = it.xy;
+                cursor_lightsources.lightsource_trails[i].x -= 10;
+                if cursor_lightsources.lightsources.count >= cursor_lightsources_buffer.count
                     break;
             }
         }
         lightsource_hits_text := cursors_active && active_global_widget == .editors && should_draw_cursors() && !search_bar_is_open(editor);
         do_shadow := config.settings.go_bananas && editor_id != editors.floating;
         Simp.draw_code(editor_font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left,
-                       *cursor_lightsources, cursor_lightsource_foreground_intensity, white, lightsource_hits_text,
+                       *cursor_lightsources.lightsources, *cursor_lightsources.lightsource_trails, cursor_lightsource_foreground_intensity, white, lightsource_hits_text,
                        xx ifx do_shadow then config.settings.cursor_glow_bananas_shadow else 0, Colors.CURSOR_SHADOW);
 
         // Draw continuation markers for wrapped lines
@@ -4628,7 +4644,7 @@ draw_header_rect :: inline (rect: Rect, color: Color, value := 0.0) {
     draw_cool_rounded_rect(rect, color, value=xx frame_time * 0.1);
 }
 
-draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vector3 = null, line_height := 0.0) {
+draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsource_bundle: *Lightsource_Bundle = null, line_height := 0.0) {
     lightsource_color := ifx debugger.state == .DORMANT then Colors.CURSOR else Colors.DEBUGGER_CURSOR;
     t := cast(float)(frame_time) + cool_time_offset;
     if config.settings.go_bananas && config.settings.cursor_glow_bananas_rotate_hue {
@@ -4637,7 +4653,10 @@ draw_cool_rect :: (rect: Rect, color: Color, value: float, lightsources: *[] Vec
         lightsource_color = rgb_from_hsl(h, s, l);
     }
     lightsource_color.a = 0.01 * ifx config.settings.go_bananas then config.settings.cursor_glow_bananas_percent else config.settings.cursor_glow_percent;
-    Simp.set_shader_for_cool(xx prev_frame_time, value, lightsources, ifx lightsources then cursor_lightsource_background_intensity else 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, cursor_lightsource_screen_offset, config.settings.go_bananas);
+    if lightsource_bundle
+        Simp.set_shader_for_cool(xx prev_frame_time, value, *lightsource_bundle.lightsources, *lightsource_bundle.lightsource_trails, cursor_lightsource_background_intensity, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, cursor_lightsource_screen_offset, config.settings.go_bananas);
+    else
+        Simp.set_shader_for_cool(xx prev_frame_time, value, null, null, 0, lightsource_color, line_height, cast(float)config.settings.cursor_glow_fade_ms * 0.001, cursor_lightsource_screen_offset, config.settings.go_bananas);
     draw_rect_raw(rect, color);
 }
 
