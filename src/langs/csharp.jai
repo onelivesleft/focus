@@ -6,6 +6,7 @@ CSharp :: struct {
     current_parent_node_index: int;
     attributes_to_assign: [..] int;
     current_flags: CSNode.Flags;
+    current_type_token_index: int;
 
     done_with_using_block := false;
 }
@@ -55,19 +56,20 @@ highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
         memset(colors.data + it.start, xx it.color, it.len);
 }
 
+is_error :: () -> bool #expand {
+    using context.csharp;
+
+    if `error != "" {
+        print("% @ % %\n", `error, tokens[token_index].start, tokens[token_index].as_string);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
 parse_csharp :: () {
     using context.csharp;
-
-    is_error :: () -> bool #expand {
-        if `error != "" {
-            print("%\n", `error);
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
 
     while true {
         ends_using_block := true;
@@ -98,24 +100,34 @@ parse_csharp :: () {
                             }
                             continue;
                         }
+
+                    case .kw_class;
+                        //paint_token(.MODIFIER_KEYWORD);
+                        eat_token();
+                        error := ifx current_flags & .RECORD then parse_record_class() else parse_class();
+                        if !is_error() {
+                            // Make node
+                            current_flags = .NONE;
+                        }
+                        continue;
                 }
 
             case .punctuation;
                 if token.punctuation == {
                     case .l_bracket;
-                    eat_token();
-                    error = parse_attribute_tail();
-                    if !is_error() {
-                        array_add(*attributes_to_assign, nodes.count);
-                        node := array_add(*nodes);
-                        node.start_token_index = start_token_index;
-                        node.end_token_index = token_index - 1;
-                        node.type = .ATTRIBUTE;
-                        current_flags |= .HAS_ATTRIBUTES;
-                        paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
-                        paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
-                    }
-                    continue;
+                        eat_token();
+                        error = parse_attribute_tail();
+                        if !is_error() {
+                            array_add(*attributes_to_assign, nodes.count);
+                            node := array_add(*nodes);
+                            node.start_token_index = start_token_index;
+                            node.end_token_index = token_index - 1;
+                            node.type = .ATTRIBUTE;
+                            current_flags |= .HAS_ATTRIBUTES;
+                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
+                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
+                        }
+                        continue;
                 }
 
             case .modifier_keyword;
@@ -130,16 +142,6 @@ parse_csharp :: () {
                 continue;
 
             case .type_keyword;
-                if token.keyword == {
-                    case .kwt_class;
-                        eat_token();
-                        error := ifx current_flags & .RECORD then parse_record_class() else parse_class();
-                        if !is_error() {
-                        }
-                        continue;
-
-                }
-
 
             case .identifier;
 
@@ -160,67 +162,197 @@ parse_record_class :: () -> error: string {
 
 
 parse_class :: () -> error: string {
-    /*
-    public class MyGenericClass<T>
-    : IInterface1, IInterface2, IInterface3     // ← List of interfaces
-    where T : class, IConstraintInterface, new()   // ← where clause(s)
-        {
-    */
-
-    identifier := eat_identifier();
-
-    // next is either { < :
+    identifier, is_generic := eat_generic_identifier();
+    if !identifier  return "Expected identifier in parse_class";
 
     token := expect_token();
-
-    is_generic := false;
-
-    if is_operation(token, .less_than) {
-        is_generic = true;
-
-        eat_identifier();
-        eat_operation(.greater_than);
-
-        token = expect_token();
-    }
-
-
-    if is_punctuation(token, .colon) {
+    if is_operation(token, .colon) {
         eat_token();
-        parse_comma_separated_types();
 
+        // Parent class + interfaces
+        eat_generic_identifier();
         token = expect_token();
-    }
-
-    if is_generic && is_keyword(token, .kw_where) {
-        eat_token();
-        expect_
-    }
-
-/*
-            case .colon;
-                error := parse_comma_separated_identifiers(.l_brace);
-                if error  return error;
+        while is_punctuation(token, .comma) {
+            eat_token();
+            eat_generic_identifier();
+            token = expect_token();
         }
     }
-*/
+
+    while is_generic && is_keyword(token, .kw_where) {
+        eat_token();
+        eat_identifier();
+        eat_operation(.colon);
+
+        eat_generic_identifier();
+        token = expect_token();
+        while is_punctuation(token, .comma) {
+            eat_token();
+            eat_generic_identifier();
+            token = expect_token();
+        }
+    }
 
     eat_punctuation(.l_brace);
 
-    return parse_class_body();
+    return parse_body();
 }
 
 
-parse_comma_separated_types :: () -> error: string {
+parse_body :: () -> error: string {
+    using context.csharp;
+
+    current_flags = .NONE;
+
+    while true {
+        start_token_index := token_index;
+
+        token := expect_token();
+        if token.type == {
+            case .modifier_keyword;
+                flag := flag_from_modifier(token.keyword);
+                if flag == .NONE
+                    print("Error: got .NONE from flag_from_modifier");
+                else
+                    current_flags |= flag;
+                eat_token();
+                continue;
+
+            case .directive;
+                eat_token();
+                while true {
+                    token := expect_token();
+                    eat_token();
+                    if token.type == .identifier
+                        paint_last_token(.directive);
+                    else if token.type == .eol
+                        break;
+                }
+                continue;
+
+            case .identifier;
+                paint_token(.type_keyword);
+                #through;
+
+            case .type_keyword;
+                current_type_token_index = token_index;
+                eat_token();
+                parse_declaration();
+                continue;
+
+            case .punctuation;
+                if token.punctuation == {
+                    case .r_brace;
+                        eat_token();
+                        return "";
+
+                    case .l_bracket;
+                        eat_token();
+                        error := parse_attribute_tail();
+                        if !is_error() {
+                            array_add(*attributes_to_assign, nodes.count);
+                            node := array_add(*nodes);
+                            node.start_token_index = start_token_index;
+                            node.end_token_index = token_index - 1;
+                            node.type = .ATTRIBUTE;
+                            current_flags |= .HAS_ATTRIBUTES;
+                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
+                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
+                        }
+                        continue;
+                }
+        }
+
+        eat_token();
+    }
+
     return "";
 }
 
+parse_declaration :: () -> error: string {
+    using context.csharp;
 
-parse_class_body :: () -> error: string {
-    return "";
+    if eat_array_punctuation()  current_flags |= .IS_ARRAY;
+
+    name := eat_identifier();
+
+    token := expect_token();
+    if token.type == {
+        case .punctuation;
+            if token.punctuation == {
+                case .semicolon;
+                    eat_token();
+                    return "";
+
+                case .l_paren;
+                    eat_token();
+                    return parse_function();
+
+                case .l_brace;
+                    eat_token();
+                    return parse_property();
+            }
+
+        case .operation;
+            if token.operation == .equal {
+                eat_token();
+                error := parse_expression(.semicolon);
+                if error  return error;
+
+                eat_token();
+                return "";
+            }
+    }
+
+    return "Unexpected token in declaration";
+}
+
+parse_function :: () -> error: string {
+    using context.csharp;
+
+    error := parse_function_header_tail();
+    if error  return error;
+
+    eat_punctuation(.l_brace);
+    return parse_body();
 }
 
 
+parse_function_header_tail :: () -> error: string {
+    using context.csharp;
+
+    assert(is_punctuation(peek_token(-1), .l_paren));
+
+    while true {
+        is_named_parameter := false;
+        parameter_name := expect_token();
+        if parameter_name.type == .identifier {
+            maybe_colon := expect_token(1);
+            is_named_parameter = is_operation(maybe_colon, .colon);
+        }
+
+        if is_named_parameter  eat_tokens(2);
+
+        error := parse_expression(.r_paren, .comma);
+        if error  return error;
+
+        comma_or_paren := expect_token();
+        if comma_or_paren.punctuation == {
+            case .r_paren;
+                eat_token();
+                return "";
+
+            case .comma;
+                eat_token();
+        }
+    }
+
+    return ""; // Unreachable
+}
+
+parse_property :: () -> error: string {
+    return parse_body();
+}
 
 parse_using_directive_tail :: () -> error: string {
     using context.csharp;
@@ -402,7 +534,6 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
                     if error  return error;
                     eat_token();
 
-                    case .double_bracket; #through;
                     case .period;
                     eat_token();
 
@@ -507,6 +638,45 @@ paint_tokens :: (start_index: int, count: int, color: Code_Color) {
     }
 }
 
+paint_last_token :: (type: Token.Type, color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index - 1];
+    token.type = type;
+    token.color = color;
+}
+
+paint_last_token :: (type: Token.Type) {
+    using context.csharp;
+    token := *tokens[token_index - 1];
+    token.type = type;
+    token.color = COLOR_MAP[type];
+}
+
+paint_last_token :: (color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index - 1];
+    token.color = color;
+}
+
+paint_token :: (type: Token.Type, color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index];
+    token.type = type;
+    token.color = color;
+}
+
+paint_token :: (type: Token.Type) {
+    using context.csharp;
+    token := *tokens[token_index];
+    token.type = type;
+    token.color = COLOR_MAP[type];
+}
+
+paint_token :: (color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index];
+    token.color = color;
+}
 
 peek_token :: (offset := 0) -> *Token, ok: bool {
     using context.csharp;
@@ -548,15 +718,20 @@ tokenize_csharp :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
 
     while true {
         token := get_next_token(tokenizer);
-        if token.type == .eof break;
+        if token.type == .eof  break;
 
         token.color = COLOR_MAP[token.type];
+
+        if token.type == .comment || token.type == .multiline_comment {
+            memset(colors.data + token.start, xx token.color, token.len);
+            continue;
+        }
+
         array_add(*tokens, token);
 
         // Only record .eol where it is needed.
         if token.type == {
-            case .directive; #through;
-            case .comment;
+            case .directive;
                 tokenizer.return_eol = true;
 
             case .eol;
@@ -610,6 +785,7 @@ CSNode :: struct {
         VOLATILE;
 
         // Misc
+        IS_ARRAY;
         HAS_ATTRIBUTES;
     }
 }
@@ -765,7 +941,6 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     } else if char == {
         // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/
         case #char "=";  parse_equal                 (tokenizer, *token);
-        case #char "[";  parse_l_bracket             (tokenizer, *token);
         case #char "-";  parse_minus                 (tokenizer, *token);
         case #char "+";  parse_plus                  (tokenizer, *token);
         case #char "*";  parse_asterisk              (tokenizer, *token);
@@ -794,6 +969,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
         case #char "}";  token.type = .punctuation; token.punctuation = .r_brace;   t += 1;
         case #char "(";  token.type = .punctuation; token.punctuation = .l_paren;   t += 1;
         case #char ")";  token.type = .punctuation; token.punctuation = .r_paren;   t += 1;
+        case #char "[";  token.type = .punctuation; token.punctuation = .l_bracket; t += 1;
         case #char "]";  token.type = .punctuation; token.punctuation = .r_bracket; t += 1;
 
         case;            token.type = .invalid; t += 1;
@@ -924,20 +1100,6 @@ parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
 
     if <<t == #char "=" {
         token.operation = .equal_equal;
-        t += 1;
-    }
-}
-
-
-parse_l_bracket :: (using tokenizer: *Tokenizer, token: *Token) {
-    token.type = .punctuation;
-    token.punctuation = .l_bracket;
-
-    t += 1;
-    if t >= max_t return;
-
-    if <<t == #char "]" {
-        token.punctuation = .double_bracket;
         t += 1;
     }
 }
@@ -1462,6 +1624,73 @@ eat_identifier :: () -> *Token #expand {
     return token;
 }
 
+eat_array_punctuation :: () -> is_array: bool #expand {
+    proc_name :: #procedure_name(#this);
+
+    token, ok := peek_token();
+    if !ok  `return #run sprint("EOF in ", proc_name);
+
+    if !is_punctuation(token, .l_bracket)
+        return false;
+
+    while true {
+        eat_token();
+        token, ok = peek_token();
+        if !ok  `return #run sprint("EOF in ", proc_name);
+
+        while is_punctuation(token, .comma) {
+            eat_token();
+            token, ok = peek_token();
+            if !ok  `return #run sprint("EOF in ", proc_name);
+        }
+
+        `eat_punctuation(.r_bracket);
+
+        token, ok := peek_token();
+        if !ok  `return #run sprint("EOF in ", proc_name);
+
+        if !is_punctuation(token, .l_bracket)
+            return true;
+    }
+
+    return true;
+}
+
+
+eat_generic_identifier :: () -> *Token, is_generic: bool {
+    result, result_ok := peek_token();
+    if !result_ok || result.type != .identifier
+        return null, false;
+
+    paint_token(.type_keyword);
+
+    eat_token();
+    token, ok := peek_token();
+    if !ok || token.type != .operation || token.operation != .less_than
+        return result, false;
+
+    eat_token();
+
+    while true {
+        identifier := eat_generic_identifier();
+        if !identifier  return null, false;
+
+        token, ok := peek_token();
+        if !ok  return null, false;
+
+        if is_operation(token, .greater_than) {
+            eat_token();
+            return result, true;
+        }
+        else if is_punctuation(token, .comma) {
+            eat_token();
+            continue;
+        }
+
+        return null, false;
+    }
+}
+
 eat_punctuation :: (punctuation: Punctuation) -> *Token #expand {
     proc_name :: #procedure_name(#this);
 
@@ -1520,6 +1749,7 @@ Keyword :: enum u16 {
     kw_base;
     kw_case;
     kw_checked;
+    kw_class;
     kw_do;
     kw_else;
     kw_enum;
@@ -1587,7 +1817,6 @@ Keyword :: enum u16 {
 
     kwt_bool;
     kwt_byte;
-    kwt_class;
     kwt_char;
     kwt_decimal;
     kwt_double;
@@ -1730,7 +1959,6 @@ Punctuation :: enum u16 {
     r_brace;
     l_bracket;
     r_bracket;
-    double_bracket;
     period;
     comma;
 }
