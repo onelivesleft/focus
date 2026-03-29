@@ -11,7 +11,7 @@ CSharp :: struct {
     in_using_block: bool;
 }
 
-break_on_name :: "";//"Start";
+break_on_name :: "set_in_roofa";//"gunfire_fade_remainder";//"Start";
 break_on_index :: 0;//971;
 has_broken := false;
 
@@ -294,16 +294,17 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
                         break;
                 }
 
-            case .identifier;
-                eat_token();
-                error := parse_body_identifier();
-                if error  return error;
-                if terminator == .semicolon  return "";
 
             case .type_keyword;
                 current_type_token_index = token_index;
                 eat_token();
                 error := parse_declaration();
+                if error  return error;
+                if terminator == .semicolon  return "";
+
+            case .identifier;
+                token = eat_generic();
+                error := parse_body_identifier(token);
                 if error  return error;
                 if terminator == .semicolon  return "";
 
@@ -320,6 +321,17 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
 
             case .keyword;
                 if token.keyword == {
+                    case .kw_case;
+                        eat_token();
+                        while true {
+                            eat_generic();
+                            token = expect_token();
+                            if !is_punctuation(token, .period)
+                                break;
+                            eat_token();
+                        }
+                        eat_operation(.colon);
+
                     case .kw_do;
                         eat_token();
                         token = expect_token();
@@ -350,6 +362,7 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
                         }
 
                     case .kw_if; #through;
+                    case .kw_switch; #through;
                     case .kw_while;
                         eat_token();
                         eat_punctuation(.l_paren);
@@ -368,19 +381,69 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
                             if terminator == .semicolon  return "";
                         }
 
+                    case .kw_else;
+                        eat_token();
+                        token = expect_token();
+                        if is_punctuation(token, .l_brace) {
+                            eat_token();
+                            error := parse_body();
+                            if error  return error;
+                        }
+                        else {
+                            error := parse_body(.semicolon);
+                            if error  return error;
+                            if terminator == .semicolon  return "";
+                        }
+
                     case .kw_for;
                         eat_token();
                         eat_punctuation(.l_paren);
+
+                        eat_generic(do_paint_type=true);
+
+                        while true {
+                            error := parse_assignment();
+                            if error  return error;
+                            token = expect_token();
+                            eat_token();
+                            if is_punctuation(token, .semicolon)
+                                break;
+                            assert(is_punctuation(token, .comma));
+                        }
 
                         error := parse_expression(.semicolon);
                         if error  return error;
                         eat_token();
 
-                        error = parse_expression(.semicolon);
-                        if error  return error;
-                        eat_token();
+                        while true {
+                            error = parse_expression(.r_paren, .comma);
+                            if error  return error;
+                            token = expect_token();
+                            eat_token();
+                            if is_punctuation(token, .r_paren)
+                                break;
+                            assert(is_punctuation(token, .comma));
+                        }
 
-                        error = parse_expression(.r_paren);
+                        token = expect_token();
+                        if is_punctuation(token, .l_brace) {
+                            eat_token();
+                            error = parse_body();
+                            if error  return error;
+                        }
+                        else {
+                            error = parse_body(.semicolon);
+                            if error  return error;
+                            if terminator == .semicolon  return "";
+                        }
+
+                    case .kw_foreach;
+                        eat_token();
+                        eat_punctuation(.l_paren);
+                        eat_generic();
+                        eat_identifier();
+                        eat_keyword(.kw_in);
+                        error := parse_expression(.r_paren);
                         if error  return error;
                         eat_token();
 
@@ -476,11 +539,16 @@ maybe_eat_array_index :: () -> existed: bool #expand {
     return existed;
 }
 
-parse_body_identifier :: () -> error: string {
+parse_body_identifier :: (name: *CSToken, first_token_index := -1) -> error: string {
+    using context.csharp;
+
+    if first_token_index < 0  first_token_index = token_index - 1;
+
     token := expect_token();
     while is_punctuation(token, .l_paren) {
+        paint_token(name, .function);
         eat_token();
-        error := parse_function_header_tail();
+        error := parse_function_call_tail();
         if error  return error;
 
         token = expect_token();
@@ -491,13 +559,18 @@ parse_body_identifier :: () -> error: string {
     token = expect_token();
     if is_punctuation(token, .period) {
         eat_token();
-        eat_identifier();
-        return parse_body_identifier();
+        name = eat_generic();
+        return parse_body_identifier(name, first_token_index);
     }
 
-    token = expect_token();
+    if token.type == .identifier {
+        paint_identifiers(first_token_index, token_index, .type_keyword);
+        name = eat_generic();
+        return parse_body_identifier(name);
+    }
+
     if token.type == .operation {
-        if !is_assignment_operation(token.operation)
+        if !is_assignment_operation(token.operation) && !is_modify_in_place_operation(token.operation)
             return "Unexpected token on lhs";
 
         eat_token();
@@ -505,7 +578,8 @@ parse_body_identifier :: () -> error: string {
         eat_token();
         return "";
     }
-    else if is_punctuation(token, .semicolon) {
+
+    if is_punctuation(token, .semicolon) {
         eat_token();
         return "";
     }
@@ -513,6 +587,30 @@ parse_body_identifier :: () -> error: string {
     return "Unexpected token in body";
 }
 
+parse_expression_identifier :: (name: *CSToken) -> error: string {
+    using context.csharp;
+
+    token := expect_token();
+    while is_punctuation(token, .l_paren) {
+        paint_token(name, .function);
+        eat_token();
+        error := parse_function_call_tail();
+        if error  return error;
+
+        token = expect_token();
+    }
+
+    maybe_eat_array_index();
+
+    token = expect_token();
+    if is_punctuation(token, .period) {
+        eat_token();
+        name = eat_generic();
+        return parse_expression_identifier(name);
+    }
+
+    return "";
+}
 
 parse_declaration :: () -> error: string {
     using context.csharp;
@@ -557,7 +655,7 @@ parse_declaration :: () -> error: string {
 parse_function_declaration :: () -> error: string {
     using context.csharp;
 
-    error := parse_function_header_tail();
+    error := parse_function_declaration_tail();
     if error  return error;
 
     eat_punctuation(.l_brace);
@@ -565,7 +663,63 @@ parse_function_declaration :: () -> error: string {
 }
 
 
-parse_function_header_tail :: () -> error: string {
+parse_function_declaration_tail :: () -> error: string {
+    using context.csharp;
+
+    assert(is_punctuation(peek_token(-1), .l_paren));
+
+    token := expect_token();
+    if is_punctuation(token, .r_paren) {
+        eat_token();
+        return "";
+    }
+
+    while true {
+        while token.type == .modifier_keyword {
+            eat_token();
+            token = expect_token();
+        }
+
+        if token.type != .identifier && token.type != .type_keyword
+            return "Expected type in function signature";
+
+        eat_generic();
+
+        token = expect_token();
+        if token.type != .identifier
+            return "Expected parameter name in function signature";
+
+        eat_token();
+        token = expect_token();
+        if is_operation(token, .equal) {
+            eat_token();
+            error := parse_expression(.r_paren, .comma);
+            if error  return error;
+            token = expect_token();
+        }
+
+        if token.type != .punctuation
+            return "Expected , ) in function signature";
+
+        if token.punctuation == {
+            case .r_paren;
+                eat_token();
+                return "";
+
+            case .comma;
+                eat_token();
+                token = expect_token();
+
+            case;
+                return "Expected , ) in function signature";
+        }
+    }
+
+    return ""; // Unreachable
+}
+
+
+parse_function_call_tail :: () -> error: string {
     using context.csharp;
 
     assert(is_punctuation(peek_token(-1), .l_paren));
@@ -780,7 +934,25 @@ parse_attribute_assignment :: (identifier : *CSToken = null) -> error: string {
 }
 
 
+parse_assignment :: () -> error: string {
+    eat_identifier();
+    eat_operation(.equal);
+    return parse_expression(.semicolon, .comma);
+}
+
+
+maybe_eat_cast :: () -> error: string {
+    assert(is_punctuation(expect_token(), .l_paren));
+    eat_token();
+    eat_generic();
+    eat_punctuation(.r_paren);
+    return "";
+}
+
+
 parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> error: string {
+    using context.csharp;
+
     token := expect_token();
 
     while true {
@@ -795,43 +967,43 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
 
                 if #complete token.punctuation == {
                     case .l_paren;
-                    eat_token();
-                    error := parse_expression(.r_paren);
-                    if error  return error;
-                    eat_token();
+                        index := token_index;
+                        error := maybe_eat_cast();
+                        if error { // not a cast
+                            token_index = index + 1;
+                            error = parse_expression(.r_paren);
+                            if error  return error;
+                            eat_token();
+                        }
 
                     case .l_brace;
-                    eat_token();
-                    error := parse_expression(.r_brace);
-                    if error  return error;
-                    eat_token();
+                        eat_token();
+                        error := parse_body();
+                        if error  return error;
 
                     case .l_bracket;
-                    eat_token();
-                    error := parse_expression(.r_bracket);
-                    if error  return error;
-                    eat_token();
+                        maybe_eat_array_index();
 
                     case .period;
-                    eat_token();
+                        eat_token();
 
                     case .semicolon;
-                    return "Unexpected ; in expression";
+                        return "Unexpected ; in expression";
 
                     case .comma;
-                    return "Unexpected , in expression";
+                        return "Unexpected , in expression";
 
                     case .backslash;
-                    return "Unexpected \\ in expression";
+                        return "Unexpected \\ in expression";
 
                     case .r_paren;
-                    return "Unexpected ) in expression";
+                        return "Unexpected ) in expression";
 
                     case .r_brace;
-                    return "Unexpected } in expression";
+                        return "Unexpected } in expression";
 
                     case .r_bracket;
-                    return "Unexpected ] in expression";
+                        return "Unexpected ] in expression";
                 }
 
             case .operation;
@@ -852,7 +1024,6 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
 
             case .value_keyword; #through;
             case .type_keyword; #through;
-            case .identifier; #through;
             case .string_literal; #through;
             case .char_literal; #through;
             case .number; #through;
@@ -861,11 +1032,17 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
             case .attribute;
                 eat_token();
 
+            case .identifier;
+                name := eat_generic(token);
+                error := parse_expression_identifier(name);
+                if error  return error;
+
             case .comment;
                 return "Unexpected // in expression";
 
             case .modifier_keyword;
                 if token.keyword == .kwm_new {
+                    paint_token(.function);
                     eat_token();
                     error := parse_expression_new();
                     if error  return error;
@@ -915,7 +1092,7 @@ parse_expression_new :: () -> error: string {
             }
         }
         else {
-            error := parse_function_header_tail();
+            error := parse_function_call_tail();
             if error  return error;
         }
     }
@@ -972,6 +1149,29 @@ parse_initializer_assignment :: (identifier : *CSToken = null) -> error: string 
     return parse_expression(.r_brace, .comma);
 }
 
+paint_identifiers :: (start_index: int, stop_before: int, type: CSToken.Type, color: Code_Color) {
+    using context.csharp;
+
+    for start_index .. stop_before - 1 {
+        token := *tokens[it];
+        if token.type == .identifier {
+            token.type = type;
+            token.color = color;
+        }
+    }
+}
+
+paint_identifiers :: (start_index: int, stop_before: int, type: CSToken.Type) {
+    using context.csharp;
+
+    for start_index .. stop_before - 1 {
+        token := *tokens[it];
+        if token.type == .identifier {
+            token.type = type;
+            token.color = COLOR_MAP[type];
+        }
+    }
+}
 
 paint_tokens :: (start_index: int, count: int, type: CSToken.Type, color: Code_Color) {
     using context.csharp;
@@ -2057,6 +2257,13 @@ eat_generic :: (identifier : *CSToken = null, do_paint_type := false) -> *CSToke
     token := peek_token();
     if !token || token.type != .operation || token.operation != .less_than
         return result, false;
+    // look ahead to see if < is because generic, or just a less than
+    token = peek_token(+1);
+    if !token || (token.type != .identifier && token.type != .type_keyword)
+        return result, false;
+    token = peek_token(+2);
+    if !token || token.type != .operation || (token.operation != .less_than && token.operation != .greater_than)
+        return result, false;
 
     eat_token();
 
@@ -2106,6 +2313,18 @@ eat_operation :: (operation: Operation) -> *CSToken #expand #no_debug {
     return token;
 }
 
+eat_keyword :: (keyword: Keyword) -> *CSToken #expand #no_debug {
+    proc_name :: #procedure_name(#this);
+
+    token := peek_token();
+    if !token  `return #run sprint("EOF in %", proc_name);
+
+    if !is_keyword(token, keyword)
+        `return #run sprint("Expected % in %", keyword, proc_name);
+
+    eat_token();
+    return token;
+}
 
 // Must match the order of the types in the enum above
 COLOR_MAP :: Code_Color.[
@@ -2139,6 +2358,7 @@ Keyword :: enum u16 {
     kw_case;
     kw_checked;
     kw_class;
+    kw_default;
     kw_do;
     kw_else;
     kw_enum;
@@ -2175,7 +2395,6 @@ Keyword :: enum u16 {
     kwj_try;
     kwj_yield;
 
-    kwv_default;
     kwv_false;
     kwv_null;
     kwv_this;
@@ -2272,13 +2491,13 @@ Keyword :: enum u16 {
     kw_select;
     kw_unmanaged;
     kw_using;
-    kw_var;
     kw_when;
     kw_where;
     kw_with;
 
     kwt_nint;
     kwt_nuint;
+    kwt_var;
 
     kwf_get;
     kwf_set;
@@ -2337,6 +2556,10 @@ is_assignment_operation :: (operation: Operation) -> bool {
         case;
             return false;
     }
+}
+
+is_modify_in_place_operation :: (operation: Operation) -> bool {
+    return operation == .plus_plus || operation == .minus_minus;
 }
 
 
