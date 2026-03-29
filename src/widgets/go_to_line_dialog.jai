@@ -43,13 +43,14 @@ go_to_line_dialog_handle_event :: (event: Input.Event) -> handled: bool {
     return false;
 }
 
-show_go_to_line_dialog :: () {
+show_go_to_line_dialog :: (go_to_position: bool) {
     editor, buffer := get_active_editor_and_buffer();
     if !editor || !buffer return;
 
     active_global_widget = .go_to_line_dialog;
 
     using go_to_line_dialog;
+    go_to_position_instead = go_to_position;
 
     // Remember cursor position
     original_cursor_position = editor.cursors[editor.main_cursor];
@@ -103,13 +104,18 @@ jump_to_line :: () {
         n *= 10;
     }
 
-    line_num = clamp(line_num - 1, 0, get_max_real_line_num(buffer));
-    line_start := get_real_line_start_offset(buffer, cast(s32)line_num);
-    line_end   := get_real_line_end_offset  (buffer, cast(s32)line_num);
-
     cursor := leave_only_original_cursor(editor);
-    cursor.pos = line_start + count_whitespace(buffer.bytes, line_start, line_end);
-    cursor.sel = line_end;  // to make the line visible
+    if !go_to_position_instead {
+        line_num = clamp(line_num - 1, 0, get_max_real_line_num(buffer));
+        line_start := get_real_line_start_offset(buffer, cast(s32)line_num);
+        line_end   := get_real_line_end_offset  (buffer, cast(s32)line_num);
+        cursor.pos = line_start + count_whitespace(buffer.bytes, line_start, line_end);
+        cursor.sel = line_end;  // to make the line visible
+    }
+    else {
+        cursor.pos = cast(s32) line_num;
+        cursor.sel = cast(s32) line_num + 1;  // to make the line visible
+    }
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .jumped;
     editor.scroll_to_cursor = .yes;
@@ -136,6 +142,7 @@ Go_To_Line_Dialog :: struct {
     scroll_to_cursor: Scroll_Mode = .no;
     original_cursor_position: Cursor;
     jumped := false;
+    go_to_position_instead := false;
 
     input: Text_Input;
 }

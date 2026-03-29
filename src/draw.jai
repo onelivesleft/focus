@@ -4112,7 +4112,8 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
 
     go_to_width : float32 : 200;
 
-    label_width := cast(float) Simp.prepare_text(font_ui, "Go to line");
+    label := ifx go_to_line_dialog.go_to_position_instead then "Go to position" else "Go to line";
+    label_width := cast(float) Simp.prepare_text(font_ui, label);
     width  := max(go_to_width * dpi_scale, 6 * char_x_advance + 2 * (margin + padding + 1));
     height := font_ui_line_height + 2 * (margin + padding + 1);
 
@@ -4133,7 +4134,8 @@ draw_go_to_line_dialog :: (active_editor_rect: Rect) {
         y = bar_rect.y + (bar_rect.h - cast(s32)font_ui.character_height) / 2 + 2,  // sigh
     };
     Simp.draw_prepared_text(font_ui, xx pen.x, xx pen.y, color = Colors.UI_DEFAULT);
-    draw_text_input(*go_to_line_dialog.input, input_rect, ui_id = input_id, active = true, label = " line number");
+    label = ifx go_to_line_dialog.go_to_position_instead then " position" else " line number";
+    draw_text_input(*go_to_line_dialog.input, input_rect, ui_id = input_id, active = true, label = label);
 }
 
 draw_calculator_dialog :: (active_editor_rect: Rect) {

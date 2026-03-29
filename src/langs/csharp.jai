@@ -1,5 +1,5 @@
 CSharp :: struct {
-    tokens: [..] Token;
+    tokens: [..] CSToken;
     token_index: int;
 
     nodes: [..] CSNode;
@@ -8,8 +8,13 @@ CSharp :: struct {
     current_flags: CSNode.Flags;
     current_type_token_index: int;
 
-    done_with_using_block := false;
+    in_using_block: bool;
 }
+
+break_on_name :: "";//"Start";
+break_on_index :: 0;//971;
+has_broken := false;
+
 
 #add_context csharp: CSharp;
 
@@ -20,19 +25,17 @@ highlight_csharp_syntax :: (using buffer: *Buffer) {
 }
 
 highlight_csharp_syntax :: (using buffer: *Buffer, start_index: s32, count: s32) {
-    tokenizer := New(Tokenizer, initialized=false,, temp);
+    tokenizer := New(CSTokenizer, initialized=false,, temp);
     tokenizer.* = .{
         buf        = cast(string) bytes,
         max_t      = bytes.data + start_index + count,
         t          = bytes.data + start_index,
     };
-    add_recent_token(tokenizer, .{0, 0, .eof, "", .DEFAULT});
+    add_recent_token(tokenizer, .{0, 0, "", .eof, .DEFAULT});
     highlight_csharp_syntax(buffer, tokenizer);
 }
 
-
-
-highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
+highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *CSTokenizer) {
     using context.csharp;
 
     print("%\n", frame_time);
@@ -47,20 +50,24 @@ highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
     root_node := array_add(*nodes);
     current_parent_node_index = 0;
     current_flags = .NONE;
-    done_with_using_block = false;
+    in_using_block = true;
 
     token_index = 0;
+
     parse_csharp();
 
-    for tokens
-        memset(colors.data + it.start, xx it.color, it.len);
+    for tokens  memset(colors.data + it.start, xx it.color, it.len);
 }
+
 
 is_error :: () -> bool #expand {
     using context.csharp;
 
     if `error != "" {
-        print("% @ % %\n", `error, tokens[token_index].start, tokens[token_index].as_string);
+        if token_index < tokens.count
+            print("% @ % %\n", `error, tokens[token_index].start, tokens[token_index].as_string);
+        else
+            print("% (EOF)\n", `error);
         return true;
     }
     else {
@@ -68,15 +75,16 @@ is_error :: () -> bool #expand {
     }
 }
 
+
 parse_csharp :: () {
     using context.csharp;
 
     while true {
         ends_using_block := true;
-        defer if ends_using_block  done_with_using_block = true;
+        defer if ends_using_block  in_using_block = false;
 
-        token, ok := peek_token();
-        if !ok  break;
+        token := peek_token();
+        if !token  break;
 
         error := "";
 
@@ -87,7 +95,7 @@ parse_csharp :: () {
                 if token.keyword == {
                     case .kw_using;
                         ends_using_block = false;
-                        if done_with_using_block {
+                        if !in_using_block {
                             // @TODO
                         }
                         else {
@@ -162,7 +170,9 @@ parse_record_class :: () -> error: string {
 
 
 parse_class :: () -> error: string {
-    identifier, is_generic := eat_generic_identifier();
+    using context.csharp;
+
+    identifier, is_generic := eat_generic();
     if !identifier  return "Expected identifier in parse_class";
 
     token := expect_token();
@@ -170,11 +180,11 @@ parse_class :: () -> error: string {
         eat_token();
 
         // Parent class + interfaces
-        eat_generic_identifier();
+        eat_generic();
         token = expect_token();
         while is_punctuation(token, .comma) {
             eat_token();
-            eat_generic_identifier();
+            eat_generic();
             token = expect_token();
         }
     }
@@ -184,23 +194,16 @@ parse_class :: () -> error: string {
         eat_identifier();
         eat_operation(.colon);
 
-        eat_generic_identifier();
+        eat_generic();
         token = expect_token();
         while is_punctuation(token, .comma) {
             eat_token();
-            eat_generic_identifier();
+            eat_generic();
             token = expect_token();
         }
     }
 
     eat_punctuation(.l_brace);
-
-    return parse_body();
-}
-
-
-parse_body :: () -> error: string {
-    using context.csharp;
 
     current_flags = .NONE;
 
@@ -236,7 +239,7 @@ parse_body :: () -> error: string {
 
             case .type_keyword;
                 current_type_token_index = token_index;
-                eat_token();
+                eat_generic(token);
                 parse_declaration();
                 continue;
 
@@ -269,12 +272,255 @@ parse_body :: () -> error: string {
     return "";
 }
 
+
+parse_body :: (terminator := Punctuation.r_brace) -> error: string {
+    using context.csharp;
+
+    current_flags = .NONE;
+
+    while true {
+        start_token_index := token_index;
+
+        token := expect_token();
+        if #complete token.type == {
+            case .directive;
+                eat_token();
+                while true {
+                    token := expect_token();
+                    eat_token();
+                    if token.type == .identifier
+                        paint_last_token(.directive);
+                    else if token.type == .eol
+                        break;
+                }
+
+            case .identifier;
+                eat_token();
+                error := parse_body_identifier();
+                if error  return error;
+                if terminator == .semicolon  return "";
+
+            case .type_keyword;
+                current_type_token_index = token_index;
+                eat_token();
+                error := parse_declaration();
+                if error  return error;
+                if terminator == .semicolon  return "";
+
+            case .jump_keyword;
+                if token.keyword == .kwj_return {
+                    eat_token();
+                    error := parse_expression(.semicolon);
+                    if error  return error;
+                    if terminator == .semicolon  return "";
+                }
+                else {
+                    eat_token();
+                }
+
+            case .keyword;
+                if token.keyword == {
+                    case .kw_do;
+                        eat_token();
+                        token = expect_token();
+                        if is_punctuation(token, .l_brace) {
+                            eat_token();
+                            error := parse_body();
+                            if error  return error;
+                        }
+                        else {
+                            eat_token();
+                            error := parse_body(.semicolon);
+                            if error  return error;
+                            if terminator == .semicolon  return "";
+                        }
+                        token = expect_token();
+                        if is_keyword(token, .kw_while) {
+                            eat_token();
+                            token = expect_token();
+                            if is_punctuation(token, .l_paren) {
+                                eat_token();
+                                error := parse_expression(.r_paren);
+                                if error  return error;
+                                eat_token();
+                            }
+                            else {
+                                return "Expected ( in do while";
+                            }
+                        }
+
+                    case .kw_if; #through;
+                    case .kw_while;
+                        eat_token();
+                        eat_punctuation(.l_paren);
+                        error := parse_expression(.r_paren);
+                        if error  return error;
+                        eat_token();
+                        token = expect_token();
+                        if is_punctuation(token, .l_brace) {
+                            eat_token();
+                            error = parse_body();
+                            if error  return error;
+                        }
+                        else {
+                            error = parse_body(.semicolon);
+                            if error  return error;
+                            if terminator == .semicolon  return "";
+                        }
+
+                    case .kw_for;
+                        eat_token();
+                        eat_punctuation(.l_paren);
+
+                        error := parse_expression(.semicolon);
+                        if error  return error;
+                        eat_token();
+
+                        error = parse_expression(.semicolon);
+                        if error  return error;
+                        eat_token();
+
+                        error = parse_expression(.r_paren);
+                        if error  return error;
+                        eat_token();
+
+                        token = expect_token();
+                        if is_punctuation(token, .l_brace) {
+                            eat_token();
+                            error = parse_body();
+                            if error  return error;
+                        }
+                        else {
+                            error = parse_body(.semicolon);
+                            if error  return error;
+                            if terminator == .semicolon  return "";
+                        }
+
+                    case;
+                        eat_token();
+                }
+
+            case .value_keyword; #through;
+            case .string_literal; #through;
+            case .char_literal; #through;
+            case .number; #through;
+            case .comment; #through;
+            case .multiline_comment; #through;
+            case .function; #through;
+            case .operation; #through;
+            case .modifier_keyword; #through;
+            case .invalid; #through;
+            case .eof; #through;
+            case .eol; #through;
+            case .attribute;
+                eat_token();
+
+
+            case .punctuation;
+                if token.punctuation == terminator {
+                    eat_token();
+                    return "";
+                }
+
+                if token.punctuation == {
+                    case .l_paren;
+                        eat_token();
+                        error := parse_expression(.r_paren);
+                        if error  return error;
+                        eat_token();
+
+                    case .l_brace;
+                        eat_token();
+                        error := parse_body();
+                        if error  return error;
+
+                    case .l_bracket;
+                        eat_token();
+                        error := parse_attribute_tail();
+                        if !is_error() {
+                            array_add(*attributes_to_assign, nodes.count);
+                            node := array_add(*nodes);
+                            node.start_token_index = start_token_index;
+                            node.end_token_index = token_index - 1;
+                            node.type = .ATTRIBUTE;
+                            current_flags |= .HAS_ATTRIBUTES;
+                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
+                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
+                        }
+
+                    case;
+                        eat_token();
+                }
+        }
+    }
+
+    return "";
+}
+
+maybe_eat_array_index :: () -> existed: bool #expand {
+    token := `expect_token();
+    existed := false;
+    while is_punctuation(token, .l_bracket) {
+        existed = true;
+        eat_token();
+        while true {
+            error := parse_expression(.r_bracket, .comma);
+            if error  `return error;
+            token = `expect_token();
+            eat_token();
+            if !is_punctuation(token, .comma)
+                break;
+        }
+        token = `expect_token();
+    }
+    return existed;
+}
+
+parse_body_identifier :: () -> error: string {
+    token := expect_token();
+    while is_punctuation(token, .l_paren) {
+        eat_token();
+        error := parse_function_header_tail();
+        if error  return error;
+
+        token = expect_token();
+    }
+
+    maybe_eat_array_index();
+
+    token = expect_token();
+    if is_punctuation(token, .period) {
+        eat_token();
+        eat_identifier();
+        return parse_body_identifier();
+    }
+
+    token = expect_token();
+    if token.type == .operation {
+        if !is_assignment_operation(token.operation)
+            return "Unexpected token on lhs";
+
+        eat_token();
+        parse_expression(.semicolon);
+        eat_token();
+        return "";
+    }
+    else if is_punctuation(token, .semicolon) {
+        eat_token();
+        return "";
+    }
+
+    return "Unexpected token in body";
+}
+
+
 parse_declaration :: () -> error: string {
     using context.csharp;
 
     if eat_array_punctuation()  current_flags |= .IS_ARRAY;
 
-    name := eat_identifier();
+    name := eat_generic();
+    //assert(name != null);
 
     token := expect_token();
     if token.type == {
@@ -285,8 +531,9 @@ parse_declaration :: () -> error: string {
                     return "";
 
                 case .l_paren;
+                    if name  paint_token(name, .function);
                     eat_token();
-                    return parse_function();
+                    return parse_function_declaration();
 
                 case .l_brace;
                     eat_token();
@@ -307,7 +554,7 @@ parse_declaration :: () -> error: string {
     return "Unexpected token in declaration";
 }
 
-parse_function :: () -> error: string {
+parse_function_declaration :: () -> error: string {
     using context.csharp;
 
     error := parse_function_header_tail();
@@ -324,19 +571,18 @@ parse_function_header_tail :: () -> error: string {
     assert(is_punctuation(peek_token(-1), .l_paren));
 
     while true {
-        is_named_parameter := false;
         parameter_name := expect_token();
         if parameter_name.type == .identifier {
-            maybe_colon := expect_token(1);
-            is_named_parameter = is_operation(maybe_colon, .colon);
+            colon := expect_token(+1);
+            if is_operation(colon, .colon)
+                eat_tokens(2);
         }
-
-        if is_named_parameter  eat_tokens(2);
 
         error := parse_expression(.r_paren, .comma);
         if error  return error;
 
         comma_or_paren := expect_token();
+        assert(comma_or_paren.type == .punctuation);
         if comma_or_paren.punctuation == {
             case .r_paren;
                 eat_token();
@@ -344,15 +590,48 @@ parse_function_header_tail :: () -> error: string {
 
             case .comma;
                 eat_token();
+
+            case;
+                assert(false);
         }
     }
 
     return ""; // Unreachable
 }
 
+
 parse_property :: () -> error: string {
-    return parse_body();
+    using context.csharp;
+
+    token := expect_token();
+    while !is_punctuation(token, .r_brace) {
+        if token.type != .function || (token.keyword != .kwf_get && token.keyword != .kwf_set)
+            return "Expected get or set in property";
+        eat_token();
+        token = expect_token();
+        if is_punctuation(token, .l_brace) {
+            eat_token();
+            error := parse_body();
+            if error  return error;
+        }
+        else if is_operation(token, .equal_greater_than) {
+            eat_token();
+            error := parse_expression(.semicolon);
+            if error  return error;
+            eat_token();
+        }
+        else {
+            return "Unexpected token in property";
+        }
+
+        token = expect_token();
+    }
+
+    eat_token();
+
+    return "";
 }
+
 
 parse_using_directive_tail :: () -> error: string {
     using context.csharp;
@@ -399,7 +678,7 @@ parse_using_directive_tail :: () -> error: string {
 }
 
 
-parse_identifier_dot_chain :: (terminator: Punctuation, first_identifier : *Token = null) -> error: string {
+parse_identifier_dot_chain :: (terminator: Punctuation, first_identifier : *CSToken = null) -> error: string {
     while true {
         eat_identifier();
 
@@ -447,7 +726,7 @@ parse_attribute_tail :: () -> error: string {
 }
 
 
-parse_attribute_call :: (identifier : *Token = null) -> error: string {
+parse_attribute_call :: (identifier : *CSToken = null) -> error: string {
     using context.csharp;
 
     if !identifier
@@ -487,7 +766,7 @@ parse_attribute_call :: (identifier : *Token = null) -> error: string {
 }
 
 
-parse_attribute_assignment :: (identifier : *Token = null) -> error: string {
+parse_attribute_assignment :: (identifier : *CSToken = null) -> error: string {
     if !identifier {
         identifier = eat_identifier();
         eat_operation(.equal);
@@ -502,10 +781,9 @@ parse_attribute_assignment :: (identifier : *Token = null) -> error: string {
 
 
 parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> error: string {
-    token, ok := peek_token();
-    if !ok  return "EOF in expression";
+    token := expect_token();
 
-    while ok {
+    while true {
         if #complete token.type == {
             case .invalid;
                 eat_token();
@@ -579,7 +857,7 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
             case .char_literal; #through;
             case .number; #through;
             case .multiline_comment; #through;
-            case .function_like; #through;
+            case .function; #through;
             case .attribute;
                 eat_token();
 
@@ -587,7 +865,14 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
                 return "Unexpected // in expression";
 
             case .modifier_keyword;
-                return "Unexpected modifier keyword in expression";
+                if token.keyword == .kwm_new {
+                    eat_token();
+                    error := parse_expression_new();
+                    if error  return error;
+                }
+                else {
+                    return "Unexpected modifier keyword in expression";
+                }
 
             case .jump_keyword;
                 return "Unexpected jump keyword in expression";
@@ -602,14 +887,93 @@ parse_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(
                 return "Unexpected EOL in expression";
         }
 
-        token, ok = peek_token();
+        token = expect_token();
     }
 
-    return "EOF in expression";
+    return ""; // unreachable
+}
+
+parse_expression_new :: () -> error: string {
+    token := expect_token();
+    is_array := false;
+    if token.type == .identifier || token.type == .type_keyword {
+        eat_generic(do_paint_type=true);
+        is_array = maybe_eat_array_index();
+    }
+
+    if !is_array {
+        eat_punctuation(.l_paren);
+
+        token = expect_token();
+        if is_punctuation(token, .r_paren) {
+            eat_token();
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                error := parse_initializer_body();
+                if error  return error;
+            }
+        }
+        else {
+            error := parse_function_header_tail();
+            if error  return error;
+        }
+    }
+
+    token = expect_token();
+    if !is_punctuation(token, .semicolon)
+        return "Expected ; to end new";
+
+    return "";
+}
+
+parse_initializer_body :: () -> error: string {
+    using context.csharp;
+
+    while true {
+        is_named_parameter := false;
+        parameter_name := expect_token();
+        if parameter_name.type == .identifier {
+            maybe_equals := expect_token(1);
+            is_named_parameter = is_operation(maybe_equals, .equal);
+        }
+
+        if is_named_parameter  eat_tokens(2);
+
+        error := ifx is_named_parameter
+                 then parse_initializer_assignment(parameter_name)
+                 else parse_expression(.r_brace, .comma);
+        if error  return error;
+
+        comma_or_brace := expect_token();
+        if comma_or_brace.punctuation == {
+            case .r_brace;
+                eat_token();
+                return "";
+
+            case .comma;
+                eat_token();
+        }
+    }
+
+    return ""; // Unreachable
+}
+
+parse_initializer_assignment :: (identifier : *CSToken = null) -> error: string {
+    if !identifier {
+        identifier = eat_identifier();
+        eat_operation(.equal);
+    }
+    else {
+        assert(peek_token(-2).type == .identifier);
+        assert(is_operation(peek_token(-1), .equal));
+    }
+
+    return parse_expression(.r_brace, .comma);
 }
 
 
-paint_tokens :: (start_index: int, count: int, type: Token.Type, color: Code_Color) {
+paint_tokens :: (start_index: int, count: int, type: CSToken.Type, color: Code_Color) {
     using context.csharp;
 
     for 0 .. count - 1 {
@@ -619,7 +983,7 @@ paint_tokens :: (start_index: int, count: int, type: Token.Type, color: Code_Col
     }
 }
 
-paint_tokens :: (start_index: int, count: int, type: Token.Type) {
+paint_tokens :: (start_index: int, count: int, type: CSToken.Type) {
     using context.csharp;
 
     for 0 .. count - 1 {
@@ -638,14 +1002,14 @@ paint_tokens :: (start_index: int, count: int, color: Code_Color) {
     }
 }
 
-paint_last_token :: (type: Token.Type, color: Code_Color) {
+paint_last_token :: (type: CSToken.Type, color: Code_Color) {
     using context.csharp;
     token := *tokens[token_index - 1];
     token.type = type;
     token.color = color;
 }
 
-paint_last_token :: (type: Token.Type) {
+paint_last_token :: (type: CSToken.Type) {
     using context.csharp;
     token := *tokens[token_index - 1];
     token.type = type;
@@ -658,14 +1022,14 @@ paint_last_token :: (color: Code_Color) {
     token.color = color;
 }
 
-paint_token :: (type: Token.Type, color: Code_Color) {
+paint_token :: (type: CSToken.Type, color: Code_Color) {
     using context.csharp;
     token := *tokens[token_index];
     token.type = type;
     token.color = color;
 }
 
-paint_token :: (type: Token.Type) {
+paint_token :: (type: CSToken.Type) {
     using context.csharp;
     token := *tokens[token_index];
     token.type = type;
@@ -678,17 +1042,49 @@ paint_token :: (color: Code_Color) {
     token.color = color;
 }
 
-peek_token :: (offset := 0) -> *Token, ok: bool {
+paint_token :: (token: *CSToken, type: CSToken.Type, color: Code_Color) {
+    token.type = type;
+    token.color = color;
+}
+
+paint_token :: (token: *CSToken, type: CSToken.Type) {
+    token.type = type;
+    token.color = COLOR_MAP[type];
+}
+
+paint_token :: (token: *CSToken, color: Code_Color) {
+    token.color = color;
+}
+
+peek_token :: (offset := 0) -> *CSToken {
     using context.csharp;
 
+    #if break_on_name {
+        if !has_broken && token_index + offset < tokens.count {
+            if tokens[token_index + offset].as_string == break_on_name {
+                has_broken = true;
+                #asm {int3;}
+            }
+        }
+    }
+
+    #if break_on_index {
+        if !has_broken && token_index + offset == break_on_index {
+            has_broken = true;
+            #asm {int3;}
+        }
+    }
+
     if token_index + offset < tokens.count
-        return *tokens[token_index + offset], true;
+        return *tokens[token_index + offset];
     else
-        return null, false;
+        return null;
 }
 
 eat_token :: () -> eof: bool {
-    return inline eat_tokens(1);
+    using context.csharp;
+    token_index += 1;
+    return token_index >= tokens.count;
 }
 
 eat_tokens :: (count: int) -> eof: bool {
@@ -697,22 +1093,11 @@ eat_tokens :: (count: int) -> eof: bool {
     return token_index >= tokens.count;
 }
 
-get_token :: () -> *Token, ok: bool {
-    token, ok := peek_token();
-    if ok {
-        eat_tokens(1);
-        return token, true;
-    }
-    else {
-        return null, false;
-    }
-}
-
 
 #scope_module
 
 
-tokenize_csharp :: (using buffer: *Buffer, tokenizer: *Tokenizer) {
+tokenize_csharp :: (using buffer: *Buffer, tokenizer: *CSTokenizer) {
     using context.csharp;
     array_reset(*tokens);
 
@@ -903,25 +1288,25 @@ tokenize_csharp_for_indentation :: (using buffer: Buffer) -> [] Indentation_Toke
 #scope_file
 
 
-get_tokenizer :: (using buffer: Buffer) -> *Tokenizer {
-    tokenizer := New(Tokenizer,, temp);
+get_tokenizer :: (using buffer: Buffer) -> *CSTokenizer {
+    tokenizer := New(CSTokenizer,, temp);
 
     tokenizer.buf   = cast(string) bytes;
     tokenizer.max_t = bytes.data + bytes.count;
     tokenizer.t     = bytes.data;
-    add_recent_token(tokenizer, .{0, 0, .eof, "", .DEFAULT});
+    add_recent_token(tokenizer, .{0, 0, "", .eof, .DEFAULT});
 
     return tokenizer;
 }
 
 
-get_next_token :: (using tokenizer: *Tokenizer) -> Token {
+get_next_token :: (using tokenizer: *CSTokenizer) -> CSToken {
     if tokenizer.return_eol
         t = eat_white_space_no_newline(t, max_t);
     else
         t = eat_white_space(t, max_t);
 
-    token: Token;
+    token: CSToken;
     token.start = cast(s32) (t - buf.data);
     token.as_string.data = buf.data + token.start;
     token.type  = .eof;
@@ -982,7 +1367,7 @@ get_next_token :: (using tokenizer: *Tokenizer) -> Token {
     return token;
 }
 
-parse_identifier :: (using tokenizer: *Tokenizer, token: *Token, check_for_keyword: bool) {
+parse_identifier :: (using tokenizer: *CSTokenizer, token: *CSToken, check_for_keyword: bool) {
     token.type = .identifier;
 
     identifier := read_identifier_string(tokenizer);
@@ -999,7 +1384,7 @@ is_hex :: inline (c: u8) -> bool {
 
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/integral-numeric-types
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/floating-point-numeric-types
-parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_number :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .number;
 
     is_floating_point_suffix :: (c: u8) -> bool {
@@ -1091,7 +1476,7 @@ parse_number :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_equal :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .equal;
 
@@ -1102,10 +1487,14 @@ parse_equal :: (using tokenizer: *Tokenizer, token: *Token) {
         token.operation = .equal_equal;
         t += 1;
     }
+    else if <<t == #char ">" {
+        token.operation = .equal_greater_than;
+        t += 1;
+    }
 }
 
 
-parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_minus :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .minus;
 
@@ -1126,7 +1515,7 @@ parse_minus :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_plus :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .plus;
 
@@ -1143,7 +1532,7 @@ parse_plus :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_asterisk :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .asterisk;
 
@@ -1156,7 +1545,7 @@ parse_asterisk :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_less_than :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .less_than;
 
@@ -1173,7 +1562,7 @@ parse_less_than :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_greater_than :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .greater_than;
 
@@ -1187,7 +1576,7 @@ parse_greater_than :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_bang :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .bang;
 
@@ -1201,7 +1590,7 @@ parse_bang :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_directive :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_directive :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .identifier;
 
     t += 1;
@@ -1222,7 +1611,7 @@ parse_directive :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_string_literal :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .string_literal;
 
     escape_seen := false;
@@ -1259,7 +1648,7 @@ is_valid_character_escape_character :: (c: u8) -> bool {
 }
 
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/char
-parse_char_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_char_literal :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .invalid;
 
     escape_seen := false;
@@ -1308,7 +1697,7 @@ parse_char_literal :: (using tokenizer: *Tokenizer, token: *Token) {
     t += 1; // Ending '
 }
 
-parse_slash_or_comment :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_slash_or_comment :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .slash;
 
@@ -1336,7 +1725,7 @@ parse_slash_or_comment :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_ampersand :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .ampersand;
 
@@ -1353,7 +1742,7 @@ parse_ampersand :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_pipe :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .pipe;
 
@@ -1370,7 +1759,7 @@ parse_pipe :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_percent :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .percent;
 
@@ -1384,7 +1773,7 @@ parse_percent :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-parse_verbatim_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_verbatim_string_literal :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .string_literal;
 
     escape_seen := false;
@@ -1402,7 +1791,7 @@ parse_verbatim_string_literal :: (using tokenizer: *Tokenizer, token: *Token) {
 
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/tokens/verbatim
 // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/attributes
-parse_at :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_at :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .invalid;
 
     t += 1;
@@ -1422,7 +1811,7 @@ parse_at :: (using tokenizer: *Tokenizer, token: *Token) {
 
 // Interpolated string
 // The enclosed identifiers and braces are not parsed
-parse_dollar :: (using tokenizer: *Tokenizer, token: *Token, verbatim := false) {
+parse_dollar :: (using tokenizer: *CSTokenizer, token: *CSToken, verbatim := false) {
     token.type = .invalid;
 
     t += 1;
@@ -1442,7 +1831,7 @@ parse_dollar :: (using tokenizer: *Tokenizer, token: *Token, verbatim := false) 
     }
 }
 
-parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
+parse_caret :: (using tokenizer: *CSTokenizer, token: *CSToken) {
     token.type = .operation;
     token.operation = .caret;
 
@@ -1456,7 +1845,7 @@ parse_caret :: (using tokenizer: *Tokenizer, token: *Token) {
     }
 }
 
-read_identifier_string :: (using tokenizer: *Tokenizer) -> string {
+read_identifier_string :: (using tokenizer: *CSTokenizer) -> string {
     identifier: string;
     identifier.data = t;
 
@@ -1485,20 +1874,20 @@ eat_white_space :: inline (start: *u8, max_t: *u8) -> *u8 {
     return t;
 }
 
-get_recent_token :: (tokenizer: *Tokenizer, offset: int) -> *Token {
+get_recent_token :: (tokenizer: *CSTokenizer, offset: int) -> *CSToken {
     assert(offset <= 0);
     i := tokenizer.recent_token_head + offset;
     if i < 0  i += tokenizer.recent_tokens.count;
     return *tokenizer.recent_tokens[i];
 }
 
-add_recent_token ::(tokenizer: *Tokenizer, token: Token) {
+add_recent_token ::(tokenizer: *CSTokenizer, token: CSToken) {
     tokenizer.recent_token_head = (tokenizer.recent_token_head + 1) % tokenizer.recent_tokens.count;
     tokenizer.recent_tokens[tokenizer.recent_token_head] = token;
 }
 
 
-Tokenizer :: struct {
+CSTokenizer :: struct {
     buf: string;
     max_t:   *u8;
     start_t: *u8;  // Cursor when starting parsing new token
@@ -1506,8 +1895,8 @@ Tokenizer :: struct {
 
     return_eol := false;
 
-    last_identifier_token: Token;
-    recent_tokens: [64] Token;
+    last_identifier_token: CSToken;
+    recent_tokens: [64] CSToken;
     recent_token_head := 0;
     start_of_generic_index: int;
     angle_bracket_depth := 0;
@@ -1539,8 +1928,9 @@ Tokenizer :: struct {
     }
 }
 
-Token :: struct {
+CSToken :: struct {
     start, len: s32;
+    as_string: string;
     type: Type;
 
     union {
@@ -1569,53 +1959,52 @@ Token :: struct {
         directive;
         invalid;
         jump_keyword;
-        function_like;
+        function;
         attribute;
     }
 
-    as_string: string;
     color: Code_Color;
 }
 
 
-is_keyword :: (type: Token.Type) -> bool {
+is_keyword :: (type: CSToken.Type) -> bool {
     return type == .keyword || type == .jump_keyword || type == .value_keyword || type == .modifier_keyword || type == .type_keyword;
 }
 
-is_keyword :: (token: *Token, keyword: Keyword) -> bool {
+is_keyword :: (token: *CSToken, keyword: Keyword) -> bool {
     return is_keyword(token.type) && token.keyword == keyword;
 }
 
-is_modifier :: (token: *Token, keyword: Keyword) -> bool {
+is_modifier :: (token: *CSToken, keyword: Keyword) -> bool {
     return token.type == .modifier_keyword && token.keyword == keyword;
 }
 
-is_punctuation :: (token: *Token, punctuation: Punctuation) -> bool {
+is_punctuation :: (token: *CSToken, punctuation: Punctuation) -> bool {
     return token.type == .punctuation && token.punctuation == punctuation;
 }
 
-is_operation :: (token: *Token, operation: Operation) -> bool {
+is_operation :: (token: *CSToken, operation: Operation) -> bool {
     return token.type == .operation && token.operation == operation;
 }
 
-is_directive :: (token: *Token, directive: Directive) -> bool {
+is_directive :: (token: *CSToken, directive: Directive) -> bool {
     return token.type == .directive && token.directive == directive;
 }
 
 
-expect_token :: (offset := 0) -> *Token #expand {
+expect_token :: (offset := 0) -> *CSToken #expand #no_debug {
     proc_name :: #procedure_name(#this);
 
-    token, ok := peek_token(offset);
-    if !ok  `return #run sprint("EOF in %", proc_name);
+    token := peek_token(offset);
+    if !token  `return #run sprint("EOF in %", proc_name);
     return token;
 }
 
-eat_identifier :: () -> *Token #expand {
+eat_identifier :: () -> *CSToken #expand #no_debug {
     proc_name :: #procedure_name(#this);
 
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
+    token := peek_token();
+    if !token  `return #run sprint("EOF in %", proc_name);
 
     if token.type != .identifier
         `return #run sprint("Expected identifier in %", proc_name);
@@ -1624,30 +2013,30 @@ eat_identifier :: () -> *Token #expand {
     return token;
 }
 
-eat_array_punctuation :: () -> is_array: bool #expand {
+eat_array_punctuation :: () -> is_array: bool #expand #no_debug {
     proc_name :: #procedure_name(#this);
 
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in ", proc_name);
+    token := peek_token();
+    if !token  `return #run sprint("EOF in ", proc_name);
 
     if !is_punctuation(token, .l_bracket)
         return false;
 
     while true {
         eat_token();
-        token, ok = peek_token();
-        if !ok  `return #run sprint("EOF in ", proc_name);
+        token = peek_token();
+        if !token  `return #run sprint("EOF in ", proc_name);
 
         while is_punctuation(token, .comma) {
             eat_token();
-            token, ok = peek_token();
-            if !ok  `return #run sprint("EOF in ", proc_name);
+            token = peek_token();
+            if !token  `return #run sprint("EOF in ", proc_name);
         }
 
         `eat_punctuation(.r_bracket);
 
-        token, ok := peek_token();
-        if !ok  `return #run sprint("EOF in ", proc_name);
+        token = peek_token();
+        if !token  `return #run sprint("EOF in ", proc_name);
 
         if !is_punctuation(token, .l_bracket)
             return true;
@@ -1657,26 +2046,26 @@ eat_array_punctuation :: () -> is_array: bool #expand {
 }
 
 
-eat_generic_identifier :: () -> *Token, is_generic: bool {
-    result, result_ok := peek_token();
-    if !result_ok || result.type != .identifier
+eat_generic :: (identifier : *CSToken = null, do_paint_type := false) -> *CSToken, is_generic: bool {
+    result := ifx identifier else peek_token();
+    if !result || (result.type != .identifier && result.type != .type_keyword)
         return null, false;
 
-    paint_token(.type_keyword);
+    if do_paint_type  paint_token(.type_keyword);
 
     eat_token();
-    token, ok := peek_token();
-    if !ok || token.type != .operation || token.operation != .less_than
+    token := peek_token();
+    if !token || token.type != .operation || token.operation != .less_than
         return result, false;
 
     eat_token();
 
     while true {
-        identifier := eat_generic_identifier();
+        identifier := eat_generic(do_paint_type=true);
         if !identifier  return null, false;
 
-        token, ok := peek_token();
-        if !ok  return null, false;
+        token := peek_token();
+        if !token  return null, false;
 
         if is_operation(token, .greater_than) {
             eat_token();
@@ -1691,11 +2080,11 @@ eat_generic_identifier :: () -> *Token, is_generic: bool {
     }
 }
 
-eat_punctuation :: (punctuation: Punctuation) -> *Token #expand {
+eat_punctuation :: (punctuation: Punctuation) -> *CSToken #expand #no_debug {
     proc_name :: #procedure_name(#this);
 
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
+    token := peek_token();
+    if !token  `return #run sprint("EOF in %", proc_name);
 
     if !is_punctuation(token, punctuation)
         `return #run sprint("Expected % in %", punctuation, proc_name);
@@ -1704,11 +2093,11 @@ eat_punctuation :: (punctuation: Punctuation) -> *Token #expand {
     return token;
 }
 
-eat_operation :: (operation: Operation) -> *Token #expand {
+eat_operation :: (operation: Operation) -> *CSToken #expand #no_debug {
     proc_name :: #procedure_name(#this);
 
-    token, ok := peek_token();
-    if !ok  `return #run sprint("EOF in %", proc_name);
+    token := peek_token();
+    if !token  `return #run sprint("EOF in %", proc_name);
 
     if !is_operation(token, operation)
         `return #run sprint("Expected % in %", operation, proc_name);
@@ -1903,6 +2292,7 @@ Operation :: enum u16 {
     pipe_equal;
     equal;
     equal_equal;
+    equal_greater_than;
     bang_equal;
     percent;
     percent_equal;
@@ -1975,7 +2365,7 @@ Directive :: enum u16 {
 }
 
 Keyword_Token :: struct {
-    type: Token.Type;
+    type: CSToken.Type;
     keyword: Keyword;
 }
 
@@ -1995,7 +2385,7 @@ KEYWORD_MAP :: #run -> Table(string, Keyword_Token) {
         } else if starts_with(name, "kwj") {
             table_add(*table, slice(name, 4), .{.jump_keyword, it});
         } else if starts_with(name, "kwf") {
-            table_add(*table, slice(name, 4), .{.function_like, it});
+            table_add(*table, slice(name, 4), .{.function, it});
         } else {
             table_add(*table, slice(name, 3), .{.keyword, it});
         }
@@ -2044,4 +2434,4 @@ MAX_DIRECTIVE_LENGTH :: #run -> s32 {
     return xx max;
 }
 
-#run assert(type_info(Token.Type).values.count == COLOR_MAP.count);
+#run assert(type_info(CSToken.Type).values.count == COLOR_MAP.count);

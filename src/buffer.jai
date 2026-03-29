@@ -940,6 +940,9 @@ get_canonical_path :: (_path: string) -> string {
     }
 }
 
+GetFinalPathNameByHandleA :: (hFile: HANDLE,  lpszFilePathL: *u8, cchFilePath: s32, dwFlags: s32) -> s32 #foreign kernel32;
+kernel32 :: #system_library "kernel32";
+
 find_or_create_an_empty_buffer :: () -> buffer_id: s64, created: bool {
     if workspace_scan_complete {
         // Return the first empty standalone buffer to avoid creating a million new buffers.
