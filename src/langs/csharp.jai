@@ -1,4 +1,5 @@
 CSharp :: struct {
+    filename: string;
     tokens: [..] CSToken;
     token_index: int;
 
@@ -11,7 +12,7 @@ CSharp :: struct {
     in_using_block: bool;
 }
 
-break_on_name :: "set_in_roofa";//"gunfire_fade_remainder";//"Start";
+break_on_name :: "";//"gunfire_fade_remainder";//"Start";
 break_on_index :: 0;//971;
 has_broken := false;
 
@@ -39,6 +40,7 @@ highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *CSTokenizer) {
     using context.csharp;
 
     print("%\n", frame_time);
+    filename = buffer.file.name;
 
     tokenize_csharp(buffer, tokenizer);
 
@@ -65,9 +67,9 @@ is_error :: () -> bool #expand {
 
     if `error != "" {
         if token_index < tokens.count
-            print("% @ % %\n", `error, tokens[token_index].start, tokens[token_index].as_string);
+            print("%: % @ % %\n", filename, `error, tokens[token_index].start, tokens[token_index].as_string);
         else
-            print("% (EOF)\n", `error);
+            print("%: % (EOF)\n", filename, `error);
         return true;
     }
     else {
@@ -332,6 +334,10 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
                         }
                         eat_operation(.colon);
 
+                    case .kw_default;
+                        eat_token();
+                        eat_operation(.colon);
+
                     case .kw_do;
                         eat_token();
                         token = expect_token();
@@ -388,6 +394,9 @@ parse_body :: (terminator := Punctuation.r_brace) -> error: string {
                             eat_token();
                             error := parse_body();
                             if error  return error;
+                        }
+                        else if token.type == .keyword {
+                            // Don't do anything, just let the loop go round
                         }
                         else {
                             error := parse_body(.semicolon);
@@ -851,11 +860,23 @@ parse_identifier_dot_chain :: (terminator: Punctuation, first_identifier : *CSTo
     }
 }
 
+parse_identifier_dot_chain :: () -> error: string {
+    while true {
+        eat_identifier();
+
+        token := expect_token();
+        if !is_punctuation(token, .period)
+            return "";
+        eat_token();
+    }
+
+    return "";
+}
 
 parse_attribute_tail :: () -> error: string {
     using context.csharp;
 
-    identifier := eat_identifier();
+    parse_identifier_dot_chain();
     expect_paren_or_bracket := expect_token();
 
     if expect_paren_or_bracket.type == .punctuation {
@@ -866,7 +887,7 @@ parse_attribute_tail :: () -> error: string {
         }
         else if expect_paren_or_bracket.punctuation == .l_paren {
             // [attribute(positional_parameters, name_parameter = value)]
-            error := parse_attribute_call(identifier);
+            error := parse_attribute_call();
             if error  return error;
 
             token := eat_punctuation(.r_bracket);
@@ -880,13 +901,8 @@ parse_attribute_tail :: () -> error: string {
 }
 
 
-parse_attribute_call :: (identifier : *CSToken = null) -> error: string {
+parse_attribute_call :: () -> error: string {
     using context.csharp;
-
-    if !identifier
-        identifier = eat_identifier();
-    else
-        assert(peek_token(-1).type == .identifier);
 
     eat_punctuation(.l_paren);
 
