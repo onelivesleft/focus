@@ -413,7 +413,6 @@ void main () {
         float max_brightness = 0.0;
         for (int i = 0; i < lightsource_count; i++) {
             float d = distance_point_line_segment(gl_FragCoord.xy, lightsources[i].xy, lightsource_trails[i].xy);
-            //float d = min(distance(gl_FragCoord.xy, lightsources[i].xy), distance(gl_FragCoord.xy, lightsource_trails[i].xy));
             float t = 1.0 - ((u_time - lightsources[i].z) / lightsource_fade_duration);
             float brightness = 1 - clamp(t * lightsource_intensity / d, 0, 1);
             brightness = 1 - (brightness * brightness * brightness);
@@ -466,11 +465,13 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform float jiggle;
 uniform int lightsource_count;
-uniform vec4 lightsources[256];
+uniform vec3 lightsources[256];
+uniform vec2 lightsource_trails[256];
 uniform vec4 lightsource_color;
 uniform float lightsource_intensity;
 uniform float lightsource_fade_duration;
 uniform float half_line_height;
+uniform vec2 screen_offset;
 
 out vec4 color;
 
@@ -487,6 +488,19 @@ vec4 random4(vec2 co) {
     return result;
 }
 
+vec2 lerp(vec2 a, vec2 b, float t) {
+    return vec2(mix(a.x, b.x, t), mix(a.y, b.y, t));
+}
+
+float distance_point_line_segment(vec2 point, vec2 line_start, vec2 line_end) {
+  float l2 = distance(line_start, line_end);
+  if (l2 == 0)  return distance(point, line_start);
+
+  float t = clamp(dot(point - line_start, line_end - line_start) / l2, 0, 1);
+  vec2 closest = lerp(line_start, line_end, t);
+  return distance(point, closest);
+}
+
 void main () {
     vec2 uv = gl_FragCoord.xy / u_resolution;
     vec4 perm = vec4(uv.x, uv.x * uv.y, uv.x * (1.0-jiggle), 0.0);
@@ -495,7 +509,7 @@ void main () {
     if (lightsource_count > 0) {
         float max_brightness = 0.0;
         for (int i = 0; i < lightsource_count; i++) {
-            float d = distance(lightsources[i].xy, gl_FragCoord.xy);
+            float d = distance_point_line_segment(gl_FragCoord.xy, lightsources[i].xy, lightsource_trails[i].xy);
             float t = 1.0 - ((u_time - lightsources[i].z) / lightsource_fade_duration);
             float brightness = 1 - clamp(t * lightsource_intensity / d, 0, 1);
             brightness = 1 - (brightness * brightness * brightness);

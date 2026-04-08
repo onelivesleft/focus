@@ -592,6 +592,7 @@ handle_script_action :: (action: Action_Script) -> handled: bool {
 init_fonts_and_dependent_things :: () {
     delta := font_size - default_font_size;
     font_size               = clamp(font_size,                               MIN_FONT_SIZE, MAX_FONT_SIZE);
+    font_fallback_size      = clamp(font_size + DEFAULT_FONT_FALLBACK_DELTA, MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_size            = clamp(DEFAULT_FONT_UI_SIZE            + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_big_size        = clamp(DEFAULT_FONT_UI_BIG_SIZE        + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
     font_ui_medium_size     = clamp(DEFAULT_FONT_UI_MEDIUM_SIZE     + delta, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -603,6 +604,9 @@ init_fonts_and_dependent_things :: () {
 
     font = Simp.get_font_at_size(main_font_name, main_font_data, cast(int) (font_size * dpi_scale));
     assert(font != null, "Couldn't init main text font\n");
+
+    font_fallback = Simp.get_font_at_size(fallback_font_name, fallback_font_data, cast(int) (font_fallback_size * dpi_scale));
+    assert(font_fallback != null, "Couldn't init fallback font\n");
 
     font_console = Simp.get_font_at_size(console_font_name, console_font_data, cast(int) (font_console_size * dpi_scale));
     assert(font_console != null, "Couldn't init console font\n");
@@ -653,6 +657,8 @@ init_fonts_and_dependent_things :: () {
     Simp.prepare_text(font_ui_small,    COMMON_CHARS);
     Simp.prepare_text(font_ui_big,      COMMON_CHARS);
     Simp.prepare_text(font_ui_medium,   COMMON_CHARS);
+
+    Simp.fallback_font = font_fallback;
 
     common_icons: String_Builder;
     common_icons.allocator = temp;
@@ -1069,6 +1075,7 @@ TAB_SIZE: s32 = 4;
 
 font:               *Simp.Dynamic_Font;
 font_console:       *Simp.Dynamic_Font;
+font_fallback:      *Simp.Dynamic_Font;
 font_ui:            *Simp.Dynamic_Font;
 font_ui_bold:       *Simp.Dynamic_Font;
 font_ui_big:        *Simp.Dynamic_Font;
@@ -1083,6 +1090,7 @@ font_icons_tiny:    *Simp.Dynamic_Font;
 }
 
 DEFAULT_FONT_SIZE               :: 14;
+DEFAULT_FONT_FALLBACK_DELTA     :: -4;
 DEFAULT_FONT_CONSOLE_SIZE       :: 12;
 DEFAULT_FONT_UI_SIZE            :: 15;
 DEFAULT_FONT_UI_BIG_SIZE        :: 28;
@@ -1096,6 +1104,9 @@ DEFAULT_FONT_ICONS_TINY_SIZE    :: 8;
 main_font_name := "default";
 main_font_data := #run FONT.data;
 
+fallback_font_name := "noto";
+fallback_font_data := #run FONT_FALLBACK.data;
+
 console_font_name := "console_font!!!";
 console_font_data := #run FONT_CONSOLE.data;
 
@@ -1103,6 +1114,7 @@ default_font_size       := DEFAULT_FONT_SIZE;  // can be changed in the config
 default_font_console_size := DEFAULT_FONT_CONSOLE_SIZE;
 
 font_size               := DEFAULT_FONT_SIZE;  // when changing font size, we change just this one and then derive the other ones from it
+font_fallback_size      := DEFAULT_FONT_SIZE + DEFAULT_FONT_FALLBACK_DELTA;
 font_ui_size            := DEFAULT_FONT_UI_SIZE;
 font_ui_big_size        := DEFAULT_FONT_UI_BIG_SIZE;
 font_ui_medium_size     := DEFAULT_FONT_UI_MEDIUM_SIZE;
@@ -1321,6 +1333,7 @@ FONT_CONSOLE :: #run load_font("TT2020Base-Regular.ttf");//ponderosa.regular.ttf
 FONT_UI      :: #run load_font("OpenSans-Regular.ttf");
 FONT_UI_BOLD :: #run load_font("OpenSans-SemiBold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
+FONT_FALLBACK :: #run load_font("NotoSansMono-SemiBold.ttf");
 
 MIN_FONT_SIZE :: 4;
 MAX_FONT_SIZE :: 30;  // setting a larger size has caused freetype to crash - not sure yet why.

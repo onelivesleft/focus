@@ -72,6 +72,8 @@ Code_Line :: struct {
     bold_offset : u8 = 0;
 }
 
+fallback_font: *Dynamic_Font;
+
 init_fonts :: (_page_size_x: s32 = -1, _page_size_y: s32 = -1) {
     assert(!fonts_initted);
 
@@ -901,7 +903,7 @@ copy_glyph_to_bitmap :: (face: FT_Face, data: *Glyph_Data) {
     font_line.page.dirty = true;
 }
 
-find_or_create_glyph :: (using font: *Dynamic_Font, utf32: u32) -> *Glyph_Data {
+find_or_create_glyph :: (font: *Dynamic_Font, utf32: u32) -> *Glyph_Data {
     hash_key := utf32;
 
     data, success := table_find(*font.glyph_lookup, hash_key);
@@ -910,25 +912,47 @@ find_or_create_glyph :: (using font: *Dynamic_Font, utf32: u32) -> *Glyph_Data {
     if utf32 == #char "\t" then utf32 = #char "→";  // draw tabs as arrows
     if utf32 == #char "\n" then utf32 = #char "¶";  // draw newlines as paragraph symbols
 
-    glyph_index := FT_Get_Char_Index(face, utf32);
+    glyph_index := FT_Get_Char_Index(font.face, utf32);
+    is_fallback := false;
     if !glyph_index {
-        log_error("Unable to find a glyph in font '%' for utf32 character %.\n", name, utf32);
-        glyph_index = glyph_index_for_unknown_character;
+        fallback_glyph_index, found := find_backup_glyph_index(utf32);
+        if found {
+            glyph_index = fallback_glyph_index;
+            is_fallback = true;
+        }
+        else {
+            log_error("Unable to find a glyph in font '%' for utf32 character %.\n", font.name, utf32);
+            glyph_index = font.glyph_index_for_unknown_character;
+        }
     }
     // error := FT_Load_Glyph(face, glyph_index, FT_LOAD_RENDER);
-    error := FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT);
+    read_font := ifx is_fallback then fallback_font else font;
+
+    error := FT_Load_Glyph(read_font.face, glyph_index, FT_LOAD_DEFAULT);
     assert(!error);
-    FT_Render_Glyph(face.glyph, .FT_RENDER_MODE_LCD);
+    FT_Render_Glyph(read_font.face.glyph, .FT_RENDER_MODE_LCD);
 
     data = cast(*Glyph_Data) get(*glyph_and_line_pool, size_of(Glyph_Data));
     data.utf32 = utf32;
     data.glyph_index_within_font = glyph_index;
 
-    copy_glyph_to_bitmap(face, data);
+    copy_glyph_to_bitmap(read_font.face, data);
 
-    table_add(*glyph_lookup, hash_key, data);
+    table_add(*font.glyph_lookup, hash_key, data);
 
     return data;
+}
+
+find_backup_glyph_index :: (utf32: u32) -> u32, found: bool {
+    hash_key := utf32;
+
+    glyph_index := FT_Get_Char_Index(fallback_font.face, utf32);
+    if !glyph_index {
+        log_error("Unable to find a glyph in font '%' for utf32 character %.\n", fallback_font.name, utf32);
+        return 0, false;
+    }
+
+    return glyph_index, true;
 }
 
 FT_ROUND :: inline (x: int) -> int {

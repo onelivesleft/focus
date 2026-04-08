@@ -19,6 +19,7 @@ __pycache__
 # whether it should ignore these or not (if a file is not explicitly allowed or ignored,
 # it will be read to determine if it's binary or not).
 .jai .c .cpp .h .hpp .cc .cs .txt .md .focus-* .ini .csv .log .sql .py .m .html .xml .plist .js .ts .yml .yaml .toml
+.md
 
 [ignore file extensions]
 # Files with the following extensions will not appear in the file open dialog and won't be indexed.
@@ -42,7 +43,7 @@ on_load:
     #"Locus" open_project
     #"TTS Server Browser" open_project
     if [ locus_executable? "locus_debug" contains ]
-       [ "Remedy" open_project ]
+       [ "Biplanes" open_project ]
     #        [ "GUI" open_project ]
 
 xon_editor:
@@ -122,11 +123,12 @@ grid_navigation_only_quadrants          false
 remedy_executable_path                  c:/program files/remedybg/rbg.exe
 build_on_debug_if_needed                build_debug
 save_on_debug                           true
-hide_debugger_attached_icon             false
+hide_debugger_attached_icon             true
 
-audio_volume                            2.0
-audio_building_volume                   0.7
+audio_volume                            1.0
+audio_building_volume                   0.5
 
+go_bananas false
 
 [[keymap]]
 
@@ -337,6 +339,7 @@ Ctrl-Shift-F8               build_release
 Alt-V                       build_release
 
 Ctrl-G                      go_to_line
+Ctrl-Shift-G                go_to_position
 
 Ctrl-C                      copy
 Ctrl-X                      cut
@@ -472,6 +475,7 @@ code_error:                     FF0000FF
 code_keyword:                   CFC9DBFF
 code_jump:                      E67D74FF
 code_directive:                 EDE694FF
+code_modifier:                  EDE694DF
 code_format_item:               55FFFFFF
 
 debugger_next_instruction:      F8AD34FF

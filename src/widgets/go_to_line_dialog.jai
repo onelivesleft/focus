@@ -113,8 +113,8 @@ jump_to_line :: () {
         cursor.sel = line_end;  // to make the line visible
     }
     else {
-        cursor.pos = cast(s32) line_num;
-        cursor.sel = cast(s32) line_num + 1;  // to make the line visible
+        cursor.pos = cast(s32) clamp(line_num, 0, buffer.bytes.count);
+        cursor.sel = cast(s32) clamp(line_num + 1, 0, buffer.bytes.count);  // to make the line visible
     }
     add_paste_animation(editor, get_selection(cursor));
     editor.cursor_moved = .jumped;
