@@ -11,7 +11,6 @@ CSharp :: struct {
     current_flags: CSNode.Flags;
     current_type_token_index: int;
 
-    in_using_block: bool;
     in_property: bool;
 }
 
@@ -55,7 +54,6 @@ highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *CSTokenizer) {
     root_node := array_add(*nodes);
     current_parent_node_index = 0;
     current_flags = .NONE;
-    in_using_block = true;
     in_property = false;
 
     token_index = 0;
@@ -66,7 +64,7 @@ highlight_csharp_syntax :: (using buffer: *Buffer, tokenizer: *CSTokenizer) {
 }
 
 
-check :: (value: CSReturn) -> bool {
+check :: (value: CSResult) -> bool {
     using context.csharp;
 
     if value.state == .ERROR {
@@ -83,7 +81,7 @@ check :: (value: CSReturn) -> bool {
     }
 }
 
-check_and_eat :: (value: *CSReturn) -> bool {
+check_and_eat :: (value: *CSResult) -> bool {
     if !check(value.*)  return false;
 
     if value.state == .LEFT_TERMINATOR {
@@ -98,9 +96,6 @@ lex_csharp :: () {
     using context.csharp;
 
     while true {
-        ends_using_block := true;
-        defer if ends_using_block  in_using_block = false;
-
         token := peek_token();
         if !token  break;
 
@@ -112,22 +107,17 @@ lex_csharp :: () {
             case .keyword;
                 if token.keyword == {
                     case .kw_using;
-                        ends_using_block = false;
-                        if !in_using_block {
-                            // @TODO
+                        eat_token();
+                        result := lex_using_directive_tail();
+                        if check_and_eat(*result) {
+                            paint_tokens(start_token_index, 1, .HIGHLIGHT);
+                            // Make node
+                            current_flags = .NONE;
                         }
-                        else {
-                            eat_token();
-                            result := lex_using_directive_tail();
-                            if check_and_eat(*result) {
-                                paint_tokens(start_token_index, 1, .HIGHLIGHT);
-                                // Make node
-                                current_flags = .NONE;
-                            }
-                            continue;
-                        }
+                        continue;
 
                     case .kw_class;
+                        paint_token(.MODIFIER_KEYWORD);
                         eat_token();
                         result := ifx current_flags & .RECORD then lex_record_class() else lex_class();
                         if check_and_eat(*result) {
@@ -137,6 +127,7 @@ lex_csharp :: () {
                         continue;
 
                     case .kw_struct;
+                        paint_token(.MODIFIER_KEYWORD);
                         eat_token();
                         result := lex_struct();
                         if check_and_eat(*result) {
@@ -146,6 +137,7 @@ lex_csharp :: () {
                         continue;
 
                     case .kw_enum;
+                        paint_token(.MODIFIER_KEYWORD);
                         eat_token();
                         result := lex_enum();
                         if check_and_eat(*result) {
@@ -167,8 +159,6 @@ lex_csharp :: () {
                             node.end_token_index = token_index - 1;
                             node.type = .ATTRIBUTE;
                             current_flags |= .HAS_ATTRIBUTES;
-                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
-                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
                         }
                         continue;
                 }
@@ -192,7 +182,6 @@ lex_csharp :: () {
                 eat_token();
                 result := lex_directive();
                 check_and_eat(*result);
-                ends_using_block = false;
                 continue;
         }
 
@@ -201,7 +190,7 @@ lex_csharp :: () {
 }
 
 
-lex_directive :: () -> CSReturn {
+lex_directive :: () -> CSResult {
     token := expect_token();
     while token.type != .eol {
         if token.type == .identifier
@@ -213,19 +202,20 @@ lex_directive :: () -> CSReturn {
 }
 
 
-lex_record_class :: () -> CSReturn {
+lex_record_class :: () -> CSResult {
     // @TODO
     return .{};
 }
 
 
-lex_struct :: lex_class;
+lex_class :: #bake_arguments lex_class_or_struct(class_or_struct=.CLASS);
+lex_struct :: #bake_arguments lex_class_or_struct(class_or_struct=.STRUCT);
 
-lex_class :: () -> CSReturn {
+lex_class_or_struct :: ($class_or_struct: enum {CLASS; STRUCT;}) -> CSResult {
     using context.csharp;
 
     identifier, is_generic := eat_generic(paint_as_type=true);
-    if !identifier  return .{.ERROR, "Expected identifier in lex_class"};
+    if !identifier  return .{.ERROR, "Expected identifier in lex_class_or_struct"};
 
     token := expect_token();
     if is_operation(token, .colon) {
@@ -243,6 +233,7 @@ lex_class :: () -> CSReturn {
 
     while is_generic && is_keyword(token, .kw_where) {
         eat_token();
+        maybe_convert_keyword_to_identifier();
         eat_identifier();
         eat_operation(.colon);
 
@@ -315,9 +306,18 @@ lex_class :: () -> CSReturn {
 
             case .type_keyword;
                 current_type_token_index = token_index;
-                eat_generic(accept_type=true, paint_as_type=true);
-                result := lex_declaration();
-                check_and_eat(*result);
+                identifier, is_generic := eat_generic(accept_type=true, paint_as_type=true);
+                maybe_eat_nullable(identifier);
+                token = expect_token();
+                if is_punctuation(token, .l_paren) {
+                    eat_token();
+                    result := lex_function_declaration(is_generic, current_flags & .DELEGATE != 0);
+                    check_and_eat(*result);
+                }
+                else {
+                    result := lex_declaration();
+                    check_and_eat(*result);
+                }
                 current_flags = .NONE;
                 continue;
 
@@ -337,8 +337,6 @@ lex_class :: () -> CSReturn {
                             node.end_token_index = token_index - 1;
                             node.type = .ATTRIBUTE;
                             current_flags |= .HAS_ATTRIBUTES;
-                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
-                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
                         }
                         continue;
                 }
@@ -351,7 +349,7 @@ lex_class :: () -> CSReturn {
 }
 
 
-lex_enum :: () -> CSReturn {
+lex_enum :: () -> CSResult {
     using context.csharp;
 
     identifier, is_generic := eat_generic(paint_as_type=true);
@@ -411,12 +409,24 @@ terminators_for_mode :: (mode: Scope_Mode) -> Punctuation, Punctuation {
 }
 
 
-lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 : Punctuation = 65535) -> CSReturn {
+lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 : Punctuation = 65535) -> CSResult {
     // lex_body should *always* return .ERROR or .LEFT_TERMINATOR!!!
 
     using context.csharp;
 
     current_flags = .NONE;
+
+    if mode == .STATEMENT {
+        token := expect_token();
+        if token.type == .keyword {
+            result := lex_keyword(mode, token);
+            if result.state == .ATE_TERMINATOR {
+                token_index -= 1;
+                result.state = .LEFT_TERMINATOR;
+            }
+            return result;
+        }
+    }
 
     while true {
         start_token_index := token_index;
@@ -438,6 +448,7 @@ lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 :
             case .type_keyword;
                 current_type_token_index = token_index;
                 eat_token();
+                maybe_eat_nullable(*tokens[current_type_token_index]);
                 result := lex_declaration();
                 if !check(result)  return result;
                 assert(result.state == .LEFT_TERMINATOR);
@@ -474,188 +485,8 @@ lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 :
 
             case .keyword;
                 current_flags = .NONE;
-                if token.keyword == {
-                    case .kw_case;
-                        eat_token();
-                        token := expect_token();
-                        if token.type == .identifier || token.type == .type_keyword
-                            eat_generic();
-                        else
-                            eat_token();
-                        eat_operation(.colon);
-
-                    case .kw_default;
-                        eat_token();
-                        eat_operation(.colon);
-
-                    case .kw_do;
-                        eat_token();
-                        token = expect_token();
-                        if is_punctuation(token, .l_brace) {
-                            eat_token();
-                            result := lex_body(.BRACED);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            eat_punctuation(.r_brace);
-                        }
-                        else {
-                            eat_token();
-                            result := lex_body(.STATEMENT, .semicolon);
-                            if !check(result)  return result;
-                            if mode == .STATEMENT {
-                                assert(result.state == .LEFT_TERMINATOR);
-                                return result;
-                            }
-                            eat_token();
-                        }
-                        token = expect_token();
-                        if is_keyword(token, .kw_while) {
-                            eat_token();
-                            token = expect_token();
-                            if is_punctuation(token, .l_paren) {
-                                eat_token();
-                                result := lex_expression(.r_paren);
-                                if !check(result)  return result;
-                                if mode == .STATEMENT {
-                                    assert(result.state == .LEFT_TERMINATOR);
-                                    return result;
-                                }
-                                eat_token();
-                            }
-                            else {
-                                return .{.ERROR, "Expected ( in do while"};
-                            }
-                        }
-
-                    case .kw_if; #through;
-                    case .kw_switch; #through;
-                    case .kw_while;
-                        eat_token();
-                        eat_punctuation(.l_paren);
-                        result := lex_expression(.r_paren);
-                        if !check_and_eat(*result)
-                            return result;
-                        token = expect_token();
-                        if is_punctuation(token, .l_brace) {
-                            eat_token();
-                            result = lex_body(.BRACED);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            eat_punctuation(.r_brace);
-                        }
-                        else {
-                            result = lex_body(.STATEMENT, .semicolon);
-                            if !check(result)  return result;
-                            if mode == .STATEMENT {
-                                assert(result.state == .LEFT_TERMINATOR);
-                                return result;
-                            }
-                            eat_token();
-                        }
-
-                    case .kw_else;
-                        eat_token();
-                        token = expect_token();
-                        if is_punctuation(token, .l_brace) {
-                            eat_token();
-                            result := lex_body(.BRACED);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            eat_punctuation(.r_brace);
-                        }
-                        else if token.type == .keyword {
-                            // Don't do anything, just let the loop go round
-                        }
-                        else {
-                            result := lex_body(.STATEMENT, .semicolon);
-                            if !check(result)  return result;
-                            if mode == .STATEMENT {
-                                assert(result.state == .LEFT_TERMINATOR);
-                                return result;
-                            }
-                            eat_token();
-                        }
-
-                    case .kw_for;
-                        eat_token();
-                        eat_punctuation(.l_paren);
-
-                        eat_generic(accept_type=true, paint_as_type=true);
-                        while true {
-                            result := lex_assignment();
-                            if !check(result)  return result;
-                            token = expect_token();
-                            eat_token();
-                            if is_punctuation(token, .semicolon)
-                                break;
-                            assert(is_punctuation(token, .comma), "lex_assigment should only error or stop on .semicolon or .comma");
-                        }
-
-                        result := lex_expression(.semicolon);
-                        if !check_and_eat(*result)  return result;
-
-                        while true {
-                            result = lex_body(.FOR_STATEMENT, .r_paren, .comma);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            token = expect_token();
-                            eat_token();
-                            if is_punctuation(token, .r_paren)
-                                break;
-                            assert(is_punctuation(token, .comma), "lex_body should only error or stop on .r_paren or .comma");
-                        }
-
-                        token = expect_token();
-                        if is_punctuation(token, .l_brace) {
-                            eat_token();
-                            result = lex_body(.BRACED);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            eat_punctuation(.r_brace);
-                        }
-                        else {
-                            result = lex_body(.STATEMENT, .semicolon);
-                            if !check(result)  return result;
-                            if mode == .STATEMENT {
-                                assert(result.state == .LEFT_TERMINATOR);
-                                return result;
-                            }
-                            eat_token();
-                        }
-
-                    case .kw_foreach;
-                        eat_token();
-                        eat_punctuation(.l_paren);
-                        eat_generic(accept_type=true, paint_as_type=true);
-                        eat_identifier();
-                        eat_keyword(.kwm_in);
-                        paint_last_token(.keyword);
-
-                        result := lex_expression(.r_paren);
-                        if !check(result)  return result;
-
-                        eat_token();
-                        token = expect_token();
-                        if is_punctuation(token, .l_brace) {
-                            eat_token();
-                            result = lex_body(.BRACED);
-                            if !check(result)  return result;
-                            assert(result.state == .LEFT_TERMINATOR);
-                            eat_punctuation(.r_brace);
-                        }
-                        else {
-                            result = lex_body(.STATEMENT, .semicolon);
-                            if !check(result)  return result;
-                            if mode == .STATEMENT {
-                                assert(result.state == .LEFT_TERMINATOR);
-                                return result;
-                            }
-                            eat_token();
-                        }
-
-                    case;
-                        eat_token();
-                }
+                result := lex_keyword(mode, token);
+                if !check_and_eat(*result)  return result;
 
             case .value_keyword; #through;
             case .string_literal; #through;
@@ -700,8 +531,6 @@ lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 :
                             node.end_token_index = token_index - 1;
                             node.type = .ATTRIBUTE;
                             current_flags |= .HAS_ATTRIBUTES;
-                            paint_tokens(node.start_token_index, 2, .attribute, .HIGHLIGHT);
-                            paint_tokens(node.end_token_index, 1, .attribute, .HIGHLIGHT);
                         }
                         eat_token();
 
@@ -713,6 +542,214 @@ lex_body :: (mode: Scope_Mode, terminator1 := Punctuation.r_brace, terminator2 :
 
     return .{};
 }
+
+
+lex_keyword :: (mode: Scope_Mode, token: *CSToken) -> CSResult {
+    assert(token.type == .keyword);
+
+    if token.keyword == {
+        case .kw_case;
+            eat_token();
+            token := expect_token();
+            if token.type == .identifier || token.type == .type_keyword
+                eat_generic();
+            else
+                eat_token();
+            eat_operation(.colon);
+
+        case .kw_default;
+            eat_token();
+            eat_operation(.colon);
+
+        case .kw_do;
+            eat_token();
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                result := lex_body(.BRACED);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                eat_punctuation(.r_brace);
+            }
+            else {
+                eat_token();
+                result := lex_body(.STATEMENT, .semicolon);
+                if !check(result)  return result;
+                if mode == .STATEMENT {
+                    assert(result.state == .LEFT_TERMINATOR);
+                    return result;
+                }
+                eat_token();
+            }
+            token = expect_token();
+            if is_keyword(token, .kw_while) {
+                eat_token();
+                token = expect_token();
+                if is_punctuation(token, .l_paren) {
+                    eat_token();
+                    result := lex_expression(.r_paren);
+                    if !check(result)  return result;
+                    if mode == .STATEMENT {
+                        assert(result.state == .LEFT_TERMINATOR);
+                        return result;
+                    }
+                    eat_token();
+                }
+                else {
+                    return .{.ERROR, "Expected ( in do while"};
+                }
+            }
+
+        case .kw_if; #through;
+        case .kw_switch; #through;
+        case .kw_while;
+            eat_token();
+            eat_punctuation(.l_paren);
+            result := lex_expression(.r_paren);
+            if !check_and_eat(*result)
+                return result;
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                result = lex_body(.BRACED);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                eat_punctuation(.r_brace);
+            }
+            else {
+                result = lex_body(.STATEMENT, .semicolon);
+                if !check(result)  return result;
+                if mode == .STATEMENT {
+                    assert(result.state == .LEFT_TERMINATOR);
+                    return result;
+                }
+                eat_token();
+            }
+
+        case .kw_else;
+            eat_token();
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                result := lex_body(.BRACED);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                eat_punctuation(.r_brace);
+            }
+            else if token.type == .keyword {
+                // Don't do anything, just let the loop go round
+            }
+            else {
+                result := lex_body(.STATEMENT, .semicolon);
+                if !check(result)  return result;
+                if mode == .STATEMENT {
+                    assert(result.state == .LEFT_TERMINATOR);
+                    return result;
+                }
+                eat_token();
+            }
+
+        case .kw_for;
+            eat_token();
+            eat_punctuation(.l_paren);
+
+            eat_generic(accept_type=true, paint_as_type=true);
+            while true {
+                result := lex_assignment();
+                if !check(result)  return result;
+                token = expect_token();
+                eat_token();
+                if is_punctuation(token, .semicolon)
+                    break;
+                assert(is_punctuation(token, .comma), "lex_assigment should only error or stop on .semicolon or .comma");
+            }
+
+            result := lex_expression(.semicolon);
+            if !check_and_eat(*result)  return result;
+
+            while true {
+                result = lex_body(.FOR_STATEMENT, .r_paren, .comma);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                token = expect_token();
+                eat_token();
+                if is_punctuation(token, .r_paren)
+                    break;
+                assert(is_punctuation(token, .comma), "lex_body should only error or stop on .r_paren or .comma");
+            }
+
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                result = lex_body(.BRACED);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                eat_punctuation(.r_brace);
+            }
+            else {
+                result = lex_body(.STATEMENT, .semicolon);
+                if !check(result)  return result;
+                if mode == .STATEMENT {
+                    assert(result.state == .LEFT_TERMINATOR);
+                    return result;
+                }
+                eat_token();
+            }
+
+        case .kw_foreach;
+            eat_token();
+            eat_punctuation(.l_paren);
+            eat_generic(accept_type=true, paint_as_type=true);
+            eat_identifier();
+            eat_keyword(.kwm_in);
+            paint_last_token(.keyword);
+
+            result := lex_expression(.r_paren);
+            if !check(result)  return result;
+
+            eat_token();
+            token = expect_token();
+            if is_punctuation(token, .l_brace) {
+                eat_token();
+                result = lex_body(.BRACED);
+                if !check(result)  return result;
+                assert(result.state == .LEFT_TERMINATOR);
+                eat_punctuation(.r_brace);
+            }
+            else {
+                result = lex_body(.STATEMENT, .semicolon);
+                if !check(result)  return result;
+                if mode == .STATEMENT {
+                    assert(result.state == .LEFT_TERMINATOR);
+                    return result;
+                }
+                eat_token();
+            }
+
+        case;
+            eat_token();
+    }
+
+    return .{.ATE_TERMINATOR, ""};
+}
+
+
+maybe_eat_nullable :: (type_token_to_mark: *CSToken) {
+    token := peek_token();
+    if token && is_operation(token, .question) {
+        // @TODO mark token as nullable
+        eat_token();
+    }
+}
+
+
+maybe_convert_keyword_to_identifier :: (token : *CSToken = null) {
+    // Maybe the user has used a keyword as a name (which is potentially legal), so just treat it as such
+    if !token  token = peek_token();
+    if token && (is_keyword(token.type) || token.type == .function)
+        paint_token(token, .identifier);
+}
+
 
 maybe_eat_array_index :: () -> existed: bool #expand #no_debug {
     token := `expect_token();
@@ -735,7 +772,8 @@ maybe_eat_array_index :: () -> existed: bool #expand #no_debug {
     return existed;
 }
 
-lex_body_lhs_identifier :: (identifier: *CSToken, terminator1: Punctuation, terminator2: Punctuation, first_token_index := -1) -> CSReturn {
+
+lex_body_lhs_identifier :: (identifier: *CSToken, terminator1: Punctuation, terminator2: Punctuation, first_token_index := -1) -> CSResult {
     using context.csharp;
 
     if first_token_index < 0  first_token_index = token_index - 1;
@@ -759,6 +797,8 @@ lex_body_lhs_identifier :: (identifier: *CSToken, terminator1: Punctuation, term
         identifier = eat_generic();
         return lex_body_lhs_identifier(identifier, terminator1, terminator2, first_token_index);
     }
+
+    maybe_convert_keyword_to_identifier(token);
 
     if token.type == .identifier {
         paint_identifiers(first_token_index, token_index, .type_keyword);
@@ -792,7 +832,7 @@ lex_body_lhs_identifier :: (identifier: *CSToken, terminator1: Punctuation, term
 }
 
 
-lex_expression_identifier :: (name: *CSToken) -> CSReturn {
+lex_expression_identifier :: (name: *CSToken) -> CSResult {
     using context.csharp;
 
     if !name  return .{.ERROR, "Expected identifier"};
@@ -820,7 +860,7 @@ lex_expression_identifier :: (name: *CSToken) -> CSReturn {
 }
 
 
-lex_declaration :: () -> CSReturn {
+lex_declaration :: () -> CSResult {
     using context.csharp;
 
     if eat_array_punctuation()  current_flags |= .IS_ARRAY;
@@ -840,12 +880,12 @@ lex_declaration :: () -> CSReturn {
             eat_token();
         }
         else {
-            // Maybe the user has used a keyword as a name (which is legal), so just treat it as such
-            paint_token(.identifier);
+            maybe_convert_keyword_to_identifier();
             name_identifier, is_generic = eat_generic();
         }
     }
     else {
+        maybe_convert_keyword_to_identifier();
         name_identifier, is_generic = eat_generic();
     }
 
@@ -863,7 +903,7 @@ lex_declaration :: () -> CSReturn {
                 case .l_paren;
                     if name_identifier  paint_token(name_identifier, .function);
                     eat_token();
-                    return lex_function_declaration(is_generic, current_flags & .DELEGATE != 0);
+                    return lex_function_declaration(is_generic, current_flags & (.ABSTRACT|.DELEGATE|.EXTERN) != 0);
 
                 case .l_brace;
                     eat_token();
@@ -888,13 +928,13 @@ lex_declaration :: () -> CSReturn {
 }
 
 
-lex_function_declaration :: (is_generic: bool, is_delegate: bool) -> CSReturn {
+lex_function_declaration :: (is_generic: bool, is_stub: bool) -> CSResult {
     using context.csharp;
 
     result := lex_function_declaration_tail(is_generic);
     if !check(result)  return result;
 
-    if !is_delegate {
+    if !is_stub {
         eat_punctuation(.l_brace);
         return lex_body(.BRACED);
     }
@@ -907,7 +947,7 @@ lex_function_declaration :: (is_generic: bool, is_delegate: bool) -> CSReturn {
 }
 
 
-lex_function_declaration_tail :: (is_generic: bool) -> CSReturn {
+lex_function_declaration_tail :: (is_generic: bool) -> CSResult {
     using context.csharp;
 
     assert(is_punctuation(peek_token(-1), .l_paren));
@@ -931,6 +971,7 @@ lex_function_declaration_tail :: (is_generic: bool) -> CSReturn {
         maybe_eat_array_index();
 
         token = expect_token();
+        maybe_convert_keyword_to_identifier(token);
         if token.type != .identifier
             return .{.ERROR, "Expected parameter name in function signature"};
 
@@ -969,6 +1010,7 @@ lex_function_declaration_tail :: (is_generic: bool) -> CSReturn {
         eat_identifier();
         eat_operation(.colon);
 
+        maybe_convert_keyword_to_identifier();
         eat_generic(accept_type=true, paint_as_type=true);
         token = expect_token();
         while is_punctuation(token, .comma) {
@@ -984,7 +1026,7 @@ lex_function_declaration_tail :: (is_generic: bool) -> CSReturn {
 }
 
 
-lex_function_call_tail :: () -> CSReturn {
+lex_function_call_tail :: () -> CSResult {
     using context.csharp;
 
     assert(is_punctuation(peek_token(-1), .l_paren));
@@ -992,7 +1034,16 @@ lex_function_call_tail :: () -> CSReturn {
     while true {
         token := expect_token();
         while token.type == .modifier_keyword {
-            eat_token();
+            if token.keyword == .kwm_new {
+                paint_token(token, .function);
+                eat_token();
+                result := lex_expression_new();
+                if !check(result)  return result;
+                assert(result.state == .ATE_TERMINATOR);
+            }
+            else {
+                eat_token();
+            }
             token = expect_token();
         }
 
@@ -1025,7 +1076,7 @@ lex_function_call_tail :: () -> CSReturn {
 }
 
 
-lex_property :: () -> CSReturn {
+lex_property :: () -> CSResult {
     using context.csharp;
 
     in_property = true;
@@ -1060,7 +1111,7 @@ lex_property :: () -> CSReturn {
 }
 
 
-lex_using_directive_tail :: () -> CSReturn {
+lex_using_directive_tail :: () -> CSResult {
     using context.csharp;
 
     token := expect_token();
@@ -1070,58 +1121,24 @@ lex_using_directive_tail :: () -> CSReturn {
         token = expect_token();
     }
 
-    if token.type != .identifier  return .{.ERROR, "using should be followed by identifier"};
+    result := lex_identifier_dot_chain();
+    if !check(result)  return result;
 
-    identifier := token;
-
-    eat_token();
     token = expect_token();
-
-    if token.type == .punctuation  if token.punctuation == {
-        case .semicolon;
-            eat_token();
-            return .{.ATE_TERMINATOR, ""};
-
-        case .period;
-            eat_token();
-            result := lex_identifier_dot_chain(.semicolon, identifier);
-            if !check_and_eat(*result)  return result;
-            return .{.ATE_TERMINATOR, ""};
-    }
-
     if is_operation(token, .equal) {
         eat_token();
-        result := lex_identifier_dot_chain(.semicolon);
-        if !check_and_eat(*result)  return result;
-        return .{.ATE_TERMINATOR, ""};
+        result := lex_identifier_dot_chain();
+        if !check(*result)  return result;
+
     }
 
-    return .{.ERROR, "Expected . or = or ; in using"};
+    return .{.ATE_TERMINATOR, ""};
 }
 
 
-lex_identifier_dot_chain :: (terminator: Punctuation, first_identifier : *CSToken = null) -> CSReturn {
+lex_identifier_dot_chain :: () -> CSResult {
     while true {
-        eat_identifier();
-
-        token := expect_token();
-        if token.type == .punctuation {
-            if token.punctuation == terminator {
-                return .{.LEFT_TERMINATOR, ""};
-            }
-            else if token.punctuation == .period {
-                eat_token();
-                continue;
-            }
-        }
-
-        return .{.ERROR, "Unexpected token in identifier dot chain"};
-    }
-}
-
-
-lex_identifier_dot_chain :: () -> CSReturn {
-    while true {
+        maybe_convert_keyword_to_identifier();
         eat_identifier();
 
         token := expect_token();
@@ -1134,10 +1151,21 @@ lex_identifier_dot_chain :: () -> CSReturn {
 }
 
 
-lex_attribute_tail :: () -> CSReturn {
+lex_attribute_tail :: () -> CSResult {
     using context.csharp;
 
+    first_token := expect_token();
+    second_token := expect_token(+1);
+    if is_operation(second_token, .colon) && (first_token.type == .identifier || is_keyword(first_token, .kwj_return) || is_keyword(first_token, .kwm_event)) {
+        // Attribute target specifier
+        paint_token(.attribute, .HIGHLIGHT);
+        eat_token();
+        eat_token();
+    }
+
+    token := expect_token();
     lex_identifier_dot_chain();
+    paint_identifier(token, .attribute, .HIGHLIGHT);
     expect_paren_or_bracket := expect_token();
 
     if expect_paren_or_bracket.type == .punctuation {
@@ -1162,7 +1190,7 @@ lex_attribute_tail :: () -> CSReturn {
 }
 
 
-lex_attribute_call :: () -> CSReturn {
+lex_attribute_call :: () -> CSResult {
     using context.csharp;
 
     eat_punctuation(.l_paren);
@@ -1198,7 +1226,7 @@ lex_attribute_call :: () -> CSReturn {
 }
 
 
-lex_attribute_assignment :: (identifier : *CSToken = null) -> CSReturn {
+lex_attribute_assignment :: (identifier : *CSToken = null) -> CSResult {
     if !identifier {
         identifier = eat_identifier();
         eat_operation(.equal);
@@ -1212,14 +1240,14 @@ lex_attribute_assignment :: (identifier : *CSToken = null) -> CSReturn {
 }
 
 
-lex_assignment :: () -> CSReturn {
+lex_assignment :: () -> CSResult {
     eat_identifier();
     eat_operation(.equal);
     return lex_assignment_rhs(.semicolon, .comma);
 }
 
 
-maybe_eat_cast :: () -> CSReturn {
+maybe_eat_cast :: () -> CSResult {
     assert(is_punctuation(expect_token(), .l_paren));
     eat_token();
     eat_generic(); // Don't paint here, as we might not be a cast and don't want to change anything until we're sure we are.
@@ -1228,7 +1256,7 @@ maybe_eat_cast :: () -> CSReturn {
 }
 
 
-lex_assignment_rhs :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> CSReturn {
+lex_assignment_rhs :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> CSResult {
     using context.csharp;
 
     token := expect_token();
@@ -1253,7 +1281,7 @@ lex_assignment_rhs :: (terminator1: Punctuation, terminator2 : Punctuation = cas
 }
 
 
-lex_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> CSReturn {
+lex_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Punctuation) 65535) -> CSResult {
     using context.csharp;
 
     token := expect_token();
@@ -1299,7 +1327,9 @@ lex_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Pu
                         return .{.ERROR, "Unexpected ; in expression"};
 
                     case .comma;
-                        return .{.ERROR, "Unexpected , in expression"};
+                        //return .{.ERROR, "Unexpected , in expression"};
+                        // Could be in a lambda declaration, so allow it
+                        eat_token();
 
                     case .backslash;
                         return .{.ERROR, "Unexpected \\ in expression"};
@@ -1323,7 +1353,7 @@ lex_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Pu
                     case .kw_typeof;
                         eat_token();
 
-                    case; // Maybe the user has used a keyword as a name (which is legal), so just treat it as such
+                    case; // Maybe the user has used a keyword as a name (which is potentially legal), so just treat it as such
                         paint_token(.identifier);
                         name := eat_generic();
                         result := lex_expression_identifier(name);
@@ -1380,7 +1410,7 @@ lex_expression :: (terminator1: Punctuation, terminator2 : Punctuation = cast(Pu
 }
 
 
-lex_expression_new :: () -> CSReturn {
+lex_expression_new :: () -> CSResult {
     token := expect_token();
     is_array := false;
     if token.type == .identifier || token.type == .type_keyword {
@@ -1431,7 +1461,7 @@ lex_expression_new :: () -> CSReturn {
 }
 
 
-lex_initializer_body :: () -> CSReturn {
+lex_initializer_body :: () -> CSResult {
     using context.csharp;
 
     while true {
@@ -1475,7 +1505,7 @@ lex_initializer_body :: () -> CSReturn {
 }
 
 
-lex_initializer_assignment :: (identifier : *CSToken = null) -> CSReturn {
+lex_initializer_assignment :: (identifier : *CSToken = null) -> CSResult {
     if !identifier {
         identifier = eat_identifier();
         eat_operation(.equal);
@@ -1542,34 +1572,29 @@ paint_tokens :: (start_index: int, count: int, color: Code_Color) {
     }
 }
 
-
-paint_last_token :: (type: CSToken.Type) {
-    inline paint_last_token(type, COLOR_MAP[type]);
-}
-
-paint_last_token :: (type: CSToken.Type, color: Code_Color) {
-    using context.csharp;
-    token := *tokens[token_index - 1];
+paint_token :: (token: *CSToken, type: CSToken.Type, color: Code_Color) {
     token.type = type;
     token.color = color;
 }
 
-paint_last_token :: (color: Code_Color) {
-    using context.csharp;
-    token := *tokens[token_index - 1];
+paint_token :: (token: *CSToken, type: CSToken.Type) {
+    inline paint_token(token, type, COLOR_MAP[type]);
+}
+
+paint_token :: (token: *CSToken, color: Code_Color) {
     token.color = color;
 }
 
-
-paint_token :: (type: CSToken.Type) {
-    inline paint_token(type, COLOR_MAP[type]);
-}
 
 paint_token :: (type: CSToken.Type, color: Code_Color) {
     using context.csharp;
     token := *tokens[token_index];
     token.type = type;
     token.color = color;
+}
+
+paint_token :: (type: CSToken.Type) {
+    inline paint_token(type, COLOR_MAP[type]);
 }
 
 paint_token :: (color: Code_Color) {
@@ -1579,16 +1604,20 @@ paint_token :: (color: Code_Color) {
 }
 
 
-paint_token :: (token: *CSToken, type: CSToken.Type) {
-    inline paint_token(token, COLOR_MAP[type]);
-}
-
-paint_token :: (token: *CSToken, type: CSToken.Type, color: Code_Color) {
+paint_last_token :: (type: CSToken.Type, color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index - 1];
     token.type = type;
     token.color = color;
 }
 
-paint_token :: (token: *CSToken, color: Code_Color) {
+paint_last_token :: (type: CSToken.Type) {
+    inline paint_last_token(type, COLOR_MAP[type]);
+}
+
+paint_last_token :: (color: Code_Color) {
+    using context.csharp;
+    token := *tokens[token_index - 1];
     token.color = color;
 }
 
@@ -2451,7 +2480,7 @@ add_recent_token ::(tokenizer: *CSTokenizer, token: CSToken) {
 }
 
 
-CSReturn :: struct {
+CSResult :: struct {
     state : enum {
         ATE_TERMINATOR;
         LEFT_TERMINATOR;
@@ -2732,6 +2761,7 @@ eat_generic :: (accept_type := false, paint_as_type := false) -> *CSToken, is_ge
     if !identifier  return null, false;
 
     if paint_as_type  paint_identifier(identifier, .type_keyword);
+    maybe_eat_nullable(identifier);
 
     token := peek_token();
     if !token || !is_operation(token, .less_than)
