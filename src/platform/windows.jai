@@ -343,7 +343,170 @@ platform_show_cursor :: (show: bool) {
     }
 }
 
+
+single_instance_pipe_name: *u16;
+single_instance_mutex_name: *u16;
+single_instance_mutex: HANDLE;
+single_instance_pipe: HANDLE;
+single_instance_mode : enum { NONE; CLIENT; SERVER; } = .NONE;
+single_instance_buffer: [] u8;
+single_instance_buffer_size : u32 : 2048;
+
+Single_Instance_Message : enum u8 {
+    FILENAME;
+    LINE;
+    COLUMN;
+}
+
+
+platform_handle_single_instance :: (name: string, name_index: int, command_line_arguments: [] string) {
+    assert(name != "");
+    single_instance_mutex_name = utf8_to_wide_new(tprint("Global\\onelivesleft.focus.%", name));
+    single_instance_pipe_name = utf8_to_wide_new(tprint("\\\\.\\pipe\\onelivesleft.focus.%", name));
+
+    single_instance_mutex = CreateMutexW(null, 1, single_instance_mutex_name);
+    if !single_instance_mutex {
+        error := GetLastError();
+        log_error("Failed to create or get mutex for single-instance mode.\n%\n", error);
+        exit(1);
+    }
+
+    if GetLastError() == ERROR_ALREADY_EXISTS {
+        // Failed to create the mutex, so we are a client; send the requested file+position to the server and exit.
+        // In single-instance client mode, the only command line arguments accepted are a single filename,
+        // an optionl line number, an optional column number, (and of course the `-single <name>`)
+
+        single_instance_pipe = CreateFileW(single_instance_pipe_name, GENERIC_WRITE, 0, null, OPEN_EXISTING, 0, null);
+        if single_instance_pipe == INVALID_HANDLE_VALUE {
+            error := GetLastError();
+            log_error("Failed to create pipe for single-instance client mode.\n%\n", error);
+            exit(2);
+        }
+
+        path := "";
+        coords := Coords.{-1, -1};
+
+        for command_line_arguments {
+            if it_index == 0 || it_index == name_index || it_index == name_index - 1
+                continue;
+
+            if is_digit(it[0]) {
+                if coords.line == -1
+                    coords.line = cast(s32) parse_int(*it) - 1;
+                else if coords.col == -1
+                    coords.col = cast(s32) parse_int(*it) - 1;
+            }
+            else if !path {
+                path = it;
+            }
+        }
+
+        message: *u8;
+        message_size: u32;
+
+        if path {
+            message_size = size_of(Coords) + size_of(s32) + cast(u32)path.count + 1;
+            message = alloc(message_size);
+
+            head := cast(*s32) message;
+            head.* = coords.line;
+            head += 1;
+            head.* = coords.col;
+            head += 1;
+            head.* = cast(s32) path.count;
+            head += 1;
+            s := cast(*u8) head;
+            memcpy(s, path.data, path.count);
+        }
+        else {
+            message_size = size_of(Coords) + size_of(u32);
+            message = alloc(message_size);
+        }
+
+        bytes_written: u32;
+        if !WriteFile(single_instance_pipe, message, message_size, *bytes_written, null) {
+            error := GetLastError();
+            log_error("Failed to write to pipe in single-instance client mode.\n%\n", error);
+            exit(3);
+        }
+
+        exit(0);
+    }
+    else {
+        // No error creating the mutex, so we are the server.
+        single_instance_pipe = CreateNamedPipeW(single_instance_pipe_name, PIPE_ACCESS_INBOUND|FILE_FLAG_OVERLAPPED, PIPE_TYPE_MESSAGE|PIPE_READMODE_MESSAGE|PIPE_WAIT, 1, 0, single_instance_buffer_size, 0, null);
+        if single_instance_pipe == INVALID_HANDLE_VALUE {
+            error := GetLastError();
+            log_error("Failed to create pipe for single-instance server mode.\n%\n", error);
+            exit(4);
+        }
+
+        single_instance_mode = .SERVER;
+        single_instance_buffer = NewArray(single_instance_buffer_size, u8);
+        print("Started in single-instance mode with name [%]\n", name);
+    }
+}
+
+
+platform_update_for_single_instance :: () {
+    if single_instance_mode == .NONE  return;
+    assert(single_instance_mode == .SERVER);
+
+    count: u32;
+    success := PeekNamedPipe(single_instance_pipe, null, 0, null, *count, null) != 0;
+    if !success || !count  return;
+
+    defer {
+        DisconnectNamedPipe(single_instance_pipe);
+        CloseHandle(single_instance_pipe);
+        single_instance_pipe = CreateNamedPipeW(single_instance_pipe_name, PIPE_ACCESS_INBOUND|FILE_FLAG_OVERLAPPED, PIPE_TYPE_MESSAGE|PIPE_READMODE_MESSAGE|PIPE_WAIT, 1, 0, single_instance_buffer_size, 0, null);
+        if single_instance_pipe == INVALID_HANDLE_VALUE {
+            error := GetLastError();
+            log_error("Failed to recreate pipe for single-instance server mode.\n%\n", error);
+        }
+    }
+
+    success = ReadFile(single_instance_pipe, single_instance_buffer.data, single_instance_buffer_size, *count, null) != 0;
+    if !success || !count { // if peek count was > 0 then this one should be too!
+        error := GetLastError();
+        log_error("Error reading single-instance pipe: %\n", error);
+        return;
+    }
+
+    path : string = ---;
+    coords: Coords;
+
+    head := single_instance_buffer.data;
+    coords.line = (cast(*s32)head).*;
+    head += 4;
+    coords.col = (cast(*s32)head).*;
+    head += 4;
+    character_count : s32 = (cast(*s32)head).*;
+    head += 4;
+
+    if character_count {
+        path.data = head;
+        path.count = character_count;
+        head += character_count;
+        print("single-instance-request: line=% col=% path=%\n", coords.line, coords.col, path);
+        jump_to_file_coord(path, coords);
+    }
+    else {
+        print("single-instance-request: no path\n");
+    }
+
+    single_instance_buffer.data = head;
+    focus_focus();
+}
+
+
+platform_focus_focus :: () {
+    SetForegroundWindow(window);
+}
+
+
 #scope_file
+
 
 cursor_shown : s32 = 1;
 fonts_dir: string;
@@ -397,6 +560,14 @@ GetLogicalDriveStringsW :: (nBufferLength: DWORD, lpBuffer: *u16) -> DWORD #fore
 ShellExecuteW :: (hwnd: HWND, lpOperation: *u16, lpFile: *u16, lpParameters: *u16, lpDirectory: *u16, nShowCmd: int) -> s32 #foreign shell32;
 SHGetKnownFolderPath :: (nFolder: REFGUID, dwFlags: DWORD, hToken: HANDLE, pszPath: **u16) -> HRESULT #foreign shell32;
 CoTaskMemFree :: (pv: *void) #foreign ole32;
+SetForegroundWindow :: (hwnd: HWND) -> s32 #foreign user32;
+CreateMutexW :: (lpMutexAttributes: *void, bInitialOwner: BOOL, lpName: *u16) -> HANDLE #foreign kernel32;
+DisconnectNamedPipe :: (pipeHandle: HANDLE) #foreign kernel32;
+
+PIPE_TYPE_MESSAGE :: 4;
+PIPE_READMODE_MESSAGE :: 2;
+PIPE_WAIT :: 0;
+
 
 #import "Windows";
 #import "Windows_Registry";

@@ -695,13 +695,6 @@ handle_breakpoint_removed_event :: (breakpoint_removed_event: Remedy.Event_Break
     }
 }
 
-user32 :: #system_library "user32";
-SetForegroundWindow :: (hwnd: HWND) -> s32 #foreign user32;
-
-focus_focus :: () {
-    SetForegroundWindow(window);
-}
-
 
 next_uid: u32 = 0;
 get_uid :: inline () -> u32 {

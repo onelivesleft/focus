@@ -44,6 +44,19 @@ main :: () {
         // context.allocator = OA.get_overwriting_allocator();
     }
 
+    // Check command line arguments for single instance up here, because we want to abort into client launch
+    // mode as early as possible if an instance is already running.
+    args := get_command_line_arguments();
+    next_arg_is_name := false;
+    for args {
+        if next_arg_is_name {
+            platform_handle_single_instance(it, it_index, args);
+            break;
+        }
+
+        next_arg_is_name = it == "-single";
+    }
+
     // Set these up directly because we want to guarantee they're gtg before any other system starts
     console_allocator = create_heap(context.default_allocator);
     user_message_allocator = create_heap(context.default_allocator);
@@ -52,7 +65,6 @@ main :: () {
 
     cpu_info = get_cpu_info();
 
-    args := get_command_line_arguments();
     executable_name = args[0];
     is_standalone_debug_build := contains(executable_name, "locus_debug");
     is_standalone_debug_build = false; // nocheckin
@@ -215,6 +227,7 @@ main :: () {
         }
 
         update_attached_debugger();
+        platform_update_for_single_instance();
         ficus_update();
 
         Input.update_window_events();
@@ -905,6 +918,12 @@ set_zen_mode :: (enabled: bool) {
 refresh_zen_mode :: () {
     update_colors_for_zen_mode(1.0);
 } @OnConfigRefresh
+
+
+focus_focus :: () {
+    platform_focus_focus();
+}
+
 
 toggle_collapse_leading_whitespace :: () {
     config.settings.collapse_leading_whitespace = !config.settings.collapse_leading_whitespace;
